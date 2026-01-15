@@ -6,8 +6,7 @@ SECRET_KEY = "django-insecure-change-this"
 
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 # ======================
 # APPLICATIONS
 # ======================
@@ -19,11 +18,10 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 
-    "corsheaders",        # ✅ REQUIRED
+    "corsheaders",
     "rest_framework",
     "accounts",
 ]
-
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
@@ -42,19 +40,25 @@ REST_FRAMEWORK = {
     ],
 }
 
-
-
-
-# ======================
-# CORS
-# ======================
-CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SECURE = False
+SESSION_COOKIE_HTTPONLY = True
+
+CSRF_COOKIE_SECURE = False
+CSRF_COOKIE_HTTPONLY = False
+
 
 # ======================
 # URLS / TEMPLATES
