@@ -1,0 +1,13 @@
+.details-container {
+  max-width: 800px;
+  margin: auto;
+  padding: 40px;
+}
+
+.primary {
+  padding: 12px 24px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+}

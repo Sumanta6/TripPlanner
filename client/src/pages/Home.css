@@ -1,0 +1,143 @@
+.home {
+  font-family: "Segoe UI", sans-serif;
+}
+
+/* HERO */
+.hero {
+  min-height: 90vh;
+  background: linear-gradient(135deg, #0f172a, #020617);
+  color: white;
+  text-align: center;
+  padding: 120px 20px 80px;
+}
+
+.hero-badge {
+  background: rgba(255,255,255,0.15);
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+}
+
+.hero-title {
+  font-size: 56px;
+  margin: 25px 0;
+  line-height: 1.2;
+}
+
+.hero-title span {
+  color: #38bdf8;
+}
+
+.hero-subtitle {
+  max-width: 650px;
+  margin: auto;
+  opacity: 0.85;
+  font-size: 17px;
+}
+
+.hero-actions {
+  margin-top: 35px;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+
+/* BUTTONS */
+.btn-primary {
+  background: linear-gradient(135deg, #38bdf8, #0284c7);
+  color: white;
+  padding: 14px 28px;
+  border-radius: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-secondary {
+  border: 2px solid #38bdf8;
+  background: transparent;
+  color: #38bdf8;
+  padding: 14px 28px;
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.btn-primary.large {
+  font-size: 18px;
+}
+
+/* STATS */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  padding: 60px 40px;
+  text-align: center;
+  background: #f8fafc;
+}
+
+.stat h3 {
+  font-size: 32px;
+  color: #0284c7;
+}
+
+.stat p {
+  font-size: 14px;
+  color: #475569;
+}
+
+/* FEATURES */
+.features {
+  padding: 80px 40px;
+  text-align: center;
+}
+
+.feature-grid {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 28px;
+}
+
+.feature-card {
+  background: white;
+  padding: 30px;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+}
+
+.feature-card h4 {
+  margin-top: 12px;
+}
+
+/* DESTINATIONS */
+.destinations {
+  background: #f1f5f9;
+  padding: 80px 40px;
+  text-align: center;
+}
+
+.destination-grid {
+  margin-top: 30px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 22px;
+}
+
+.destination-card {
+  background: white;
+  padding: 30px;
+  border-radius: 16px;
+}
+
+/* CTA */
+.cta {
+  background: linear-gradient(135deg, #0284c7, #0ea5e9);
+  color: white;
+  text-align: center;
+  padding: 90px 40px;
+}
+
+.cta p {
+  margin: 15px 0 25px;
+  opacity: 0.9;
+}

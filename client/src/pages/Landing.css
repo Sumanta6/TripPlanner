@@ -1,0 +1,157 @@
+/* ===== RESET ===== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Inter", sans-serif;
+}
+
+/* ===== HERO ===== */
+.landing-hero {
+  height: 100vh;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  transition: background-image 1s ease-in-out;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* Brand */
+.brand {
+  position: absolute;
+  top: 30px;
+  left: 50px;
+  color: white;
+  font-size: 26px;
+  font-weight: 800;
+  z-index: 2;
+}
+
+/* Hero Content */
+.hero-content {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  text-align: center;
+  padding: 0 20px;
+}
+
+.hero-content h1 {
+  font-size: 64px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.hero-content h1 span {
+  color: #fbbf24;
+}
+
+.hero-content p {
+  margin-top: 20px;
+  max-width: 520px;
+  font-size: 18px;
+  color: #e5e7eb;
+}
+
+.hero-content button {
+  margin-top: 40px;
+  padding: 16px 42px;
+  background: #f59e0b;
+  border: none;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Scroll hint */
+.scroll-hint {
+  position: absolute;
+  bottom: 30px;
+  width: 100%;
+  text-align: center;
+  color: #e5e7eb;
+  z-index: 2;
+}
+
+/* ===== STORY SECTION ===== */
+.story-section {
+  padding: 100px 80px;
+  text-align: center;
+  background: #ffffff;
+}
+
+.story-section h2 {
+  font-size: 40px;
+  margin-bottom: 20px;
+}
+
+.story-section p {
+  max-width: 650px;
+  margin: 0 auto 50px;
+  font-size: 16px;
+  color: #6b7280;
+}
+
+.story-image {
+  width: 100%;
+  max-width: 900px;
+  margin: 40px auto 70px;
+  display: block;
+  border-radius: 20px;
+}
+
+/* Cards */
+.story-cards {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+}
+
+.card {
+  width: 260px;
+  padding: 30px;
+  background: #f9fafb;
+  border-radius: 16px;
+}
+
+.card h4 {
+  margin-bottom: 10px;
+  font-size: 18px;
+}
+
+/* ===== FINAL CTA ===== */
+.final-cta {
+  padding: 100px 20px;
+  background: #111827;
+  color: white;
+  text-align: center;
+}
+
+.final-cta h2 {
+  font-size: 36px;
+  margin-bottom: 30px;
+}
+
+.final-cta button {
+  padding: 16px 40px;
+  background: #f59e0b;
+  border: none;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}

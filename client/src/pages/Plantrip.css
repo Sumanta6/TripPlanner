@@ -1,0 +1,139 @@
+.plantrip-hero {
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
+  padding: 80px 20px;
+  text-align: center;
+  color: white;
+}
+
+.plantrip-hero h1 {
+  font-size: 42px;
+  margin-bottom: 10px;
+}
+
+.plantrip-hero p {
+  font-size: 18px;
+  opacity: 0.9;
+}
+
+.plantrip-steps {
+  display: flex;
+  max-width: 900px;
+  margin: 40px auto;
+}
+
+.step {
+  flex: 1;
+  text-align: center;
+  padding: 12px;
+  border-bottom: 3px solid #ddd;
+  color: #888;
+}
+
+.step.active {
+  border-color: #007bff;
+  color: #007bff;
+  font-weight: 600;
+}
+
+.plantrip-container {
+  max-width: 900px;
+  margin: auto;
+  padding: 0 20px 60px;
+}
+
+.card {
+  background: white;
+  padding: 30px;
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+}
+
+.card h2 {
+  margin-bottom: 20px;
+}
+
+.card label {
+  display: block;
+  margin-top: 15px;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.card input,
+.card select {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.highlight {
+  margin-top: 10px;
+  color: #007bff;
+  font-weight: 600;
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.chip {
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid #ccc;
+  background: #f5f5f5;
+  cursor: pointer;
+}
+
+.chip.selected {
+  background: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.primary {
+  width: 100%;
+  padding: 14px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  margin-top: 25px;
+  cursor: pointer;
+}
+
+.primary:disabled {
+  opacity: 0.5;
+}
+
+.secondary {
+  padding: 14px;
+  background: #eee;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.btn-row {
+  display: flex;
+  gap: 15px;
+  margin-top: 25px;
+}
+
+.summary {
+  list-style: none;
+  padding: 0;
+}
+
+.summary li {
+  margin-bottom: 10px;
+}

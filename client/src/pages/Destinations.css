@@ -1,0 +1,40 @@
+.dest-hero {
+  padding: 60px;
+  text-align: center;
+}
+
+.search-input {
+  padding: 12px;
+  width: 300px;
+}
+
+.dest-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  padding: 40px;
+}
+
+.dest-card {
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.img-placeholder {
+  height: 180px;
+  background: #eee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-body {
+  padding: 16px;
+}
+
+.price {
+  color: #007bff;
+  font-weight: bold;
+}
