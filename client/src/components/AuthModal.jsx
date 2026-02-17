@@ -6,16 +6,13 @@ import "./AuthModal.css";
 
 export default function AuthModal({ close, setIsLoggedIn }) {
   const navigate = useNavigate();
+  const googleBtnRef = useRef(null);
 
   const [isLogin, setIsLogin] = useState(true);
   const [showForgot, setShowForgot] = useState(false);
-
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
   const [rememberMe, setRememberMe] = useState(false);
-
-  const googleBtnRef = useRef(null);
 
   const [formData, setFormData] = useState({
     username: "",
@@ -53,17 +50,13 @@ export default function AuthModal({ close, setIsLoggedIn }) {
         return;
       }
 
-      // ✅ Google login = always remembered
       localStorage.setItem("isLoggedIn", "true");
       localStorage.setItem("userEmail", "Google User");
       sessionStorage.removeItem("isLoggedIn");
 
       setIsLoggedIn(true);
-
-      setTimeout(() => {
-        close();
-        navigate("/home");
-      }, 0);
+      close();
+      navigate("/home");
     } catch {
       setError("Google login failed");
     }
@@ -73,21 +66,23 @@ export default function AuthModal({ close, setIsLoggedIn }) {
   // GOOGLE BUTTON RENDER
   // =========================
   useEffect(() => {
-    if (isLogin && !showForgot && window.google && googleBtnRef.current) {
-      googleBtnRef.current.innerHTML = "";
+    if (!isLogin || showForgot) return;
+    if (!window.google || !googleBtnRef.current) return;
 
-      window.google.accounts.id.initialize({
-        client_id:
-          "849889490000-4r9i22c5m8d0nbf24sosgd37t82h4a4b.apps.googleusercontent.com",
-        callback: handleGoogleResponse,
-      });
+    googleBtnRef.current.innerHTML = "";
 
-      window.google.accounts.id.renderButton(googleBtnRef.current, {
-        theme: "outline",
-        size: "large",
-        width: 300,
-      });
-    }
+    window.google.accounts.id.initialize({
+      client_id:
+        "849889490000-4r9i22c5m8d0nbf24sosgd37t82h4a4b.apps.googleusercontent.com",
+      callback: handleGoogleResponse,
+      ux_mode: "popup", // ✅ REQUIRED FIX (NO UI CHANGE)
+    });
+
+    window.google.accounts.id.renderButton(googleBtnRef.current, {
+      theme: "outline",
+      size: "large",
+      width: 300,
+    });
   }, [isLogin, showForgot]);
 
   // =========================
@@ -133,9 +128,6 @@ export default function AuthModal({ close, setIsLoggedIn }) {
         return;
       }
 
-      // =========================
-      // MANUAL LOGIN SUCCESS
-      // =========================
       if (isLogin) {
         if (rememberMe) {
           localStorage.setItem("isLoggedIn", "true");
@@ -146,13 +138,9 @@ export default function AuthModal({ close, setIsLoggedIn }) {
         }
 
         localStorage.setItem("userEmail", formData.email);
-
         setIsLoggedIn(true);
-
-        setTimeout(() => {
-          close();
-          navigate("/home");
-        }, 0);
+        close();
+        navigate("/home");
       } else {
         alert("Registration successful. Please log in.");
         setIsLogin(true);
@@ -169,7 +157,7 @@ export default function AuthModal({ close, setIsLoggedIn }) {
   };
 
   // =========================
-  // UI
+  // UI (UNCHANGED)
   // =========================
   return (
     <div className="auth-overlay">

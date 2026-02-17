@@ -65,36 +65,51 @@ export default function Landing({ setIsLoggedIn }) {
         <div className="scroll-hint">Scroll ↓</div>
       </div>
 
-      {/* ===== SCROLL SECTION ===== */}
-      <section className="story-section">
-        <h2>Travel without the stress</h2>
+      {/* ===== FEATURES SECTION ===== */}
+      <section className="features-section">
+        <div className="features-header">
+          <h2>Everything you need for the perfect trip</h2>
+          <p>
+            Intelligent travel planning powered by AI, designed to make
+            your Nepal adventure unforgettable.
+          </p>
+        </div>
 
-        <p>
-          From mountains to heritage cities, TripPlanner creates
-          personalized itineraries so you can focus on the journey,
-          not the planning.
-        </p>
-
-        <img
-          src="/images/bhaktapur.jpg"
-          alt="Bhaktapur"
-          className="story-image"
-        />
-
-        <div className="story-cards">
-          <div className="card">
-            <h4>Smart Itineraries</h4>
-            <p>Day-by-day AI generated travel plans</p>
+        <div className="features-grid">
+          <div className="feature-card">
+            <div className="feature-icon">🗺️</div>
+            <h3>Smart Itineraries</h3>
+            <p>AI-powered day-by-day travel plans tailored to your preferences, time, and budget</p>
           </div>
 
-          <div className="card">
-            <h4>Local Budgets</h4>
-            <p>Optimized for real travel costs</p>
+          <div className="feature-card">
+            <div className="feature-icon">💰</div>
+            <h3>Local Budgets</h3>
+            <p>Real-time cost optimization with accurate local pricing and budget tracking</p>
           </div>
 
-          <div className="card">
-            <h4>One Platform</h4>
-            <p>Plan, save, and manage trips easily</p>
+          <div className="feature-card">
+            <div className="feature-icon">📱</div>
+            <h3>One Platform</h3>
+            <p>Plan, save, edit, and manage all your trips in one beautiful interface</p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon">🏔️</div>
+            <h3>Local Expertise</h3>
+            <p>Discover hidden gems and authentic experiences across Nepal</p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon">⚡</div>
+            <h3>Instant Planning</h3>
+            <p>Generate complete itineraries in seconds, customize to perfection</p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon">🔄</div>
+            <h3>Flexible Updates</h3>
+            <p>Easily modify your plans on the go with real-time adjustments</p>
           </div>
         </div>
       </section>
