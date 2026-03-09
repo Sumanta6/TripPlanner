@@ -1,64 +1,24 @@
 import { useState, useEffect } from "react";
-import { useLocation, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import "./Home.css";
 
-// Import images (or reference them if in public folder)
+// Reusing same images as landing page
 const HERO_IMAGES = [
-  "/images/hero-everest.jpg", // Everest
-  "/images/hero-pokhara.jpg", // Pokhara Lake
-  "/images/hero-stupa.jpg", // Boudhanath Stupa
+  "/images/hero-everest.jpg",
+  "/images/hero-pokhara.jpg",
+  "/images/hero-stupa.jpg",
 ];
 
 const DESTINATIONS = [
-  {
-    id: 1,
-    name: "Mount Everest",
-    image: "/images/dest-everest.jpg",
-    desc: "Experience the world's highest peak and surrounding valleys.",
-  },
-  {
-    id: 2,
-    name: "Pokhara",
-    image: "/images/hero-pokhara.jpg", // Reusing high qual image
-    desc: "Serene lakes, mountain views, and adventure activities.",
-  },
-  {
-    id: 3,
-    name: "Kathmandu Valley",
-    image: "/images/dest-temple.jpg", // Ancient temple
-    desc: "Ancient temples, rich culture, and vibrant markets.",
-  },
-  {
-    id: 4,
-    name: "Chitwan National Park",
-    image: "/images/dest-adventure.jpg", // Nature/Wildlife representative
-    desc: "Wildlife safari and rare rhinoceros sightings.",
-  },
-  {
-    id: 5,
-    name: "Lumbini",
-    image: "/images/hero-stupa.jpg", // Spiritual representation
-    desc: "Birthplace of Buddha and spiritual heritage.",
-  },
-  {
-    id: 6,
-    name: "Bhaktapur",
-    image: "/images/dest-culture.jpg", // Cultural scene
-    desc: "Preserved medieval city with exquisite architecture.",
-  },
+  { id: 1, name: "Mount Everest", image: "/images/hero-everest.jpg", desc: "Experience the world's highest peak." },
+  { id: 2, name: "Pokhara", image: "/images/hero-pokhara.jpg", desc: "Serene lakes and mountain views." },
+  { id: 3, name: "Kathmandu", image: "/images/dest-temple.jpg", desc: "Ancient temples and rich culture." },
 ];
 
 function Home() {
   const [user, setUser] = useState(null);
   const [trips, setTrips] = useState([]);
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
-  const [searchData, setSearchData] = useState({
-    destination: "",
-    activity: "",
-    endDate: "",
-  });
-
-  const location = useLocation();
 
   // Load user data if logged in
   useEffect(() => {
@@ -82,163 +42,145 @@ function Home() {
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentHeroIndex((prev) => (prev + 1) % HERO_IMAGES.length);
-    }, 5000); // Change every 5 seconds
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    console.log("Search:", searchData);
-  };
-
   return (
-    <div className="home">
-      {/* HERO SECTION WITH CAROUSEL */}
-      <section className="hero-nepal">
+    <div className="home-page lp-root">
+
+      {/* HERO SECTION */}
+      <section className="home-hero lp-hero">
         {HERO_IMAGES.map((img, index) => (
           <div
             key={index}
-            className={`hero-bg ${index === currentHeroIndex ? "active" : ""}`}
-            style={{ backgroundImage: `url(${img})` }}
+            className={`lp-hero-bg ${index === currentHeroIndex ? "fade-in" : "fade-out"}`}
+            style={{ backgroundImage: `url(${img})`, transform: index === currentHeroIndex ? 'scale(1.05)' : 'scale(1)', transition: 'opacity 1s ease, transform 6s ease' }}
           />
         ))}
-
-        <div className="hero-overlay"></div>
-
-        <div className="hero-content">
-          <h1 className="hero-title">Explore Nepal</h1>
-          <p className="hero-tagline">
-            Discover the Beauty, Culture, and Adventure of the Himalayas
+        <div className="lp-hero-overlay"></div>
+        <div className="lp-hero-content pt-nav">
+          <div className="lp-hero-badge">Welcome to Nepal</div>
+          <h1 className="lp-hero-title">
+            Your Journey <br />
+            <span className="hero-highlight">Starts Here</span>
+          </h1>
+          <p className="lp-hero-sub">
+            Discover the beauty, culture, and adventure of the Himalayas with expertly crafted itineraries.
           </p>
-
-          {/* HERO CTA ONLY (No Search Bar) */}
-          <div className="hero-ctas" style={{ marginTop: "40px" }}>
-            <Link to="/plan-trip" className="btn-primary-hero" style={{ padding: "18px 48px", fontSize: "20px" }}>
-              Start Planning
+          <div className="lp-hero-actions">
+            <Link to="/plantrip" className="lp-btn-primary">
+              Plan Your Trip <span className="btn-icon">→</span>
+            </Link>
+            <Link to="/destinations" className="lp-btn-outline">
+              Explore Destinations
             </Link>
           </div>
-
         </div>
       </section>
 
+      {/* DASHBOARD SECTION (IF LOGGED IN) */}
+      {user && (
+        <section className="home-dashboard lp-section">
+          <div className="dashboard-header text-center mb-12">
+            <span className="lp-section-badge">Dashboard</span>
+            <h2 className="lp-section-title">Welcome back, {user.username}! 👋</h2>
+            <p className="lp-section-sub mx-auto">Here are your planned adventures.</p>
+          </div>
+
+          {trips.length === 0 ? (
+            <div className="dashboard-empty-card">
+              <div className="empty-icon">🗺️</div>
+              <h3>No trips planned yet</h3>
+              <p>Your next adventure is waiting to be created.</p>
+              <Link to="/plantrip" className="lp-btn-primary mt-6">
+                Start Planning <span className="btn-icon">→</span>
+              </Link>
+            </div>
+          ) : (
+            <div className="dashboard-trips-grid">
+              {trips.map((trip) => (
+                <div key={trip.id} className="dash-trip-card">
+                  <div className="dash-trip-header">
+                    <span className="trip-status">Upcoming</span>
+                    <h4 className="trip-route">{trip.from_city} → {trip.to_city}</h4>
+                  </div>
+                  <div className="dash-trip-body">
+                    <div className="trip-date-row">
+                      <span>📅</span> {trip.start_date} – {trip.end_date}
+                    </div>
+                  </div>
+                  <div className="dash-trip-footer">
+                    <button className="view-trip-link">View Itinerary →</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* TOP DESTINATIONS SECTION */}
-      <section className="top-destinations">
-        <h2 className="section-title">Top Destinations</h2>
-        <p className="section-subtitle">
-          Explore the most stunning places Nepal has to offer
-        </p>
-        <div className="destinations-grid">
+      <section className="home-destinations lp-section">
+        <div className="text-center">
+          <span className="lp-section-badge">Popular Choices</span>
+          <h2 className="lp-section-title">Top Destinations</h2>
+          <p className="lp-section-sub mx-auto">Explore the most stunning places Nepal has to offer.</p>
+        </div>
+
+        <div className="lp-dest-grid">
           {DESTINATIONS.map((dest) => (
-            <div key={dest.id} className="destination-card">
-              <div
-                className="card-image"
-                style={{ backgroundImage: `url(${dest.image})` }}
-              ></div>
-              <div className="card-content">
+            <Link to={`/destinations/${dest.id}`} key={dest.id} className="lp-dest-card">
+              <div className="dest-img-wrap">
+                <div className="dest-img" style={{ backgroundImage: `url(${dest.image})` }}></div>
+                <div className="dest-img-overlay">
+                  <span className="dest-tagline">Must Visit</span>
+                </div>
+              </div>
+              <div className="dest-card-body">
                 <h3>{dest.name}</h3>
                 <p>{dest.desc}</p>
+                <button className="dest-explore-btn">
+                  Explore <span className="btn-icon">→</span>
+                </button>
               </div>
-            </div>
+            </Link>
           ))}
+        </div>
+        <div className="text-center" style={{ marginTop: '48px' }}>
+          <Link to="/destinations" className="lp-btn-outline-dark">
+            View All Destinations
+          </Link>
         </div>
       </section>
 
       {/* TAILORED ITINERARIES SECTION */}
-      <section className="itineraries">
-        <h2 className="section-title">Tailored Itineraries</h2>
-        <p className="section-subtitle">
-          Personalized trip plans designed just for you
-        </p>
-        <div className="itineraries-grid">
-          <div className="itinerary-card">
-            <div className="card-icon">🤖</div>
+      <section className="home-features lp-section bg-light">
+        <div className="text-center">
+          <span className="lp-section-badge">Why Choose Us</span>
+          <h2 className="lp-section-title">Tailored Itineraries</h2>
+          <p className="lp-section-sub mx-auto">Personalized trip plans designed just for you.</p>
+        </div>
+
+        <div className="lp-features-grid mt-12">
+          <div className="lp-feature-card">
+            <div className="feat-icon-wrap bg-teal-light text-teal">🤖</div>
             <h3>AI Planning</h3>
-            <p>
-              Smart algorithms create perfect itineraries based on your
-              preferences.
-            </p>
+            <p>Smart algorithms create perfect itineraries based on your preferences.</p>
           </div>
-          <div className="itinerary-card">
-            <div className="card-icon">📅</div>
+          <div className="lp-feature-card">
+            <div className="feat-icon-wrap bg-purple-light text-purple">📅</div>
             <h3>Custom Schedules</h3>
             <p>Flexible day-by-day plans that fit your timeline and pace.</p>
           </div>
-          <div className="itinerary-card">
-            <div className="card-icon">💰</div>
+          <div className="lp-feature-card">
+            <div className="feat-icon-wrap bg-gold-light text-gold">💰</div>
             <h3>Budget Optimization</h3>
             <p>Get the most value from your trip with smart cost management.</p>
           </div>
-          <div className="itinerary-card">
-            <div className="card-icon">🔄</div>
-            <h3>Flexible Options</h3>
-            <p>Easy modifications and real-time adjustments to your plans.</p>
-          </div>
         </div>
       </section>
 
-      {/* EXPERT GUIDES SECTION */}
-      <section className="expert-guides">
-        <h2 className="section-title">Expert Guides</h2>
-        <p className="section-subtitle">
-          Travel with confidence backed by local expertise
-        </p>
-        <div className="guides-grid">
-          <div className="guide-card">
-            <div className="card-icon">👨‍🏫</div>
-            <h3>Local Experts</h3>
-            <p>Experienced guides with deep knowledge of Nepal's culture.</p>
-          </div>
-          <div className="guide-card">
-            <div className="card-icon">📞</div>
-            <h3>24/7 Support</h3>
-            <p>Round-the-clock assistance for any questions or concerns.</p>
-          </div>
-          <div className="guide-card">
-            <div className="card-icon">📚</div>
-            <h3>Cultural Insights</h3>
-            <p>Learn authentic stories and traditions from locals.</p>
-          </div>
-          <div className="guide-card">
-            <div className="card-icon">🛡️</div>
-            <h3>Safety First</h3>
-            <p>
-              Your wellbeing is our priority with comprehensive safety measures.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* LOGGED-IN USER DASHBOARD */}
-      {user && (
-        <section className="dashboard">
-          <div className="dashboard-container">
-            <h2>Welcome back, {user.username}! 👋</h2>
-            <h3>Your Planned Trips</h3>
-            {trips.length === 0 ? (
-              <div className="no-trips">
-                <p>No trips planned yet.</p>
-                <Link to="/plan-trip" className="btn-primary">
-                  Plan Your First Trip
-                </Link>
-              </div>
-            ) : (
-              <div className="trips-grid">
-                {trips.map((trip) => (
-                  <div key={trip.id} className="trip-card">
-                    <div className="trip-header">
-                      <strong>{trip.from_city}</strong> →{" "}
-                      <strong>{trip.to_city}</strong>
-                    </div>
-                    <p className="trip-dates">
-                      {trip.start_date} – {trip.end_date}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>TripPlanner · Choose Your Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      background: radial-gradient(circle at top, #0f172a 0, #020617 55%);
+      color: #f9fafb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+
+    .shell {
+      width: 100%;
+      max-width: 960px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      background: #22c55e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .brand-title {
+      font-weight: 600;
+      font-size: 18px;
+    }
+
+    .brand-subtitle {
+      font-size: 13px;
+      color: #9ca3af;
+    }
+
+    .header-right {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    .hero {
+      text-align: left;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+    }
+
+    .hero p {
+      margin: 0;
+      font-size: 14px;
+      color: #cbd5f5;
+      max-width: 520px;
+    }
+
+    .cards {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .card {
+      flex: 1 1 280px;
+      max-width: 420px;
+      background: rgba(15, 23, 42, 0.96);
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      padding: 18px 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(30, 64, 175, 0.35);
+      font-size: 20px;
+    }
+
+    .card h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .card p {
+      margin: 2px 0 10px;
+      font-size: 14px;
+      color: #e5e7eb;
+    }
+
+    .card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .btn {
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-primary {
+      background: #22c55e;
+      color: #022c22;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: #e5e7eb;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+    }
+
+    .hint {
+      margin-top: 18px;
+      font-size: 12px;
+      color: #64748b;
+      text-align: left;
+    }
+
+    @media (max-width: 720px) {
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+
+      .hero h1 {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="shell">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-icon">✈️</div>
+        <div>
+          <div class="brand-title">TripPlanner</div>
+          <div class="brand-subtitle">
+            Choose how you want to use the platform
+          </div>
+        </div>
+      </div>
+      <div class="header-right">
+        Travelers and guides share the same ecosystem.
+      </div>
+    </header>
+
+    <section class="hero">
+      <h1>Welcome to TripPlanner</h1>
+      <p>
+        Plan unforgettable trips as a traveler or manage journeys as a
+        professional guide — all from one platform.
+      </p>
+    </section>
+
+    <section class="cards">
+      <!-- Traveler card -->
+      <article class="card">
+        <div class="card-header">
+          <div class="card-icon">🧳</div>
+          <div>
+            <h2>Travel as User</h2>
+          </div>
+        </div>
+        <p>
+          Plan trips, generate AI-powered itineraries, and explore curated
+          destinations tailored to your time, budget, and interests.
+        </p>
+        <div class="card-actions">
+          <!-- Assumes the traveler app is served under /client -->
+          <a class="btn btn-primary" href="client/?mode=login">
+            Login as Traveler
+          </a>
+          <a class="btn btn-secondary" href="client/?mode=register">
+            Register as Traveler
+          </a>
+        </div>
+      </article>
+
+      <!-- Guide card -->
+      <article class="card">
+        <div class="card-header">
+          <div class="card-icon">🧭</div>
+          <div>
+            <h2>Work as Guide</h2>
+          </div>
+        </div>
+        <p>
+          Manage travelers, review itineraries, and support trips with your
+          local expertise using the dedicated guide workspace.
+        </p>
+        <div class="card-actions">
+          <!-- Guide app runs on port 3001 in development -->
+          <a class="btn btn-primary" href="http://localhost:3001/login">
+            Login as Guide
+          </a>
+          <a class="btn btn-secondary" href="http://localhost:3001/register">
+            Register as Guide
+          </a>
+        </div>
+      </article>
+    </section>
+
+    <p class="hint">
+      Development: Traveler app → <code>npm start</code> in <code>/client</code> (port 3000) ·
+      Guide app → <code>npm start</code> in <code>/guide</code> (port 3001)
+    </p>
+  </div>
+</body>
+
+</html>

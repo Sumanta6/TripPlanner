@@ -73,8 +73,18 @@ export default function Navbar({ isLoggedIn, setIsLoggedIn, userEmail }) {
           <div className="nav-actions">
             {!isLoggedIn ? (
               <div className="auth-buttons">
-                <button className="btn-login" onClick={() => setShowAuth(true)}>Log In</button>
-                <button className="btn-signup" onClick={() => setShowAuth(true)}>Sign Up</button>
+                <button
+                  className="btn-login"
+                  onClick={() => setShowAuth(true)}
+                >
+                  Log In
+                </button>
+                <button
+                  className="btn-signup"
+                  onClick={() => setShowAuth(true)}
+                >
+                  Sign Up
+                </button>
               </div>
             ) : (
               <div className="profile-wrapper">
@@ -184,6 +194,7 @@ export default function Navbar({ isLoggedIn, setIsLoggedIn, userEmail }) {
         <AuthModal
           close={() => setShowAuth(false)}
           setIsLoggedIn={setIsLoggedIn}
+          mode="login"
         />
       )}
     </>

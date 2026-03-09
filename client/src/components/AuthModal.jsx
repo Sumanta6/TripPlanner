@@ -4,11 +4,11 @@ import { useNavigate } from "react-router-dom";
 import ForgotPassword from "../pages/ForgotPassword";
 import "./AuthModal.css";
 
-export default function AuthModal({ close, setIsLoggedIn }) {
+export default function AuthModal({ close, setIsLoggedIn, mode = "login" }) {
   const navigate = useNavigate();
   const googleBtnRef = useRef(null);
 
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(mode !== "register");
   const [showForgot, setShowForgot] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -22,6 +22,11 @@ export default function AuthModal({ close, setIsLoggedIn }) {
   });
 
   const [error, setError] = useState("");
+
+  // keep internal mode in sync when the parent changes it
+  useEffect(() => {
+    setIsLogin(mode !== "register");
+  }, [mode]);
 
   // =========================
   // INPUT CHANGE
@@ -45,13 +50,21 @@ export default function AuthModal({ close, setIsLoggedIn }) {
         }
       );
 
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        setError("Google login failed");
+        setError(data.error || "Google login failed");
+        return;
+      }
+
+      const role = data.role || data.user?.role;
+      if (role && role !== "traveler") {
+        setError("This account belongs to a guide. Please use the Guide portal.");
         return;
       }
 
       localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("userEmail", "Google User");
+      localStorage.setItem("userEmail", data.email || "Google User");
       sessionStorage.removeItem("isLoggedIn");
 
       setIsLoggedIn(true);
@@ -73,7 +86,7 @@ export default function AuthModal({ close, setIsLoggedIn }) {
 
     window.google.accounts.id.initialize({
       client_id:
-        "849889490000-4r9i22c5m8d0nbf24sosgd37t82h4a4b.apps.googleusercontent.com",
+        "320492427698-7se212gnd06b14a41a3jsca1sqiv4pn7.apps.googleusercontent.com",
       callback: handleGoogleResponse,
       ux_mode: "popup", // ✅ REQUIRED FIX (NO UI CHANGE)
     });
@@ -103,15 +116,15 @@ export default function AuthModal({ close, setIsLoggedIn }) {
 
     const body = isLogin
       ? {
-          email: formData.email,
-          password: formData.password,
-          remember_me: rememberMe,
-        }
+        email: formData.email,
+        password: formData.password,
+        remember_me: rememberMe,
+      }
       : {
-          username: formData.username,
-          email: formData.email,
-          password: formData.password,
-        };
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
+      };
 
     try {
       const res = await fetch(url, {
@@ -121,10 +134,16 @@ export default function AuthModal({ close, setIsLoggedIn }) {
         body: JSON.stringify(body),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         setError(data.error || "Invalid credentials");
+        return;
+      }
+
+      const role = data.role || data.user?.role;
+      if (isLogin && role && role !== "traveler") {
+        setError("This account belongs to a guide. Please use the Guide portal.");
         return;
       }
 

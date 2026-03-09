@@ -85,7 +85,10 @@ function Register() {
               onChange={handleChange}
               required
             />
-            <span onClick={() => setShowPassword(!showPassword)}>
+            <span
+              className="toggle-password"
+              onClick={() => setShowPassword(!showPassword)}
+            >
               {showPassword ? <FaEyeSlash /> : <FaEye />}
             </span>
           </div>
@@ -99,12 +102,12 @@ function Register() {
             required
           />
 
-          <button type="submit" disabled={loading}>
+          <button type="submit" disabled={loading} className="login-btn">
             {loading ? "Creating..." : "Create Account"}
           </button>
         </form>
 
-        <p className="switch">
+        <p className="login-footer">
           Already have an account? <Link to="/login">Log In</Link>
         </p>
       </div>

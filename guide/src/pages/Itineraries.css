@@ -1,0 +1,413 @@
+.itineraries-page {
+    padding: 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+    min-height: calc(100vh - 70px);
+}
+
+/* Header */
+.itin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.itin-title-area h1 {
+    font-size: 26px;
+    color: #1a202c;
+    margin-bottom: 4px;
+}
+
+.itin-title-area p {
+    color: #64748b;
+    font-size: 15px;
+    margin: 0;
+}
+
+/* Filter Bar */
+.itin-filter-bar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.itin-filter-btn {
+    padding: 8px 18px;
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.itin-filter-btn:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+}
+
+.itin-filter-btn.active {
+    background: linear-gradient(135deg, #4f7cff, #7c3aed);
+    color: #fff;
+    border-color: transparent;
+}
+
+/* Grid */
+.itin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+/* Card */
+.itin-card {
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid #f1f5f9;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.itin-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 20px -4px rgba(0, 0, 0, 0.1);
+}
+
+.itin-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px 12px;
+    background: linear-gradient(135deg, #f8faff, #f0f4ff);
+    border-bottom: 1px solid #e8effe;
+}
+
+.itin-destination-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #4f7cff, #7c3aed);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+}
+
+.itin-status-badge {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 999px;
+}
+
+.itin-status-active {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.itin-status-upcoming {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.itin-status-completed {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.itin-status-pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.itin-card-body {
+    padding: 16px 20px;
+    flex: 1;
+}
+
+.itin-card-body h3 {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 6px 0;
+}
+
+.itin-traveler-name {
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 14px;
+}
+
+.itin-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.itin-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #475569;
+}
+
+.itin-meta-icon {
+    color: #4f7cff;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.itin-days-preview {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.itin-days-count {
+    font-size: 12px;
+    color: #7c3aed;
+    font-weight: 600;
+    background: #f5f3ff;
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+
+.itin-day-dots {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.day-dot {
+    width: 10px;
+    height: 10px;
+    background: linear-gradient(135deg, #4f7cff, #7c3aed);
+    border-radius: 50%;
+}
+
+.day-dot-more {
+    font-size: 11px;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.itin-view-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px;
+    background: linear-gradient(135deg, #4f7cff, #7c3aed);
+    color: #fff;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.itin-view-btn:hover {
+    background: linear-gradient(135deg, #3b5bdb, #6d28d9);
+}
+
+/* Modal */
+.itin-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.itin-modal {
+    background: #fff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 680px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.25s ease;
+    overflow: hidden;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.itin-modal-header {
+    padding: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    background: linear-gradient(135deg, #f0f4ff, #f5f3ff);
+    border-bottom: 1px solid #e8effe;
+}
+
+.itin-modal-header h2 {
+    font-size: 20px;
+    color: #1e293b;
+    margin: 0 0 6px 0;
+}
+
+.itin-modal-header p {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+}
+
+.itin-modal-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #94a3b8;
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.2s;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.itin-modal-close:hover {
+    color: #ef4444;
+}
+
+.itin-modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.itin-modal-days-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 16px;
+}
+
+/* Day Accordion */
+.day-accordion {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+
+.day-accordion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    background: #f8fafc;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    transition: background 0.2s;
+}
+
+.day-accordion-header:hover {
+    background: #f1f5f9;
+}
+
+.day-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.day-number {
+    background: linear-gradient(135deg, #4f7cff, #7c3aed);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+.day-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.day-accordion-body {
+    padding: 16px;
+    background: #fff;
+    border-top: 1px solid #f1f5f9;
+}
+
+.activity-checklist {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.activity-checklist li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 14px;
+    color: #334155;
+}
+
+.check-icon {
+    color: #10b981;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .itineraries-page {
+        padding: 16px;
+    }
+
+    .itin-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .itin-grid {
+        grid-template-columns: 1fr;
+    }
+}

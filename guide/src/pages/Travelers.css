@@ -1,0 +1,380 @@
+.travelers-page {
+    padding: 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+    min-height: calc(100vh - 70px);
+}
+
+/* Header */
+.travelers-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.travelers-title-area h1 {
+    font-size: 26px;
+    color: #1a202c;
+    margin-bottom: 4px;
+}
+
+.travelers-title-area p {
+    color: #64748b;
+    font-size: 15px;
+    margin: 0;
+}
+
+.travelers-count-badge {
+    background: linear-gradient(135deg, #4f7cff, #7c3aed);
+    color: #fff;
+    padding: 8px 20px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* Filters */
+.travelers-filters {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.search-box {
+    display: flex;
+    align-items: center;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0 16px;
+    flex: 1;
+    min-width: 220px;
+    gap: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.search-icon {
+    color: #94a3b8;
+    font-size: 15px;
+}
+
+.search-box input {
+    border: none;
+    outline: none;
+    background: transparent;
+    padding: 12px 0;
+    font-size: 14px;
+    color: #1e293b;
+    width: 100%;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0 16px;
+    gap: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.filter-icon {
+    color: #94a3b8;
+    font-size: 14px;
+}
+
+.filter-group select {
+    border: none;
+    outline: none;
+    background: transparent;
+    padding: 12px 0;
+    font-size: 14px;
+    color: #1e293b;
+    cursor: pointer;
+}
+
+/* Stats Row */
+.travelers-stats-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+}
+
+.stat-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.stat-pill-active {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.stat-pill-upcoming {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.stat-pill-pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.stat-pill-completed {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.stat-count {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.stat-label {
+    font-size: 13px;
+}
+
+/* Grid */
+.travelers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+}
+
+/* Card */
+.traveler-card {
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid #f1f5f9;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.traveler-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 20px -4px rgba(0, 0, 0, 0.1);
+}
+
+.traveler-card-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    background: linear-gradient(135deg, #f8faff, #f0f4ff);
+    border-bottom: 1px solid #e8effe;
+}
+
+.traveler-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4f7cff, #7c3aed);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.traveler-name-block h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 6px 0;
+}
+
+.traveler-status-badge {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 999px;
+}
+
+.status-active {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-upcoming {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.status-pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.status-completed {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.traveler-card-body {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.traveler-info-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+}
+
+.info-icon {
+    width: 16px;
+    flex-shrink: 0;
+}
+
+.destination-icon {
+    color: #4f7cff;
+}
+
+.date-icon {
+    color: #10b981;
+}
+
+.phone-icon {
+    color: #f59e0b;
+}
+
+.email-icon {
+    color: #8b5cf6;
+}
+
+.info-label {
+    color: #94a3b8;
+    font-weight: 500;
+    min-width: 80px;
+    flex-shrink: 0;
+}
+
+.info-value {
+    color: #334155;
+    font-weight: 500;
+}
+
+/* Notes */
+.traveler-notes {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-top: 1px solid #f1f5f9;
+    background: #fafafa;
+    transition: background 0.2s;
+}
+
+.traveler-notes:hover {
+    background: #f1f5f9;
+}
+
+.notes-icon {
+    color: #f59e0b;
+    font-size: 14px;
+}
+
+.notes-toggle {
+    font-size: 13px;
+    color: #4f7cff;
+    font-weight: 500;
+}
+
+.notes-content {
+    padding: 12px 20px;
+    background: #fffbeb;
+    border-top: 1px solid #fef3c7;
+}
+
+.notes-content p {
+    font-size: 13px;
+    color: #78350f;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Actions */
+.traveler-card-actions {
+    display: flex;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.action-link-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.call-btn {
+    background: #f0fdf4;
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
+}
+
+.call-btn:hover {
+    background: #dcfce7;
+    text-decoration: none;
+}
+
+.email-btn {
+    background: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+}
+
+.email-btn:hover {
+    background: #dbeafe;
+    text-decoration: none;
+}
+
+.travelers-empty {
+    text-align: center;
+    padding: 60px;
+    color: #94a3b8;
+    font-size: 16px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .travelers-page {
+        padding: 16px;
+    }
+
+    .travelers-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .travelers-grid {
+        grid-template-columns: 1fr;
+    }
+}

@@ -1,31 +1,32 @@
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout
 from django.contrib.auth.models import User
 from django.views.decorators.csrf import csrf_exempt
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.response import Response
-from rest_framework import status
 
 from google.oauth2 import id_token
-from google.auth.transport import requests
+from google.auth.transport import requests as google_requests
 
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes
 from django.core.mail import send_mail
-from rest_framework.authentication import SessionAuthentication
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
-from rest_framework.permissions import IsAuthenticated
-
 
 from .models import Trip
 from .serializers import TripSerializer, RegisterSerializer
+
+GOOGLE_CLIENT_ID = "320492427698-7se212gnd06b14a41a3jsca1sqiv4pn7.apps.googleusercontent.com"
 
 
 # ======================
 # REGISTER
 # ======================
+@csrf_exempt
 @api_view(["POST"])
+@authentication_classes([])          # ← bypass DRF CSRF check
+@permission_classes([AllowAny])
 def register(request):
     serializer = RegisterSerializer(data=request.data)
     if serializer.is_valid():
@@ -39,6 +40,8 @@ def register(request):
 # ======================
 @csrf_exempt
 @api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
 def login(request):
     email = request.data.get("email")
     password = request.data.get("password")
@@ -57,10 +60,7 @@ def login(request):
         return Response({"error": "Invalid email or password"}, status=401)
 
     django_login(request, user)
-
-    request.session.set_expiry(
-        60 * 60 * 24 * 14 if remember_me else 0
-    )
+    request.session.set_expiry(60 * 60 * 24 * 14 if remember_me else 0)
 
     return Response({"message": "Login successful"}, status=200)
 
@@ -70,6 +70,8 @@ def login(request):
 # ======================
 @csrf_exempt
 @api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
 def google_login(request):
     token = request.data.get("token")
     if not token:
@@ -78,8 +80,8 @@ def google_login(request):
     try:
         info = id_token.verify_oauth2_token(
             token,
-            requests.Request(),
-            "849889490000-4r9i22c5m8d0nbf24sosgd37t82h4a4b.apps.googleusercontent.com"
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID,
         )
     except Exception:
         return Response({"error": "Invalid Google token"}, status=400)
@@ -110,7 +112,10 @@ def logout(request):
 # ======================
 token_generator = PasswordResetTokenGenerator()
 
+@csrf_exempt
 @api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
 def forgot_password(request):
     email = request.data.get("email")
 
@@ -140,7 +145,10 @@ def forgot_password(request):
 # ======================
 # RESET PASSWORD
 # ======================
+@csrf_exempt
 @api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
 def reset_password(request, uid, token):
     password = request.data.get("password")
 
@@ -174,7 +182,6 @@ def dashboard(request):
     })
 
 
-
 # ======================
 # CREATE TRIP
 # ======================
@@ -197,7 +204,7 @@ def check_auth(request):
         return Response({
             "authenticated": True,
             "user": {
-                "email": request.user.email
+                "email": request.user.email,
             }
         })
     return Response({"authenticated": False})

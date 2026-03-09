@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { FaEye, FaEyeSlash, FaSkating } from "react-icons/fa";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 import axios from "axios";
 import "./Login.css";
 
@@ -40,14 +40,14 @@ function Login() {
 
       if (window.google && btn) {
         window.google.accounts.id.initialize({
-          client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+          client_id: "320492427698-7se212gnd06b14a41a3jsca1sqiv4pn7.apps.googleusercontent.com",
           callback: handleGoogleResponse,
         });
 
         window.google.accounts.id.renderButton(btn, {
           theme: "outline",
           size: "large",
-          width: 300,
+          width: 320,
         });
 
         clearInterval(interval);
@@ -111,7 +111,10 @@ function Login() {
               }
               required
             />
-            <span onClick={() => setShowPassword(!showPassword)}>
+            <span
+              className="toggle-password"
+              onClick={() => setShowPassword(!showPassword)}
+            >
               {showPassword ? <FaEyeSlash /> : <FaEye />}
             </span>
           </div>
@@ -128,36 +131,17 @@ function Login() {
 
             <Link to="/forgot-password">Forgot password?</Link>
           </div>
-          <div className="password-wrapper">
-  <input
-    type={showPassword ? "text" : "password"}
-    placeholder="Password"
-    value={form.password}
-    onChange={(e) =>
-      setForm({ ...form, password: e.target.value })
-    }
-    required
-  />
 
-  <span
-    className="toggle-password"
-    onClick={() => setShowPassword(!showPassword)}
-  >
-    {showPassword ? <FaEyeSlash /> : <FaEye />}
-  </span>
-</div>
-
-
-          <button type="submit" disabled={loading}>
+          <button type="submit" disabled={loading} className="login-btn">
             {loading ? "Signing in..." : "Log In"}
           </button>
         </form>
 
-        <div className="divider">OR</div>
+        <div className="google-divider"><span>OR</span></div>
 
         <div id="google-btn"></div>
 
-        <p className="switch">
+        <p className="login-footer">
           Don’t have an account? <Link to="/register">Register</Link>
         </p>
       </div>

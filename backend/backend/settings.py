@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "accounts",
     "contacts",
+    "itinerary",
 ]
 
 MIDDLEWARE = [
@@ -46,12 +47,19 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
 ]
+
+# Required for Google OAuth popup flow
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
 
 SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SECURE = False
@@ -144,3 +152,8 @@ EMAIL_HOST_USER = "sumantagautamm@gmail.com"
 EMAIL_HOST_PASSWORD = "vjrpnjkzbqebifpk"  # NEW APP PASSWORD
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+# ======================
+# GEMINI AI
+# ======================
+GEMINI_API_KEY = "AIzaSyApn5XibywuDUeTHIMN-iugzNYneGtlFfg"

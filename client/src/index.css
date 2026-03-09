@@ -1,13 +1,46 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --navy: #0A2540;
+  --navy-dark: #061729;
+  --teal: #00B4D8;
+  --teal-light: #90E0EF;
+  --gold: #f59e0b;
+  --green: #10b981;
+  --purple: #7c3aed;
+  --blue: #4f7cff;
+  --white: #ffffff;
+  --bg-light: #f8fafc;
+  --text-dark: #1e293b;
+  --text-gray: #64748b;
+  --radius-card: 16px;
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-card-hover: 0 20px 40px rgba(0, 0, 0, 0.14);
+  --transition: 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color: var(--text-dark);
+  background-color: var(--bg-light);
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+/* Base Link Reset */
+a {
+  text-decoration: none;
+  color: inherit;
 }
