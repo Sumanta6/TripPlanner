@@ -1,48 +1,168 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     FaUserCircle, FaStar, FaMapMarkerAlt, FaPhone, FaEnvelope,
-    FaGlobe, FaBriefcase, FaEdit, FaMountain
+    FaGlobe, FaBriefcase, FaEdit, FaMountain, FaSpinner, FaTimes, FaSave
 } from 'react-icons/fa';
-import { guideProfile } from '../data/mockData';
+import { useAuth } from '../context/AuthContext';
 import './Profile.css';
 
 const DESTINATIONS_COLORS = [
     '#4f7cff', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'
 ];
 
-export default function Profile() {
-    const [availability, setAvailability] = useState(guideProfile.availability);
+function ProfileSkeleton() {
+    return (
+        <div className="profile-page">
+            <div className="profile-hero">
+                <div className="profile-hero-bg" />
+                <div className="profile-hero-content">
+                    <div className="skeleton-avatar large-avatar" />
+                    <div className="skeleton-info" style={{ flex: 1, gap: 12 }}>
+                        <div className="skeleton-line short" />
+                        <div className="skeleton-line long" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
 
-    const toggleAvailability = () => {
-        setAvailability(prev => prev === 'available' ? 'busy' : 'available');
+export default function Profile() {
+    const { profile, loading, error, patchProfile, refreshProfile } = useAuth();
+    const [saving, setSaving] = useState(false);
+    const [saveMsg, setSaveMsg] = useState('');
+    const [isEditing, setIsEditing] = useState(false);
+    const [form, setForm] = useState(null);
+
+    // Initialize form when profile changes
+    useEffect(() => {
+        if (profile) {
+            setForm({
+                full_name: profile.full_name || '',
+                phone: profile.phone || '',
+                address: profile.address || '',
+                bio: profile.bio || '',
+                specialization: profile.specialization || '',
+                experience_years: profile.experience_years || 0,
+                languages: (profile.languages || []).join(', '),
+                destinations: (profile.destinations || []).join(', ')
+            });
+        }
+    }, [profile]);
+
+    if (loading || !form) return <ProfileSkeleton />;
+    if (error) return (
+        <div className="profile-page">
+            <div className="profile-error-banner">⚠️ Could not load profile. {error}</div>
+        </div>
+    );
+
+    const p = profile || {};
+
+    const handleToggleAvailability = async () => {
+        if (isEditing) return; // Disallow toggle during edit to avoid conflict
+        const next = p.availability === 'available' ? 'busy' : 'available';
+        setSaving(true);
+        try {
+            await patchProfile({ availability: next });
+            showToast('Availability updated');
+        } catch (_) {
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleSaveProfile = async () => {
+        setSaving(true);
+        try {
+            const payload = {
+                ...form,
+                languages: form.languages.split(',').map(s => s.trim()).filter(Boolean),
+                destinations: form.destinations.split(',').map(s => s.trim()).filter(Boolean),
+                experience_years: parseInt(form.experience_years) || 0
+            };
+            await patchProfile(payload);
+            await refreshProfile();
+            setIsEditing(false);
+            showToast('Profile saved successfully!');
+        } catch (err) {
+            alert('Failed to save profile: ' + err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const showToast = (msg) => {
+        setSaveMsg(msg);
+        setTimeout(() => setSaveMsg(''), 3000);
     };
 
     return (
         <div className="profile-page">
             {/* Hero Banner */}
             <div className="profile-hero">
-                <div className="profile-hero-bg"></div>
+                <div className="profile-hero-bg" />
                 <div className="profile-hero-content">
                     <div className="profile-avatar-wrap">
                         <div className="profile-avatar-circle">
                             <FaUserCircle className="profile-avatar-icon" />
                         </div>
                         <button
-                            className={`profile-avail-toggle ${availability}`}
-                            onClick={toggleAvailability}
+                            className={`profile-avail-toggle ${p.availability || 'available'} ${isEditing ? 'disabled' : ''}`}
+                            onClick={handleToggleAvailability}
+                            disabled={saving || isEditing}
                         >
-                            <span className="avail-dot"></span>
-                            {availability === 'available' ? 'Available' : 'Busy'}
+                            {saving && !isEditing ? <FaSpinner className="spin" /> : <span className="avail-dot" />}
+                            {p.availability === 'busy' ? 'Busy' : 'Available'}
                         </button>
                     </div>
                     <div className="profile-hero-info">
-                        <h1>{guideProfile.name}</h1>
-                        <p className="profile-specialization">{guideProfile.specialization}</p>
+                        {isEditing ? (
+                            <input 
+                                type="text" 
+                                className="profile-edit-input title-input"
+                                value={form.full_name} 
+                                onChange={e => setForm({...form, full_name: e.target.value})}
+                                placeholder="Your Full Name"
+                            />
+                        ) : (
+                            <h1>{p.full_name || p.email || 'Your Profile'}</h1>
+                        )}
+                        
+                        {isEditing ? (
+                            <input 
+                                type="text" 
+                                className="profile-edit-input spec-input"
+                                value={form.specialization} 
+                                onChange={e => setForm({...form, specialization: e.target.value})}
+                                placeholder="e.g. Cultural Tours & Trekking Guide"
+                            />
+                        ) : (
+                            <p className="profile-specialization">{p.specialization || 'No specialization set'}</p>
+                        )}
+                        
                         <div className="profile-rating">
                             <FaStar className="star-icon" />
-                            <strong>{guideProfile.rating}</strong>
-                            <span className="rating-label"> / 5.0 &middot; {guideProfile.toursCompleted} tours completed</span>
+                            <strong>{p.rating ?? 0}</strong>
+                            <span className="rating-label">/ 5.0 · {p.tours_completed ?? 0} tours completed</span>
                         </div>
+                    </div>
+                    
+                    <div className="profile-hero-actions">
+                        {isEditing ? (
+                            <>
+                                <button className="profile-action-btn cancel" onClick={() => setIsEditing(false)} disabled={saving}>
+                                    <FaTimes /> Cancel
+                                </button>
+                                <button className="profile-action-btn save" onClick={handleSaveProfile} disabled={saving}>
+                                    {saving ? <FaSpinner className="spin" /> : <FaSave />} Save
+                                </button>
+                            </>
+                        ) : (
+                            <button className="profile-action-btn edit" onClick={() => setIsEditing(true)}>
+                                <FaEdit /> Edit Profile
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -58,21 +178,39 @@ export default function Profile() {
                             <FaEnvelope className="pinfo-icon email" />
                             <div>
                                 <label>Email</label>
-                                <span>{guideProfile.email}</span>
+                                <span>{p.email || '—'}</span>
                             </div>
                         </div>
                         <div className="profile-info-row">
                             <FaPhone className="pinfo-icon phone" />
-                            <div>
+                            <div className="edit-full-width">
                                 <label>Phone</label>
-                                <span>{guideProfile.phone}</span>
+                                {isEditing ? (
+                                    <input 
+                                        type="text" 
+                                        className="profile-edit-input"
+                                        value={form.phone} 
+                                        onChange={e => setForm({...form, phone: e.target.value})}
+                                    />
+                                ) : (
+                                    <span>{p.phone || '—'}</span>
+                                )}
                             </div>
                         </div>
                         <div className="profile-info-row">
                             <FaMapMarkerAlt className="pinfo-icon location" />
-                            <div>
+                            <div className="edit-full-width">
                                 <label>Address</label>
-                                <span>{guideProfile.address}</span>
+                                {isEditing ? (
+                                    <input 
+                                        type="text" 
+                                        className="profile-edit-input"
+                                        value={form.address} 
+                                        onChange={e => setForm({...form, address: e.target.value})}
+                                    />
+                                ) : (
+                                    <span>{p.address || '—'}</span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -80,20 +218,50 @@ export default function Profile() {
                     {/* Languages Card */}
                     <div className="profile-card">
                         <h3 className="profile-card-title"><FaGlobe className="card-title-icon" /> Languages Spoken</h3>
-                        <div className="profile-tags">
-                            {guideProfile.languages.map(lang => (
-                                <span key={lang} className="profile-tag lang-tag">{lang}</span>
-                            ))}
-                        </div>
+                        {isEditing ? (
+                            <div className="edit-full-width">
+                                <input 
+                                    type="text" 
+                                    className="profile-edit-input"
+                                    value={form.languages} 
+                                    onChange={e => setForm({...form, languages: e.target.value})}
+                                    placeholder="English, Spanish, French (comma separated)"
+                                />
+                                <span className="profile-edit-hint">Comma separated</span>
+                            </div>
+                        ) : (
+                            <div className="profile-tags">
+                                {(p.languages || []).length === 0 ? (
+                                    <span className="profile-empty-hint">No languages set</span>
+                                ) : (
+                                    (p.languages || []).map(lang => (
+                                        <span key={lang} className="profile-tag lang-tag">{lang}</span>
+                                    ))
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Experience */}
                     <div className="profile-card">
                         <h3 className="profile-card-title"><FaBriefcase className="card-title-icon" /> Experience</h3>
-                        <div className="experience-display">
-                            <div className="exp-number">{guideProfile.experience}</div>
-                            <div className="exp-label">of Professional Guiding</div>
-                        </div>
+                        {isEditing ? (
+                             <div className="edit-full-width">
+                                <input 
+                                    type="number" 
+                                    min="0"
+                                    className="profile-edit-input"
+                                    value={form.experience_years} 
+                                    onChange={e => setForm({...form, experience_years: e.target.value})}
+                                />
+                                <span className="profile-edit-hint">Years of professional guiding</span>
+                            </div>
+                        ) : (
+                            <div className="experience-display">
+                                <div className="exp-number">{p.experience_years ? `${p.experience_years} yrs` : '—'}</div>
+                                <div className="exp-label">of Professional Guiding</div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -103,52 +271,82 @@ export default function Profile() {
                     <div className="profile-card bio-card">
                         <div className="bio-header">
                             <h3 className="profile-card-title">About Me</h3>
-                            <button className="edit-btn"><FaEdit /> Edit</button>
                         </div>
-                        <p className="bio-text">{guideProfile.bio}</p>
+                        {isEditing ? (
+                            <textarea 
+                                className="profile-edit-textarea"
+                                value={form.bio} 
+                                onChange={e => setForm({...form, bio: e.target.value})}
+                                rows={6}
+                                placeholder="Tell travelers about yourself, your background, and your guiding philosophy..."
+                            />
+                        ) : (
+                            <p className="bio-text">
+                                {p.bio || 'No bio added yet. Click Edit Profile to add one.'}
+                            </p>
+                        )}
                     </div>
 
                     {/* Destinations */}
                     <div className="profile-card">
                         <h3 className="profile-card-title"><FaMountain className="card-title-icon" /> Covered Destinations</h3>
-                        <div className="destinations-grid">
-                            {guideProfile.destinations.map((dest, i) => (
-                                <div
-                                    key={dest}
-                                    className="destination-chip"
-                                    style={{ '--chip-color': DESTINATIONS_COLORS[i % DESTINATIONS_COLORS.length] }}
-                                >
-                                    <span className="dest-dot" style={{ background: DESTINATIONS_COLORS[i % DESTINATIONS_COLORS.length] }}></span>
-                                    {dest}
-                                </div>
-                            ))}
-                        </div>
+                        {isEditing ? (
+                            <div className="edit-full-width">
+                                <input 
+                                    type="text" 
+                                    className="profile-edit-input"
+                                    value={form.destinations} 
+                                    onChange={e => setForm({...form, destinations: e.target.value})}
+                                    placeholder="Kathmandu, Pokhara, Everest Base Camp (comma separated)"
+                                />
+                                <span className="profile-edit-hint">Comma separated</span>
+                            </div>
+                        ) : (
+                            <div className="destinations-grid">
+                                {(p.destinations || []).length === 0 ? (
+                                    <span className="profile-empty-hint">No destinations set</span>
+                                ) : (
+                                    (p.destinations || []).map((dest, i) => (
+                                        <div
+                                            key={dest}
+                                            className="destination-chip"
+                                            style={{ '--chip-color': DESTINATIONS_COLORS[i % DESTINATIONS_COLORS.length] }}
+                                        >
+                                            <span className="dest-dot" style={{ background: DESTINATIONS_COLORS[i % DESTINATIONS_COLORS.length] }} />
+                                            {dest}
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Stats */}
                     <div className="profile-card stats-row-card">
                         <div className="profile-stat">
-                            <div className="profile-stat-number">{guideProfile.toursCompleted}</div>
+                            <div className="profile-stat-number">{p.tours_completed ?? 0}</div>
                             <div className="profile-stat-label">Tours Completed</div>
                         </div>
-                        <div className="profile-stat-divider"></div>
+                        <div className="profile-stat-divider" />
                         <div className="profile-stat">
-                            <div className="profile-stat-number">{guideProfile.rating}</div>
+                            <div className="profile-stat-number">{p.rating ?? 0}</div>
                             <div className="profile-stat-label">Average Rating</div>
                         </div>
-                        <div className="profile-stat-divider"></div>
+                        <div className="profile-stat-divider" />
                         <div className="profile-stat">
-                            <div className="profile-stat-number">{guideProfile.languages.length}</div>
+                            <div className="profile-stat-number">{isEditing ? form.languages.split(',').filter(x => x.trim()).length : (p.languages || []).length}</div>
                             <div className="profile-stat-label">Languages</div>
                         </div>
-                        <div className="profile-stat-divider"></div>
+                        <div className="profile-stat-divider" />
                         <div className="profile-stat">
-                            <div className="profile-stat-number">{guideProfile.destinations.length}</div>
+                            <div className="profile-stat-number">{isEditing ? form.destinations.split(',').filter(x => x.trim()).length : (p.destinations || []).length}</div>
                             <div className="profile-stat-label">Destinations</div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {saveMsg && <div className="profile-toast">{saveMsg}</div>}
         </div>
     );
 }

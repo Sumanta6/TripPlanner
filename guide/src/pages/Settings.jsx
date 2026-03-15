@@ -1,15 +1,26 @@
 import { useState } from 'react';
 import {
-    FaUser, FaLock, FaBell, FaSignOutAlt, FaEye, FaEyeSlash,
-    FaToggleOn, FaToggleOff, FaSave, FaChevronRight
+    FaLock, FaBell, FaSignOutAlt, FaEye, FaEyeSlash,
+    FaToggleOn, FaToggleOff, FaSave, FaChevronRight, FaSpinner
 } from 'react-icons/fa';
+import { useAuth } from '../context/AuthContext';
+import { getCookie } from '../services/guidesService';
+import axios from 'axios';
 import './Settings.css';
 
+const ACCOUNTS_API = 'http://localhost:8000/accounts';
+
+axios.defaults.withCredentials = true;
+axios.defaults.xsrfCookieName = 'csrftoken';
+axios.defaults.xsrfHeaderName = 'X-CSRFToken';
+
 export default function Settings() {
-    const [activeSection, setActiveSection] = useState('profile');
-    const [showOldPass, setShowOldPass] = useState(false);
-    const [showNewPass, setShowNewPass] = useState(false);
-    const [showConfPass, setShowConfPass] = useState(false);
+    const { logout } = useAuth();
+
+    const [activeSection, setActiveSection] = useState('password');
+    const [showOldPass, setShowOldPass]     = useState(false);
+    const [showNewPass, setShowNewPass]     = useState(false);
+    const [showConfPass, setShowConfPass]   = useState(false);
     const [notifications, setNotifications] = useState({
         newAssignment: true,
         tripReminders: true,
@@ -18,39 +29,64 @@ export default function Settings() {
         systemUpdates: false,
     });
 
-    const [profileForm, setProfileForm] = useState({
-        name: 'Sumanta Gautam',
-        phone: '+977-9841-234567',
-        address: 'Thamel, Kathmandu, Nepal',
+    // Password form
+    const [passwordForm, setPasswordForm] = useState({
+        old_password: '',
+        new_password: '',
+        confirm_password: '',
     });
 
-    const [savedProfile, setSavedProfile] = useState(false);
-    const [savedPassword, setSavedPassword] = useState(false);
+    const [passwordStatus, setPasswordStatus] = useState(null);
+    const [passwordError, setPasswordError] = useState('');
 
-    const handleProfileSave = (e) => {
+    // ── Save password ─────────────────────────────────────────────────────────
+    const handlePasswordSave = async (e) => {
         e.preventDefault();
-        setSavedProfile(true);
-        setTimeout(() => setSavedProfile(false), 2500);
-    };
-
-    const handlePasswordSave = (e) => {
-        e.preventDefault();
-        setSavedPassword(true);
-        setTimeout(() => setSavedPassword(false), 2500);
+        setPasswordError('');
+        if (passwordForm.new_password !== passwordForm.confirm_password) {
+            setPasswordError('New passwords do not match.');
+            return;
+        }
+        if (passwordForm.new_password.length < 8) {
+            setPasswordError('Password must be at least 8 characters.');
+            return;
+        }
+        setPasswordStatus('saving');
+        try {
+            const csrfToken = getCookie('csrftoken');
+            await axios.post(
+                `${ACCOUNTS_API}/change-password/`,
+                {
+                    old_password: passwordForm.old_password,
+                    new_password: passwordForm.new_password,
+                },
+                { 
+                    withCredentials: true,
+                    headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {}
+                }
+            );
+            setPasswordStatus('saved');
+            setPasswordForm({ old_password: '', new_password: '', confirm_password: '' });
+            setTimeout(() => setPasswordStatus(null), 2500);
+        } catch (err) {
+            setPasswordError(
+                err?.response?.data?.error || 'Password change failed. Check your current password.'
+            );
+            setPasswordStatus('error');
+        }
     };
 
     const sections = [
-        { key: 'profile', icon: FaUser, label: 'Update Profile' },
-        { key: 'password', icon: FaLock, label: 'Change Password' },
-        { key: 'notifications', icon: FaBell, label: 'Notifications' },
-        { key: 'logout', icon: FaSignOutAlt, label: 'Logout' },
+        { key: 'password',      icon: FaLock,       label: 'Security & Password' },
+        { key: 'notifications', icon: FaBell,       label: 'Notifications' },
+        { key: 'logout',        icon: FaSignOutAlt, label: 'Logout Account' },
     ];
 
     return (
         <div className="settings-page">
             <div className="settings-header">
                 <h1>⚙️ Account Settings</h1>
-                <p>Manage your profile, security, and preferences</p>
+                <p>Manage your security, and preferences</p>
             </div>
 
             <div className="settings-layout">
@@ -74,96 +110,46 @@ export default function Settings() {
 
                 {/* Content Area */}
                 <div className="settings-content">
-
-                    {/* Update Profile */}
-                    {activeSection === 'profile' && (
-                        <div className="settings-section">
-                            <h2>Update Profile</h2>
-                            <p className="section-desc">Keep your guide information up to date</p>
-                            <form onSubmit={handleProfileSave} className="settings-form">
-                                <div className="form-group">
-                                    <label>Full Name</label>
-                                    <input
-                                        type="text"
-                                        value={profileForm.name}
-                                        onChange={e => setProfileForm({ ...profileForm, name: e.target.value })}
-                                        placeholder="Your full name"
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label>Phone Number</label>
-                                    <input
-                                        type="tel"
-                                        value={profileForm.phone}
-                                        onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
-                                        placeholder="+977-XXXX-XXXXXX"
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label>Address</label>
-                                    <input
-                                        type="text"
-                                        value={profileForm.address}
-                                        onChange={e => setProfileForm({ ...profileForm, address: e.target.value })}
-                                        placeholder="Your address"
-                                    />
-                                </div>
-                                <button type="submit" className={`settings-save-btn ${savedProfile ? 'saved' : ''}`}>
-                                    <FaSave />
-                                    {savedProfile ? '✓ Saved!' : 'Save Changes'}
-                                </button>
-                            </form>
-                        </div>
-                    )}
-
                     {/* Change Password */}
                     {activeSection === 'password' && (
                         <div className="settings-section">
                             <h2>Change Password</h2>
                             <p className="section-desc">Use a strong password to protect your account</p>
                             <form onSubmit={handlePasswordSave} className="settings-form">
-                                <div className="form-group">
-                                    <label>Current Password</label>
-                                    <div className="password-input-wrap">
-                                        <input
-                                            type={showOldPass ? 'text' : 'password'}
-                                            placeholder="Enter current password"
-                                        />
-                                        <button type="button" className="toggle-pass" onClick={() => setShowOldPass(p => !p)}>
-                                            {showOldPass ? <FaEyeSlash /> : <FaEye />}
-                                        </button>
+                                {[
+                                    { label: 'Current Password', key: 'old_password', show: showOldPass, toggle: setShowOldPass },
+                                    { label: 'New Password',     key: 'new_password', show: showNewPass, toggle: setShowNewPass },
+                                    { label: 'Confirm New Password', key: 'confirm_password', show: showConfPass, toggle: setShowConfPass },
+                                ].map(f => (
+                                    <div className="form-group" key={f.key}>
+                                        <label>{f.label}</label>
+                                        <div className="password-input-wrap">
+                                            <input
+                                                type={f.show ? 'text' : 'password'}
+                                                value={passwordForm[f.key]}
+                                                onChange={e => setPasswordForm({ ...passwordForm, [f.key]: e.target.value })}
+                                                placeholder={`Enter ${f.label.toLowerCase()}`}
+                                                required
+                                            />
+                                            <button type="button" className="toggle-pass" onClick={() => f.toggle(p => !p)}>
+                                                {f.show ? <FaEyeSlash /> : <FaEye />}
+                                            </button>
+                                        </div>
                                     </div>
+                                ))}
+                                <div className="password-requirements" style={{marginTop: '15px'}}>
+                                    <p style={{fontSize: '0.86rem', color: '#64748b'}}>Password must be at least 8 characters.</p>
                                 </div>
-                                <div className="form-group">
-                                    <label>New Password</label>
-                                    <div className="password-input-wrap">
-                                        <input
-                                            type={showNewPass ? 'text' : 'password'}
-                                            placeholder="Enter new password"
-                                        />
-                                        <button type="button" className="toggle-pass" onClick={() => setShowNewPass(p => !p)}>
-                                            {showNewPass ? <FaEyeSlash /> : <FaEye />}
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="form-group">
-                                    <label>Confirm New Password</label>
-                                    <div className="password-input-wrap">
-                                        <input
-                                            type={showConfPass ? 'text' : 'password'}
-                                            placeholder="Confirm new password"
-                                        />
-                                        <button type="button" className="toggle-pass" onClick={() => setShowConfPass(p => !p)}>
-                                            {showConfPass ? <FaEyeSlash /> : <FaEye />}
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="password-requirements">
-                                    <p>Password must be at least 8 characters, containing uppercase, lowercase, numbers, and symbols.</p>
-                                </div>
-                                <button type="submit" className={`settings-save-btn ${savedPassword ? 'saved' : ''}`}>
-                                    <FaSave />
-                                    {savedPassword ? '✓ Updated!' : 'Update Password'}
+                                {passwordError && <p className="settings-error">{passwordError}</p>}
+                                <button
+                                    type="submit"
+                                    className={`settings-save-btn ${passwordStatus === 'saved' ? 'saved' : ''}`}
+                                    disabled={passwordStatus === 'saving'}
+                                    style={{marginTop: '20px'}}
+                                >
+                                    {passwordStatus === 'saving' ? <><FaSpinner className="spin" /> Updating…</> :
+                                     passwordStatus === 'saved'  ? '✓ Updated!' :
+                                     <><FaSave /> Update Password</>}
                                 </button>
                             </form>
                         </div>
@@ -178,8 +164,8 @@ export default function Settings() {
                                 {[
                                     { key: 'newAssignment', label: 'New Traveler Assignments', desc: 'Alert when a new traveler is assigned to you' },
                                     { key: 'tripReminders', label: 'Trip Reminders', desc: 'Reminders 3 days and 1 day before a trip starts' },
-                                    { key: 'messages', label: 'Messages from Travelers', desc: 'Get notified when travelers send you messages' },
-                                    { key: 'ratings', label: 'New Ratings & Reviews', desc: 'When a traveler leaves a rating for you' },
+                                    { key: 'messages',      label: 'Messages from Travelers', desc: 'Get notified when travelers send you messages' },
+                                    { key: 'ratings',       label: 'New Ratings & Reviews', desc: 'When a traveler leaves a rating for you' },
                                     { key: 'systemUpdates', label: 'System Updates', desc: 'Platform announcements and feature updates' },
                                 ].map(item => (
                                     <div key={item.key} className="notification-item">
@@ -212,17 +198,10 @@ export default function Settings() {
                                 <p>Make sure you have saved any unsaved changes before logging out.</p>
                             </div>
                             <div className="logout-actions">
-                                <button className="logout-cancel-btn" onClick={() => setActiveSection('profile')}>
+                                <button className="logout-cancel-btn" onClick={() => setActiveSection('password')}>
                                     Cancel
                                 </button>
-                                <button
-                                    className="logout-confirm-btn"
-                                    onClick={() => {
-                                        localStorage.removeItem('guideLoggedIn');
-                                        sessionStorage.removeItem('guideLoggedIn');
-                                        window.location.href = '/login';
-                                    }}
-                                >
+                                <button className="logout-confirm-btn" onClick={logout}>
                                     <FaSignOutAlt /> Confirm Logout
                                 </button>
                             </div>

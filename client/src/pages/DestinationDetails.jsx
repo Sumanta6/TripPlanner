@@ -1,104 +1,145 @@
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
+import api from "../services/api";
 import "./DestinationDetails.css";
-
-const destinationsData = [
-  {
-    id: "kathmandu",
-    name: "Kathmandu Valley",
-    region: "Central Nepal",
-    rating: 4.8,
-    reviews: 1240,
-    price: 25000,
-    image: "/images/dest-temple.jpg",
-    description:
-      "Kathmandu Valley is the cultural and historical heart of Nepal. Known as the city of temples, it boasts a rich tapestry of history, art, and vibrant local life that dates back centuries.",
-    highlights: ["Pashupatinath Temple", "Boudhanath Stupa", "Kathmandu Durbar Square", "Swayambhunath (Monkey Temple)"],
-    bestTimeToVisit: "Sept to Nov, Feb to April",
-  },
-  {
-    id: "pokhara",
-    name: "Pokhara",
-    region: "Western Nepal",
-    rating: 4.9,
-    reviews: 890,
-    price: 30000,
-    image: "/images/hero-pokhara.jpg",
-    description:
-      "Pokhara is Nepal's premier adventure and leisure destination. With its tranquil lakes, spectacular mountain views, and laid-back vibe, it's the perfect place to relax or seek thrills.",
-    highlights: ["Phewa Lake Boating", "Sarangkot Sunrise", "Davis Falls", "World Peace Pagoda"],
-    bestTimeToVisit: "Sept to Nov, March to May",
-  },
-];
 
 function DestinationDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [destination, setDestination] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Try to find the exact destination, if not found, use a fallback generic view
-  const destination = destinationsData.find((d) => d.id === id) || {
-    id: id,
-    name: id.charAt(0).toUpperCase() + id.slice(1).replace('-', ' '),
-    region: "Nepal",
-    rating: 4.7,
-    reviews: 320,
-    price: 20000,
-    image: "/images/hero-everest.jpg", // Fallback image
-    description: "Experience the incredible beauty and rich culture of this amazing Nepalese destination. Perfect for adventure seekers and cultural explorers alike.",
-    highlights: ["Local Culture", "Scenic Views", "Authentic Cuisine", "Historical Sites"],
-    bestTimeToVisit: "Year-round",
-  };
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchDestination() {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data } = await api.get(`/destinations/${id}/`);
+        if (!cancelled) setDestination(data);
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err.response?.data?.error ||
+              err.message ||
+              "Failed to load destination."
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    if (id) fetchDestination();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="dest-details-page lp-root">
+          <div className="dd-loading">
+            <div className="dd-spinner"></div>
+            <p>Loading destination...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error || !destination) {
+    return (
+      <Layout>
+        <div className="dest-details-page lp-root">
+          <div className="dd-error">
+            <p>{error || "Destination not found."}</p>
+            <button
+              className="lp-btn-primary"
+              onClick={() => navigate("/destinations")}
+            >
+              Back to Destinations
+            </button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  const imageUrl =
+    destination.image_url || "/images/hero-everest.jpg";
 
   return (
     <Layout>
       <div className="dest-details-page lp-root">
-
         {/* HERO HEADER */}
-        <section className="dd-hero" style={{ backgroundImage: `url(${destination.image})` }}>
+        <section
+          className="dd-hero"
+          style={{ backgroundImage: `url(${imageUrl})` }}
+        >
           <div className="dd-hero-overlay"></div>
           <div className="dd-hero-content pt-nav">
-            <div className="lp-section-badge" style={{ borderColor: 'rgba(255,255,255,0.3)', color: 'white', background: 'rgba(255,255,255,0.1)' }}>
-              {destination.region}
+            <div
+              className="lp-section-badge"
+              style={{
+                borderColor: "rgba(255,255,255,0.3)",
+                color: "white",
+                background: "rgba(255,255,255,0.1)",
+              }}
+            >
+              {destination.category || "Sight"}
             </div>
             <h1 className="dd-title">{destination.name}</h1>
-            <div className="dd-meta">
-              <span className="dd-rating">⭐ {destination.rating} <span>({destination.reviews} reviews)</span></span>
-            </div>
+            {destination.location && (
+              <div className="dd-meta">
+                <span className="dd-location">📍 {destination.location}</span>
+              </div>
+            )}
           </div>
         </section>
 
         {/* MAIN CONTENT */}
         <section className="dd-main lp-section">
           <div className="dd-grid">
-
             {/* Left Column: Info */}
             <div className="dd-info">
               <h2 className="dd-section-title">Overview</h2>
-              <p className="dd-desc">{destination.description}</p>
+              <p className="dd-desc">
+                {destination.description ||
+                  `Discover ${destination.name} in Nepal. A must-visit destination for travelers.`}
+              </p>
 
-              <div className="dd-highlights-box">
-                <h3 className="dd-section-subtitle">Top Highlights</h3>
-                <ul className="dd-highlights-list">
-                  {destination.highlights.map((h, idx) => (
-                    <li key={idx}><span className="check-icon">✓</span> {h}</li>
-                  ))}
-                </ul>
-              </div>
+              {destination.coordinates && (
+                <div className="dd-coords-box">
+                  <h3 className="dd-section-subtitle">Location</h3>
+                  <p className="dd-coords">
+                    Lat: {destination.coordinates.lat?.toFixed(4)}, Lon:{" "}
+                    {destination.coordinates.lon?.toFixed(4)}
+                  </p>
+                </div>
+              )}
             </div>
 
-            {/* Right Column: Booking Card */}
+            {/* Right Column: Action Card */}
             <div className="dd-sidebar">
               <div className="dd-booking-card">
-                <div className="dd-price-row">
-                  <span className="dd-price-label">Starting from</span>
-                  <div className="dd-price-value">NPR {destination.price.toLocaleString()}</div>
+                <div className="dd-info-row">
+                  <span className="info-icon">📍</span>
+                  <div>
+                    <strong>Location</strong>
+                    <p>{destination.location || "Nepal"}</p>
+                  </div>
                 </div>
 
                 <div className="dd-info-row">
                   <span className="info-icon">📅</span>
                   <div>
                     <strong>Best Time to Visit</strong>
-                    <p>{destination.bestTimeToVisit}</p>
+                    <p>September to November, February to April</p>
                   </div>
                 </div>
 
@@ -113,7 +154,7 @@ function DestinationDetails() {
                 <button
                   className="lp-btn-primary dd-action-btn"
                   onClick={() =>
-                    navigate("/plantrip", {
+                    navigate("/plan-trip", {
                       state: { destination: destination.name },
                     })
                   }
@@ -122,10 +163,8 @@ function DestinationDetails() {
                 </button>
               </div>
             </div>
-
           </div>
         </section>
-
       </div>
     </Layout>
   );

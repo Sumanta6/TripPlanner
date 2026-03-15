@@ -1,6 +1,7 @@
 from django.urls import path
-from .views import GenerateItineraryView
+from .views import generate_itinerary, get_destinations
 
 urlpatterns = [
-    path("generate/", GenerateItineraryView.as_view(), name="generate_itinerary"),
+    path("destinations/", get_destinations, name="itinerary-destinations"),
+    path("generate/", generate_itinerary, name="generate-itinerary"),
 ]

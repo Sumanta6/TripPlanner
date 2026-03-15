@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './Auth.css';
 
-const API = 'http://127.0.0.1:8000/accounts';
+const API = 'http://localhost:8000/accounts';
 
 export default function ResetPassword() {
     const { uid, token } = useParams();

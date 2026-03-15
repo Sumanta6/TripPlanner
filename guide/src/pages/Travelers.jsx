@@ -1,22 +1,61 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FaSearch, FaFilter, FaPhone, FaEnvelope, FaStickyNote, FaMapMarkerAlt, FaCalendarAlt } from 'react-icons/fa';
-import { travelers } from '../data/mockData';
+import { getMyBookings } from '../services/guidesService';
 import './Travelers.css';
 
 const STATUS_CONFIG = {
-    active: { label: 'Active', className: 'status-active' },
-    upcoming: { label: 'Upcoming', className: 'status-upcoming' },
+    active:    { label: 'Active',    className: 'status-active' },
+    upcoming:  { label: 'Upcoming',  className: 'status-upcoming' },
     completed: { label: 'Completed', className: 'status-completed' },
-    pending: { label: 'Pending', className: 'status-pending' },
+    pending:   { label: 'Pending',   className: 'status-pending' },
 };
 
+function SkeletonTravelerCard() {
+    return (
+        <div className="traveler-card skeleton-card">
+            <div className="traveler-card-header">
+                <div className="skeleton-avatar" />
+                <div className="skeleton-info">
+                    <div className="skeleton-line short" style={{ marginBottom: 6 }} />
+                    <div className="skeleton-line short" style={{ width: '40%' }} />
+                </div>
+            </div>
+            <div className="traveler-card-body">
+                {[1,2,3,4].map(i => <div key={i} className="skeleton-line long" style={{ margin: '8px 0' }} />)}
+            </div>
+        </div>
+    );
+}
+
 export default function Travelers() {
-    const [search, setSearch] = useState('');
+    const [bookings, setBookings]   = useState([]);
+    const [loading, setLoading]     = useState(true);
+    const [error, setError]         = useState(null);
+    const [search, setSearch]       = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [expandedNote, setExpandedNote] = useState(null);
 
-    const filtered = travelers.filter(t => {
-        const matchSearch = t.name.toLowerCase().includes(search.toLowerCase()) ||
+    useEffect(() => {
+        let alive = true;
+        async function load() {
+            setLoading(true);
+            setError(null);
+            try {
+                const data = await getMyBookings();
+                if (alive) setBookings(data);
+            } catch (err) {
+                if (alive) setError(err.message);
+            } finally {
+                if (alive) setLoading(false);
+            }
+        }
+        load();
+        return () => { alive = false; };
+    }, []);
+
+    const filtered = bookings.filter(t => {
+        const matchSearch =
+            t.traveler_name.toLowerCase().includes(search.toLowerCase()) ||
             t.destination.toLowerCase().includes(search.toLowerCase());
         const matchStatus = filterStatus === 'all' || t.status === filterStatus;
         return matchSearch && matchStatus;
@@ -35,7 +74,7 @@ export default function Travelers() {
                     <h1>👥 Travelers Directory</h1>
                     <p>Manage all travelers assigned to you</p>
                 </div>
-                <div className="travelers-count-badge">{travelers.length} Total Travelers</div>
+                <div className="travelers-count-badge">{bookings.length} Total Travelers</div>
             </div>
 
             {/* Filters */}
@@ -65,28 +104,35 @@ export default function Travelers() {
             <div className="travelers-stats-row">
                 {['active', 'upcoming', 'pending', 'completed'].map(s => (
                     <div key={s} className={`stat-pill stat-pill-${s}`}>
-                        <span className="stat-count">{travelers.filter(t => t.status === s).length}</span>
+                        <span className="stat-count">{bookings.filter(t => t.status === s).length}</span>
                         <span className="stat-label">{STATUS_CONFIG[s].label}</span>
                     </div>
                 ))}
             </div>
 
+            {/* Error */}
+            {error && <div className="travelers-error-banner">⚠️ {error}</div>}
+
             {/* Cards Grid */}
-            {filtered.length === 0 ? (
+            {loading ? (
+                <div className="travelers-grid">
+                    {[1,2,3,4].map(i => <SkeletonTravelerCard key={i} />)}
+                </div>
+            ) : filtered.length === 0 ? (
                 <div className="travelers-empty">
-                    <p>No travelers match your search.</p>
+                    <p>{bookings.length === 0 ? 'No travelers assigned to you yet.' : 'No travelers match your search.'}</p>
                 </div>
             ) : (
                 <div className="travelers-grid">
                     {filtered.map(traveler => {
-                        const sc = STATUS_CONFIG[traveler.status];
+                        const sc = STATUS_CONFIG[traveler.status] || STATUS_CONFIG.pending;
                         return (
                             <div className="traveler-card" key={traveler.id}>
                                 {/* Card Header */}
                                 <div className="traveler-card-header">
                                     <div className="traveler-avatar">{traveler.avatar}</div>
                                     <div className="traveler-name-block">
-                                        <h3>{traveler.name}</h3>
+                                        <h3>{traveler.traveler_name}</h3>
                                         <span className={`traveler-status-badge ${sc.className}`}>{sc.label}</span>
                                     </div>
                                 </div>
@@ -101,41 +147,54 @@ export default function Travelers() {
                                     <div className="traveler-info-row">
                                         <FaCalendarAlt className="info-icon date-icon" />
                                         <span className="info-label">Trip Dates</span>
-                                        <span className="info-value">{formatDate(traveler.tripStart)} – {formatDate(traveler.tripEnd)}</span>
+                                        <span className="info-value">{formatDate(traveler.trip_start)} – {formatDate(traveler.trip_end)}</span>
                                     </div>
-                                    <div className="traveler-info-row">
-                                        <FaPhone className="info-icon phone-icon" />
-                                        <span className="info-label">Phone</span>
-                                        <span className="info-value">{traveler.phone}</span>
-                                    </div>
-                                    <div className="traveler-info-row">
-                                        <FaEnvelope className="info-icon email-icon" />
-                                        <span className="info-label">Email</span>
-                                        <span className="info-value">{traveler.email}</span>
-                                    </div>
+                                    {traveler.traveler_phone && (
+                                        <div className="traveler-info-row">
+                                            <FaPhone className="info-icon phone-icon" />
+                                            <span className="info-label">Phone</span>
+                                            <span className="info-value">{traveler.traveler_phone}</span>
+                                        </div>
+                                    )}
+                                    {traveler.traveler_email && (
+                                        <div className="traveler-info-row">
+                                            <FaEnvelope className="info-icon email-icon" />
+                                            <span className="info-label">Email</span>
+                                            <span className="info-value">{traveler.traveler_email}</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Notes Section */}
-                                <div className="traveler-notes" onClick={() => setExpandedNote(expandedNote === traveler.id ? null : traveler.id)}>
-                                    <FaStickyNote className="notes-icon" />
-                                    <span className="notes-toggle">
-                                        {expandedNote === traveler.id ? 'Hide Notes' : 'View Notes'}
-                                    </span>
-                                </div>
-                                {expandedNote === traveler.id && (
-                                    <div className="notes-content">
-                                        <p>{traveler.notes}</p>
-                                    </div>
+                                {traveler.notes && (
+                                    <>
+                                        <div
+                                            className="traveler-notes"
+                                            onClick={() => setExpandedNote(expandedNote === traveler.id ? null : traveler.id)}
+                                        >
+                                            <FaStickyNote className="notes-icon" />
+                                            <span className="notes-toggle">
+                                                {expandedNote === traveler.id ? 'Hide Notes' : 'View Notes'}
+                                            </span>
+                                        </div>
+                                        {expandedNote === traveler.id && (
+                                            <div className="notes-content"><p>{traveler.notes}</p></div>
+                                        )}
+                                    </>
                                 )}
 
                                 {/* Card Actions */}
                                 <div className="traveler-card-actions">
-                                    <a href={`tel:${traveler.phone}`} className="action-link-btn call-btn">
-                                        <FaPhone /> Call
-                                    </a>
-                                    <a href={`mailto:${traveler.email}`} className="action-link-btn email-btn">
-                                        <FaEnvelope /> Email
-                                    </a>
+                                    {traveler.traveler_phone && (
+                                        <a href={`tel:${traveler.traveler_phone}`} className="action-link-btn call-btn">
+                                            <FaPhone /> Call
+                                        </a>
+                                    )}
+                                    {traveler.traveler_email && (
+                                        <a href={`mailto:${traveler.traveler_email}`} className="action-link-btn email-btn">
+                                            <FaEnvelope /> Email
+                                        </a>
+                                    )}
                                 </div>
                             </div>
                         );

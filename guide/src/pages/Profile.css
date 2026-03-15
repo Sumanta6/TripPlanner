@@ -98,6 +98,143 @@
     background: #ef4444;
 }
 
+/* ── Header Info ─────────────────────────────────────────────────────────────── */
+.profile-hero-info h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin: 0 0 6px;
+    letter-spacing: -0.5px;
+}
+.profile-hero-info .profile-specialization {
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0 0 16px;
+    font-weight: 400;
+}
+
+/* ── EDIT MODE STYLES ────────────────────────────────────────────────────────── */
+.profile-edit-input {
+    width: 100%;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 1rem;
+    outline: none;
+    transition: 0.2s ease;
+}
+.profile-edit-input:focus {
+    background: rgba(255,255,255,0.2);
+    border-color: #fff;
+}
+.profile-edit-input::placeholder { color: rgba(255,255,255,0.6); }
+
+.title-input {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+    padding: 4px 10px;
+}
+.spec-input {
+    font-size: 1.1rem;
+    margin-bottom: 16px;
+    padding: 4px 10px;
+}
+
+.profile-hero-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+.profile-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: 0.2s ease;
+}
+.profile-action-btn.edit {
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+    backdrop-filter: blur(8px);
+}
+.profile-action-btn.edit:hover { background: rgba(255,255,255,0.3); }
+
+.profile-action-btn.save {
+    background: #10b981;
+    color: #fff;
+}
+.profile-action-btn.save:hover { background: #059669; }
+
+.profile-action-btn.cancel {
+    background: transparent;
+    color: rgba(255,255,255,0.8);
+    border: 1px solid rgba(255,255,255,0.4);
+}
+.profile-action-btn.cancel:hover {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+}
+
+.profile-action-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ── Light Inputs (in cards) ─────────────────────────────────────────────────── */
+.profile-left .profile-edit-input,
+.profile-right .profile-edit-input {
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    color: #1e293b;
+}
+.profile-left .profile-edit-input:focus,
+.profile-right .profile-edit-input:focus {
+    border-color: #4f7cff;
+    box-shadow: 0 0 0 3px rgba(79,124,255,0.1);
+}
+.profile-left .profile-edit-input::placeholder,
+.profile-right .profile-edit-input::placeholder {
+    color: #94a3b8;
+}
+
+.edit-full-width {
+    width: 100%;
+}
+.profile-edit-hint {
+    display: block;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-top: 4px;
+}
+
+.profile-edit-textarea {
+    width: 100%;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    color: #334155;
+    font-family: inherit;
+    resize: vertical;
+    outline: none;
+    transition: 0.2s ease;
+}
+.profile-edit-textarea:focus {
+    border-color: #4f7cff;
+    box-shadow: 0 0 0 3px rgba(79,124,255,0.1);
+}
+
+/* ────────────────────────────────────────────────────────────────────────────── */
+
 .profile-hero-info h1 {
     font-size: 28px;
     font-weight: 700;

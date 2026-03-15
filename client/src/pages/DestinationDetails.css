@@ -3,6 +3,56 @@
   min-height: 100vh;
 }
 
+.dd-loading,
+.dd-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 60px 20px;
+  gap: 24px;
+}
+
+.dd-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(0, 180, 216, 0.2);
+  border-top-color: var(--teal);
+  border-radius: 50%;
+  animation: dd-spin 0.8s linear infinite;
+}
+
+@keyframes dd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.dd-error p {
+  color: var(--text-gray);
+  text-align: center;
+}
+
+.dd-location {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.dd-coords-box {
+  background: var(--white);
+  border-radius: var(--radius-card);
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+  margin-top: 24px;
+}
+
+.dd-coords {
+  font-size: 14px;
+  color: var(--text-gray);
+  margin: 0;
+}
+
 /* ===== HERO HEADER ===== */
 .dd-hero {
   position: relative;

@@ -14,5 +14,6 @@ urlpatterns = [
     path("dashboard/", views.dashboard),
     path("trips/create/", views.create_trip),
     path("check-auth/", views.check_auth),
-
+    path("change-password/", views.change_password),
+    path("csrf-cookie/", views.csrf_cookie),
 ]

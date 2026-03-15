@@ -1,6 +1,15 @@
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from backend/.env if present (local dev convenience)
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(BASE_DIR / ".env")
+except Exception:
+    pass
 
 SECRET_KEY = "django-insecure-change-this"
 
@@ -23,6 +32,7 @@ INSTALLED_APPS = [
     "accounts",
     "contacts",
     "itinerary",
+    "guides",
 ]
 
 MIDDLEWARE = [
@@ -157,3 +167,8 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 # GEMINI AI
 # ======================
 GEMINI_API_KEY = "AIzaSyApn5XibywuDUeTHIMN-iugzNYneGtlFfg"
+
+# ======================
+# GEOAPIFY (Destinations)
+# ======================
+GEOAPIFY_API_KEY = os.environ.get("GEOAPIFY_API_KEY", "")

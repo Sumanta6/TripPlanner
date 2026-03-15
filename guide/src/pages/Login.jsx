@@ -6,7 +6,11 @@ import './Auth.css';
 
 const GOOGLE_CLIENT_ID =
     '320492427698-7se212gnd06b14a41a3jsca1sqiv4pn7.apps.googleusercontent.com';
-const API = 'http://127.0.0.1:8000/accounts';
+const API = 'http://localhost:8000/accounts';
+
+axios.defaults.withCredentials = true;
+axios.defaults.xsrfCookieName = 'csrftoken';
+axios.defaults.xsrfHeaderName = 'X-CSRFToken';
 
 export default function Login({ onLogin }) {
     const navigate = useNavigate();

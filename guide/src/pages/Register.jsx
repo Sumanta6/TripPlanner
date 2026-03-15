@@ -4,7 +4,11 @@ import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import axios from 'axios';
 import './Auth.css';
 
-const API = 'http://127.0.0.1:8000/accounts';
+const API = 'http://localhost:8000/accounts';
+
+axios.defaults.withCredentials = true;
+axios.defaults.xsrfCookieName = 'csrftoken';
+axios.defaults.xsrfHeaderName = 'X-CSRFToken';
 
 export default function Register() {
     const navigate = useNavigate();

@@ -1,7 +1,7 @@
 from django.urls import path
-from .views import DestinationListView, DestinationDetailView
+from .views import GeoapifyDestinationsView, GeoapifyDestinationDetailView
 
 urlpatterns = [
-    path('', DestinationListView.as_view(), name='destination-list'),
-    path('<int:pk>/', DestinationDetailView.as_view(), name='destination-detail'),
+    path("", GeoapifyDestinationsView.as_view(), name="destination-list"),
+    path("<str:pk>/", GeoapifyDestinationDetailView.as_view(), name="destination-detail"),
 ]

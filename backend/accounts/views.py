@@ -1,6 +1,6 @@
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout
 from django.contrib.auth.models import User
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.authentication import SessionAuthentication
@@ -57,9 +57,11 @@ def login(request):
 
     user = authenticate(username=user_obj.username, password=password)
     if user is None:
+        print(f"DEBUG LOGIN: authenticate failed for {email}")
         return Response({"error": "Invalid email or password"}, status=401)
 
     django_login(request, user)
+    print(f"DEBUG LOGIN: django_login successful for {email}. Session key: {request.session.session_key}")
     request.session.set_expiry(60 * 60 * 24 * 14 if remember_me else 0)
 
     return Response({"message": "Login successful"}, status=200)
@@ -198,6 +200,7 @@ def create_trip(request):
 # ======================
 # CHECK AUTH
 # ======================
+@ensure_csrf_cookie
 @api_view(["GET"])
 def check_auth(request):
     if request.user.is_authenticated:
@@ -208,3 +211,37 @@ def check_auth(request):
             }
         })
     return Response({"authenticated": False})
+
+# ======================
+# CSRF COOKIE INIT
+# ======================
+@ensure_csrf_cookie
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def csrf_cookie(request):
+    return Response({"message": "CSRF cookie set"})
+
+# ======================
+# CHANGE PASSWORD
+# ======================
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    old_password = request.data.get("old_password")
+    new_password = request.data.get("new_password")
+
+    if not old_password or not new_password:
+        return Response({"error": "Both old and new passwords are required."}, status=400)
+
+    if not request.user.check_password(old_password):
+        return Response({"error": "Current password is incorrect."}, status=400)
+
+    if len(new_password) < 8:
+        return Response({"error": "New password must be at least 8 characters."}, status=400)
+
+    request.user.set_password(new_password)
+    request.user.save()
+    # Re-authenticate so the session stays valid
+    from django.contrib.auth import update_session_auth_hash
+    update_session_auth_hash(request, request.user)
+    return Response({"message": "Password changed successfully."})

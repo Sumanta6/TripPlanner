@@ -11,6 +11,7 @@ import Travelers from './pages/Travelers';
 import Itineraries from './pages/Itineraries';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
+import { AuthProvider } from './context/AuthContext';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const GUIDE_KEY = 'guideLoggedIn';
@@ -57,34 +58,36 @@ export default function App() {
     }
 
     return (
-        <Routes>
-            {/* default → login */}
-            <Route path="/" element={<Navigate to={loggedIn ? "/home" : "/login"} replace />} />
+        <AuthProvider loggedIn={loggedIn} onLogout={handleLogout}>
+            <Routes>
+                {/* default → login */}
+                <Route path="/" element={<Navigate to={loggedIn ? "/home" : "/login"} replace />} />
 
-            {/* public routes */}
-            <Route path="/login" element={<Login onLogin={handleLogin} />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password/:uid/:token" element={<ResetPassword />} />
+                {/* public routes */}
+                <Route path="/login" element={<Login onLogin={handleLogin} />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password/:uid/:token" element={<ResetPassword />} />
 
-            {/* protected routes wrapped in GuideLayout */}
-            <Route
-                element={
-                    <Protected loggedIn={loggedIn}>
-                        <GuideLayout onLogout={handleLogout} />
-                    </Protected>
-                }
-            >
-                <Route path="/home" element={<Home />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/travelers" element={<Travelers />} />
-                <Route path="/itineraries" element={<Itineraries />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/settings" element={<Settings />} />
-            </Route>
+                {/* protected routes wrapped in GuideLayout */}
+                <Route
+                    element={
+                        <Protected loggedIn={loggedIn}>
+                            <GuideLayout onLogout={handleLogout} />
+                        </Protected>
+                    }
+                >
+                    <Route path="/home" element={<Home />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/travelers" element={<Travelers />} />
+                    <Route path="/itineraries" element={<Itineraries />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/settings" element={<Settings />} />
+                </Route>
 
-            {/* catch-all */}
-            <Route path="*" element={<Navigate to={loggedIn ? "/home" : "/login"} replace />} />
-        </Routes>
+                {/* catch-all */}
+                <Route path="*" element={<Navigate to={loggedIn ? "/home" : "/login"} replace />} />
+            </Routes>
+        </AuthProvider>
     );
 }
