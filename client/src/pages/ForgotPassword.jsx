@@ -16,7 +16,7 @@ export default function ForgotPassword({ close, openLogin }) {
 
     try {
       await axios.post(
-        "http://127.0.0.1:8000/accounts/forgot-password/",
+        "http://localhost:8000/accounts/forgot-password/",
         { email },
         { withCredentials: true }
       );

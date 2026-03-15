@@ -7,6 +7,7 @@ import "./AuthModal.css";
 export default function AuthModal({ close, setIsLoggedIn, mode = "login" }) {
   const navigate = useNavigate();
   const googleBtnRef = useRef(null);
+  const googleInit = useRef(false);
 
   const [isLogin, setIsLogin] = useState(mode !== "register");
   const [showForgot, setShowForgot] = useState(false);
@@ -41,7 +42,7 @@ export default function AuthModal({ close, setIsLoggedIn, mode = "login" }) {
   const handleGoogleResponse = async (response) => {
     try {
       const res = await fetch(
-        "http://127.0.0.1:8000/accounts/google-login/",
+        "http://localhost:8000/accounts/google-login/",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -84,18 +85,25 @@ export default function AuthModal({ close, setIsLoggedIn, mode = "login" }) {
 
     googleBtnRef.current.innerHTML = "";
 
-    window.google.accounts.id.initialize({
-      client_id:
-        "320492427698-7se212gnd06b14a41a3jsca1sqiv4pn7.apps.googleusercontent.com",
-      callback: handleGoogleResponse,
-      ux_mode: "popup", // ✅ REQUIRED FIX (NO UI CHANGE)
-    });
+    if (!googleInit.current) {
+      window.google.accounts.id.initialize({
+        client_id:
+          "320492427698-7se212gnd06b14a41a3jsca1sqiv4pn7.apps.googleusercontent.com",
+        callback: handleGoogleResponse,
+        ux_mode: "popup", // ✅ REQUIRED FIX (NO UI CHANGE)
+      });
+      googleInit.current = true;
+    }
 
-    window.google.accounts.id.renderButton(googleBtnRef.current, {
-      theme: "outline",
-      size: "large",
-      width: 300,
-    });
+    try {
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: "outline",
+        size: "large",
+        width: 300,
+      });
+    } catch (e) {
+      console.error("Google button render error:", e);
+    }
   }, [isLogin, showForgot]);
 
   // =========================
@@ -111,8 +119,8 @@ export default function AuthModal({ close, setIsLoggedIn, mode = "login" }) {
     }
 
     const url = isLogin
-      ? "http://127.0.0.1:8000/accounts/login/"
-      : "http://127.0.0.1:8000/accounts/register/";
+      ? "http://localhost:8000/accounts/login/"
+      : "http://localhost:8000/accounts/register/";
 
     const body = isLogin
       ? {

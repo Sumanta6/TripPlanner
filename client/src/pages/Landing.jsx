@@ -186,7 +186,7 @@ export default function Landing({ setIsLoggedIn }) {
             <button className="lp-btn-primary" onClick={() => openAuth("login")}>
               Plan Your Trip <FaArrowRight className="btn-icon" />
             </button>
-            <a className="lp-btn-outline" href="http://127.0.0.1:3001/register">
+            <a className="lp-btn-outline" href="http://localhost:3001/register">
               Become a Guide
             </a>
           </div>
@@ -330,10 +330,10 @@ export default function Landing({ setIsLoggedIn }) {
               <li><FaShieldAlt className="benefit-icon" /> Verified guide badge for credibility</li>
             </ul>
             <div className="guide-promo-actions">
-              <a className="lp-btn-gold" href="http://127.0.0.1:3001/register">
+              <a className="lp-btn-gold" href="http://localhost:3001/register">
                 Join as a Guide <FaArrowRight className="btn-icon" />
               </a>
-              <a className="lp-btn-ghost-white" href="http://127.0.0.1:3001/login">
+              <a className="lp-btn-ghost-white" href="http://localhost:3001/login">
                 Guide Login
               </a>
             </div>
@@ -412,7 +412,7 @@ export default function Landing({ setIsLoggedIn }) {
             <ul>
               <li><Link to="/contact">About Us</Link></li>
               <li><Link to="/contact">Contact</Link></li>
-              <li><a href="http://127.0.0.1:3001">Guide Portal</a></li>
+              <li><a href="http://localhost:3001">Guide Portal</a></li>
             </ul>
           </div>
 

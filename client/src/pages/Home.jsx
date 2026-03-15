@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import api from "../services/api";
 import "./Home.css";
 
 // Reusing same images as landing page
@@ -22,20 +23,17 @@ function Home() {
 
   // Load user data if logged in
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/accounts/dashboard/", {
-      credentials: "include",
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error();
-        return res.json();
-      })
-      .then((data) => {
-        setUser(data.user);
-        setTrips(data.trips);
-      })
-      .catch(() => {
-        setUser(null);
-      });
+    // Only attempt fetch if the frontend thinks we are logged in
+    if (localStorage.getItem("isLoggedIn") === "true" || sessionStorage.getItem("isLoggedIn") === "true") {
+      api.get("/../accounts/dashboard/")
+        .then((res) => {
+          setUser(res.data.user);
+          setTrips(res.data.trips);
+        })
+        .catch(() => {
+          setUser(null);
+        });
+    }
   }, []);
 
   // Hero Carousel Logic

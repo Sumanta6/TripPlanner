@@ -36,9 +36,10 @@ export default function Navbar({ isLoggedIn, setIsLoggedIn, userEmail }) {
   // Logout Function
   const logout = async () => {
     try {
-      await fetch("http://127.0.0.1:8000/accounts/logout/", {
+      await fetch("http://localhost:8000/accounts/logout/", {
         method: "POST",
         credentials: "include",
+        headers: { "Content-Type": "application/json" },
       });
     } catch { }
 

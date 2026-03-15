@@ -14,8 +14,8 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes
 from django.core.mail import send_mail
 
-from .models import Trip
-from .serializers import TripSerializer, RegisterSerializer
+from .models import Trip, TravelerProfile
+from .serializers import TripSerializer, RegisterSerializer, TravelerProfileSerializer
 
 GOOGLE_CLIENT_ID = "320492427698-7se212gnd06b14a41a3jsca1sqiv4pn7.apps.googleusercontent.com"
 
@@ -245,3 +245,37 @@ def change_password(request):
     from django.contrib.auth import update_session_auth_hash
     update_session_auth_hash(request, request.user)
     return Response({"message": "Password changed successfully."})
+
+
+# ======================
+# TRAVELER PROFILE
+# ======================
+def get_or_create_traveler_profile(user):
+    profile, _ = TravelerProfile.objects.get_or_create(
+        user=user,
+        defaults={
+            'full_name': user.get_full_name() or user.username,
+        },
+    )
+    return profile
+
+@ensure_csrf_cookie
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def traveler_profile(request):
+    """
+    GET  /accounts/profile/me/
+    PATCH /accounts/profile/me/
+    """
+    profile = get_or_create_traveler_profile(request.user)
+
+    if request.method == 'GET':
+        serializer = TravelerProfileSerializer(profile)
+        return Response(serializer.data)
+
+    # PATCH
+    serializer = TravelerProfileSerializer(profile, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors, status=400)

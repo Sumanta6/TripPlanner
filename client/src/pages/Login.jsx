@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import axios from "axios";
@@ -6,6 +6,7 @@ import "./Login.css";
 
 function Login() {
   const navigate = useNavigate();
+  const googleInit = useRef(false);
 
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
@@ -19,7 +20,7 @@ function Login() {
   const handleGoogleResponse = useCallback(async (response) => {
     try {
       await axios.post(
-        "http://127.0.0.1:8000/accounts/google-login/",
+        "http://localhost:8000/accounts/google-login/",
         { token: response.credential },
         { withCredentials: true }
       );
@@ -39,16 +40,23 @@ function Login() {
       const btn = document.getElementById("google-btn");
 
       if (window.google && btn) {
-        window.google.accounts.id.initialize({
-          client_id: "320492427698-7se212gnd06b14a41a3jsca1sqiv4pn7.apps.googleusercontent.com",
-          callback: handleGoogleResponse,
-        });
+        if (!googleInit.current) {
+          window.google.accounts.id.initialize({
+            client_id: "320492427698-7se212gnd06b14a41a3jsca1sqiv4pn7.apps.googleusercontent.com",
+            callback: handleGoogleResponse,
+          });
+          googleInit.current = true;
+        }
 
-        window.google.accounts.id.renderButton(btn, {
-          theme: "outline",
-          size: "large",
-          width: 320,
-        });
+        try {
+          window.google.accounts.id.renderButton(btn, {
+            theme: "outline",
+            size: "large",
+            width: 320,
+          });
+        } catch (e) {
+          console.error("Google button render error:", e);
+        }
 
         clearInterval(interval);
       }
@@ -67,7 +75,7 @@ function Login() {
 
     try {
       await axios.post(
-        "http://127.0.0.1:8000/accounts/login/",
+        "http://localhost:8000/accounts/login/",
         form,
         { withCredentials: true }
       );

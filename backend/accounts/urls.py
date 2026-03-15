@@ -16,4 +16,5 @@ urlpatterns = [
     path("check-auth/", views.check_auth),
     path("change-password/", views.change_password),
     path("csrf-cookie/", views.csrf_cookie),
+    path("profile/me/", views.traveler_profile),
 ]

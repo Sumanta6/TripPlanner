@@ -69,7 +69,7 @@ function App() {
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
-          <Route path="/profile" element={<Profile />} />
+          <Route path="/profile" element={<Profile setIsLoggedIn={setIsLoggedIn} />} />
         </Route>
       </Routes>
     </BrowserRouter>

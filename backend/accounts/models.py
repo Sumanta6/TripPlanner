@@ -13,6 +13,19 @@ class UserProfile(models.Model):
         return self.user.username
 
 
+class TravelerProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="traveler_profile")
+    full_name = models.CharField(max_length=150, blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    address = models.CharField(max_length=255, blank=True)
+    bio = models.TextField(blank=True)
+    preferred_destinations = models.JSONField(default=list, blank=True)
+    travel_style = models.CharField(max_length=100, blank=True)
+
+    def __str__(self):
+        return self.full_name or self.user.username
+
+
 class Trip(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="trips")
     from_city = models.CharField(max_length=100)

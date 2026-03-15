@@ -1,126 +1,363 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { getMyProfile, updateMyProfile, initCsrf } from "../services/api";
 import "./Profile.css";
 
-// MOCK DATA
-const USER_DATA = {
-    fullName: "Sumanta Clement",
-    email: "sumantagautamm@gmail.com",
-    phone: "+977 9843094985",
-    avatar: "https://ui-avatars.com/api/?name=Sumanta+Clement&background=0D8ABC&color=fff",
-    preferences: {
-        destinations: ["Everest Region", "Pokhara"],
-        budget: "$1,000 - $2,000",
-    },
-    trips: [
+// Icons (Using Lucide React if available, or fallbacks)
+import { 
+    User, MapPin, Phone, Mail, Navigation, Heart, 
+    Edit2, Check, X, Map
+} from "lucide-react";
+
+export default function Profile({ setIsLoggedIn }) {
+    const navigate = useNavigate();
+
+    const [profile, setProfile] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [notLoggedIn, setNotLoggedIn] = useState(false);
+
+    const [isEditing, setIsEditing] = useState(false);
+    const [form, setForm] = useState({});
+    const [saving, setSaving] = useState(false);
+    const [saveStatus, setSaveStatus] = useState(null);
+
+    // MOCK TRIPS for now
+    const MOCK_TRIPS = [
         {
             id: 101,
             title: "Everest Base Camp Trek",
             destination: "Everest Region",
             duration: "14 Days",
-            date: "Oct 15, 2025",
             status: "Upcoming",
-            image: "/images/hero-everest.jpg"
-        },
-        {
-            id: 102,
-            title: "Pokhara Lakeside Retreat",
-            destination: "Pokhara",
-            duration: "5 Days",
-            date: "Nov 20, 2025",
-            status: "Planning",
-            image: "/images/hero-pokhara.jpg"
+            image: "https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&q=80&w=300&h=200"
         }
-    ]
-};
+    ];
 
-export default function Profile() {
-    const [user] = useState(USER_DATA);
+    useEffect(() => {
+        let alive = true;
+        async function loadProfile() {
+            setLoading(true);
+            setError(null);
+            setNotLoggedIn(false);
+            try {
+                await initCsrf();
+                const data = await getMyProfile();
+                if (alive) {
+                    setProfile(data);
+                    setForm(data);
+                }
+            } catch (err) {
+                if (!alive) return;
+                const status = err?.response?.status || err?.statusCode;
+                if (status === 401 || status === 403) {
+                    setNotLoggedIn(true);
+                } else {
+                    setError(err?.response?.data?.detail || err.message || "Failed to load profile.");
+                }
+            } finally {
+                if (alive) setLoading(false);
+            }
+        }
+        loadProfile();
+        return () => { alive = false; };
+    }, []);
+
+    const handleEditToggle = () => {
+        if (isEditing) {
+            setForm(profile);
+            setError(null);
+            setSaveStatus(null);
+        }
+        setIsEditing(!isEditing);
+    };
+
+    const handleChange = (e) => {
+        setForm({ ...form, [e.target.name]: e.target.value });
+    };
+
+    const handleDestinationsChange = (e) => {
+        const arr = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
+        setForm({ ...form, preferred_destinations: arr });
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        setError(null);
+        setSaveStatus(null);
+        try {
+            const updated = await updateMyProfile(form);
+            setProfile(updated);
+            setForm(updated);
+            setIsEditing(false);
+            setSaveStatus("Profile updated successfully!");
+            setTimeout(() => setSaveStatus(null), 3000);
+        } catch (err) {
+            const msg = err?.response?.data
+                ? Object.values(err.response.data).flat().join(", ")
+                : err.message || "Failed to save profile.";
+            setError(msg);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // ── STATES ──────────────────────────────────────────────────────────────
+    if (loading) {
+        return (
+            <div className="profile-page flex-center">
+                <div className="loader-spinner"></div>
+            </div>
+        );
+    }
+
+    if (notLoggedIn) {
+        return (
+            <div className="profile-page flex-center">
+                <div className="empty-state-card">
+                    <User size={48} className="empty-icon text-muted" />
+                    <h2>You are not logged in</h2>
+                    <p>Please log in to view and manage your travel profile.</p>
+                    <button className="btn-primary mt-4" onClick={() => navigate("/")}>
+                        Go to Login
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (error && !profile) {
+        return (
+            <div className="profile-page flex-center">
+                <div className="empty-state-card error-card">
+                    <h2>Oops, something went wrong</h2>
+                    <p>{error}</p>
+                    <button className="btn-outline mt-4" onClick={() => window.location.reload()}>
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    const email = localStorage.getItem("userEmail") || "";
+    const avatarInitials = (profile?.full_name || email || "U").substring(0, 2).toUpperCase();
 
     return (
         <div className="profile-page">
-            <div className="profile-container">
-                {/* HEADER SECTION */}
-                <header className="profile-header">
-                    <div className="profile-avatar">
-                        <img src={user.avatar} alt="Profile" />
-                    </div>
-                    <div className="profile-info">
-                        <h1>{user.fullName}</h1>
-                        <p>{user.email}</p>
-                    </div>
-                    <button className="btn-edit-profile">Edit Profile</button>
-                </header>
+            <div className="profile-container setup-animation">
 
-                <div className="profile-grid">
-                    {/* LEFT COLUMN: DETAILS & PREFERENCES */}
-                    <div className="profile-left">
-                        {/* Personal Details */}
-                        <section className="profile-card">
-                            <h2>Personal Details</h2>
-                            <div className="detail-row">
-                                <span className="label">Full Name</span>
-                                <span className="value">{user.fullName}</span>
-                            </div>
-                            <div className="detail-row">
-                                <span className="label">Email</span>
-                                <span className="value">{user.email}</span>
-                            </div>
-                            <div className="detail-row">
-                                <span className="label">Phone</span>
-                                <span className="value">{user.phone}</span>
-                            </div>
-                        </section>
+                {/* Notifications */}
+                {saveStatus && (
+                    <div className="profile-toast success">
+                        <Check size={18} />
+                        {saveStatus}
+                    </div>
+                )}
+                {error && isEditing && (
+                    <div className="profile-toast error">
+                        <X size={18} />
+                        {error}
+                    </div>
+                )}
 
-                        {/* Preferences */}
-                        <section className="profile-card">
-                            <h2>Trip Preferences</h2>
-                            <div className="detail-row">
-                                <span className="label">Favorite Destinations</span>
-                                <div className="tags">
-                                    {user.preferences.destinations.map(dest => (
-                                        <span key={dest} className="tag">{dest}</span>
-                                    ))}
+                {/* ── HERO HEADER ── */}
+                <div className="profile-hero card">
+                    <div className="hero-content">
+                        <div className="hero-avatar">
+                            {avatarInitials}
+                        </div>
+                        <div className="hero-info">
+                            {isEditing ? (
+                                <input
+                                    className="edit-input title-input"
+                                    type="text"
+                                    name="full_name"
+                                    value={form.full_name || ""}
+                                    onChange={handleChange}
+                                    placeholder="Your Full Name"
+                                />
+                            ) : (
+                                <h1>{profile?.full_name || "Traveler"}</h1>
+                            )}
+                            
+                            <div className="hero-meta">
+                                <span className="meta-item"><Mail size={16} /> {email}</span>
+                            </div>
+
+                            <div className="hero-bio mt-3">
+                                {isEditing ? (
+                                    <textarea
+                                        className="edit-input w-full"
+                                        name="bio"
+                                        rows="2"
+                                        value={form.bio || ""}
+                                        onChange={handleChange}
+                                        placeholder="Write a short bio about yourself..."
+                                    />
+                                ) : (
+                                    <p>{profile?.bio || "No bio added yet. Tell us about your travel dreams!"}</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="hero-actions">
+                        {!isEditing ? (
+                            <button className="btn-primary" onClick={handleEditToggle}>
+                                <Edit2 size={16} /> Edit Profile
+                            </button>
+                        ) : (
+                            <div className="flex gap-2">
+                                <button className="btn-outline" onClick={handleEditToggle} disabled={saving}>
+                                    Cancel
+                                </button>
+                                <button className="btn-primary" onClick={handleSave} disabled={saving}>
+                                    {saving ? "Saving..." : "Save"}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* ── MAIN CONTENT GRID ── */}
+                <div className="profile-grid mt-6">
+                    
+                    {/* LEFT COLUMN */}
+                    <div className="profile-col-left">
+                        
+                        {/* Contact & Personal */}
+                        <div className="card list-group">
+                            <h3 className="card-title">Personal Details</h3>
+                            
+                            <div className="list-item">
+                                <div className="item-icon"><Phone size={18}/></div>
+                                <div className="item-content">
+                                    <p className="item-label">Phone Number</p>
+                                    {isEditing ? (
+                                        <input
+                                            className="edit-input"
+                                            type="text"
+                                            name="phone"
+                                            value={form.phone || ""}
+                                            onChange={handleChange}
+                                            placeholder="+977 98XXXXXXXX"
+                                        />
+                                    ) : (
+                                        <p className="item-value">{profile?.phone || "—"}</p>
+                                    )}
                                 </div>
                             </div>
-                            <div className="detail-row">
-                                <span className="label">Budget Range</span>
-                                <span className="value">{user.preferences.budget}</span>
-                            </div>
-                        </section>
 
-                        {/* Account Actions */}
-                        <section className="profile-card actions-card">
-                            <h2>Account Settings</h2>
-                            <button className="btn-action">Change Password</button>
-                            <button className="btn-action btn-logout">Logout</button>
-                        </section>
+                            <div className="list-item">
+                                <div className="item-icon"><MapPin size={18}/></div>
+                                <div className="item-content">
+                                    <p className="item-label">Address</p>
+                                    {isEditing ? (
+                                        <input
+                                            className="edit-input"
+                                            type="text"
+                                            name="address"
+                                            value={form.address || ""}
+                                            onChange={handleChange}
+                                            placeholder="Kathmandu, Nepal"
+                                        />
+                                    ) : (
+                                        <p className="item-value">{profile?.address || "—"}</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Travel Preferences */}
+                        <div className="card mt-6 list-group">
+                            <h3 className="card-title">Travel Preferences</h3>
+                            
+                            <div className="list-item">
+                                <div className="item-icon"><Navigation size={18}/></div>
+                                <div className="item-content">
+                                    <p className="item-label">Travel Style</p>
+                                    {isEditing ? (
+                                        <input
+                                            className="edit-input"
+                                            type="text"
+                                            name="travel_style"
+                                            value={form.travel_style || ""}
+                                            onChange={handleChange}
+                                            placeholder="e.g. Trekking, Cultural tour, Adventure..."
+                                        />
+                                    ) : (
+                                        <p className="item-value">{profile?.travel_style || "—"}</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="list-item align-start">
+                                <div className="item-icon mt-1"><Heart size={18}/></div>
+                                <div className="item-content w-full">
+                                    <p className="item-label mb-2">Favorite Destinations</p>
+                                    {isEditing ? (
+                                        <input
+                                            className="edit-input w-full"
+                                            type="text"
+                                            value={(form.preferred_destinations || []).join(", ")}
+                                            onChange={handleDestinationsChange}
+                                            placeholder="e.g. Pokhara, Everest Base Camp, Chitwan"
+                                        />
+                                    ) : (
+                                        <div className="pill-container">
+                                            {profile?.preferred_destinations?.length > 0 ? (
+                                                profile.preferred_destinations.map((dest, i) => (
+                                                    <span key={i} className="pill">{dest}</span>
+                                                ))
+                                            ) : (
+                                                <p className="text-muted text-sm">—</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
 
-                    {/* RIGHT COLUMN: PLANNED TRIPS */}
-                    <div className="profile-right">
-                        <section className="profile-card full-height">
-                            <div className="section-header">
-                                <h2>My Planned Trips</h2>
-                                <button className="btn-link">View All</button>
+                    {/* RIGHT COLUMN */}
+                    <div className="profile-col-right">
+                        <div className="card h-full">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="card-title mb-0">My Planned Trips</h3>
+                                <button className="btn-text">View All</button>
                             </div>
 
-                            <div className="trips-list">
-                                {user.trips.map(trip => (
-                                    <div key={trip.id} className="trip-card">
-                                        <div className="trip-image" style={{ backgroundImage: `url(${trip.image})` }}></div>
-                                        <div className="trip-details">
-                                            <h3>{trip.title}</h3>
-                                            <p className="trip-meta">{trip.destination} • {trip.duration}</p>
-                                            <div className="trip-footer">
-                                                <span className={`status-badge ${trip.status.toLowerCase()}`}>{trip.status}</span>
-                                                <button className="btn-view-details">View Details</button>
+                            <div className="trips-grid">
+                                {MOCK_TRIPS.length > 0 ? MOCK_TRIPS.map(trip => (
+                                    <div key={trip.id} className="trip-card-modern">
+                                        <div className="trip-img-wrap">
+                                            <img src={trip.image} alt={trip.title} />
+                                            <div className="trip-badge">{trip.status}</div>
+                                        </div>
+                                        <div className="trip-content">
+                                            <h4>{trip.title}</h4>
+                                            <div className="trip-meta-row">
+                                                <span><Map size={14}/> {trip.destination}</span>
+                                                <span>• {trip.duration}</span>
                                             </div>
+                                            <button className="btn-outline w-full mt-4">View Details</button>
                                         </div>
                                     </div>
-                                ))}
+                                )) : (
+                                    <div className="empty-trips">
+                                        <Map size={40} className="text-muted mb-3" />
+                                        <p>No trips planned yet.</p>
+                                        <button className="btn-primary mt-3" onClick={() => navigate('/plan-trip')}>
+                                            Plan a Trip
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                        </section>
+                        </div>
                     </div>
+
                 </div>
             </div>
         </div>
