@@ -36,10 +36,26 @@ class GuideProfileUpdateSerializer(serializers.ModelSerializer):
 
 # ── Booking ───────────────────────────────────────────────────────────────────
 
+class NestedItinerarySerializer(serializers.Serializer):
+    """
+    Lightweight nested representation of the linked SavedItinerary.
+    Only the fields guides need to display the trip plan.
+    """
+    id = serializers.IntegerField(read_only=True)
+    destination = serializers.CharField(read_only=True)
+    starting_place = serializers.CharField(read_only=True)
+    start_date = serializers.DateField(read_only=True)
+    end_date = serializers.DateField(read_only=True)
+    days = serializers.IntegerField(read_only=True)
+    notes = serializers.CharField(read_only=True)
+    itinerary_data = serializers.JSONField(read_only=True)
+
+
 class BookingSerializer(serializers.ModelSerializer):
-    """Booking serializer – includes a derived avatar initials field."""
+    """Booking serializer – includes avatar + nested itinerary if linked."""
 
     avatar = serializers.SerializerMethodField()
+    itinerary = NestedItinerarySerializer(read_only=True)
 
     class Meta:
         model = Booking
@@ -47,10 +63,10 @@ class BookingSerializer(serializers.ModelSerializer):
             'id', 'guide', 'traveler_user',
             'traveler_name', 'traveler_email', 'traveler_phone',
             'destination', 'trip_start', 'trip_end',
-            'status', 'notes', 'avatar',
+            'status', 'notes', 'avatar', 'itinerary',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'guide', 'avatar', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'guide', 'avatar', 'itinerary', 'created_at', 'updated_at']
 
     def get_avatar(self, obj):
         """Return initials from traveler_name, e.g. 'AB'."""

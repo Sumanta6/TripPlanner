@@ -128,6 +128,10 @@ export default function Itineraries() {
                                             <span>{formatDate(booking.trip_start)}</span>
                                         </div>
                                     </div>
+                                    
+                                    {booking.itinerary && (
+                                        <p className="itin-linked-badge">✨ AI Itinerary Attached</p>
+                                    )}
 
                                     {booking.notes && (
                                         <p className="itin-notes-preview">📝 {booking.notes.substring(0, 80)}{booking.notes.length > 80 ? '…' : ''}</p>
@@ -163,15 +167,67 @@ export default function Itineraries() {
                         </div>
 
                         <div className="itin-modal-body">
-                            {selectedBooking.notes ? (
-                                <>
-                                    <h3 className="itin-modal-days-title">📝 Trip Notes</h3>
-                                    <div className="itin-notes-box">{selectedBooking.notes}</div>
-                                </>
+                            {selectedBooking.notes && (
+                                <div className="itin-notes-box" style={{ marginBottom: "20px" }}>
+                                    <strong>Traveler's Message:</strong><br />
+                                    {selectedBooking.notes}
+                                </div>
+                            )}
+
+                            {selectedBooking.itinerary && selectedBooking.itinerary.itinerary_data ? (
+                                <div className="itin-plan-timeline">
+                                    <h3 className="itin-modal-days-title">✨ Attached AI Itinerary</h3>
+                                    
+                                    {(selectedBooking.itinerary.itinerary_data.itinerary?.days || []).map((day, idx) => {
+                                        const isExpanded = !!expandedDays[idx];
+                                        return (
+                                            <div key={idx} className={`itin-day-item ${isExpanded ? 'expanded' : ''}`}>
+                                                <div 
+                                                    className="itin-day-header"
+                                                    onClick={() => toggleDay(idx)}
+                                                >
+                                                    <div className="itin-day-title-wrap">
+                                                        <span className="itin-day-badge">Day {day.day_number || idx + 1}</span>
+                                                        <strong>{day.title}</strong>
+                                                    </div>
+                                                    {isExpanded ? <FaChevronUp /> : <FaChevronDown />}
+                                                </div>
+                                                
+                                                {isExpanded && (
+                                                    <div className="itin-day-content">
+                                                        <div className="itin-day-summary">
+                                                            {day.accommodation && <span>🏨 {day.accommodation}</span>}
+                                                            {day.meals && <span>🍽️ {day.meals}</span>}
+                                                            {day.altitude && <span>⛰️ {day.altitude}</span>}
+                                                        </div>
+                                                        
+                                                        <ul className="itin-activities-list">
+                                                            {(day.activities || []).map((act, i) => (
+                                                                <li key={i}>
+                                                                    <span className="itin-act-time">{act.time_of_day}</span>
+                                                                    <div className="itin-act-details">
+                                                                        <strong>{act.title}</strong>
+                                                                        <p>{act.description}</p>
+                                                                    </div>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                        
+                                                        {day.local_tips && (
+                                                            <div className="itin-day-tip">
+                                                                <strong>💡 Tip:</strong> {day.local_tips}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             ) : (
-                                <div className="itin-empty-modal">
+                                <div className="itin-empty-modal" style={{ marginTop: "20px" }}>
                                     <FaMapMarkedAlt />
-                                    <p>No itinerary details yet for this booking. A full day-by-day plan will appear here once added by the system.</p>
+                                    <p>No detailed AI itinerary attached. The traveler did not attach an AI plan to this request.</p>
                                 </div>
                             )}
                         </div>

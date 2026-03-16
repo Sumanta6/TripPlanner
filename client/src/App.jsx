@@ -12,6 +12,7 @@ import Blog from "./pages/Blog";
 import HowItWorks from "./pages/HowItWorks";
 import Profile from "./pages/Profile";
 import DestinationDetails from "./pages/DestinationDetails";
+import Guides from "./pages/Guides";
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -66,6 +67,7 @@ function App() {
           <Route path="/destinations" element={<Destinations />} />
           <Route path="/destinations/:id" element={<DestinationDetails />} />
           <Route path="/plan-trip" element={<Plantrip />} />
+          <Route path="/guides" element={<Guides />} />
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/how-it-works" element={<HowItWorks />} />

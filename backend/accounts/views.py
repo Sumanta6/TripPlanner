@@ -16,6 +16,8 @@ from django.core.mail import send_mail
 
 from .models import Trip, TravelerProfile
 from .serializers import TripSerializer, RegisterSerializer, TravelerProfileSerializer
+from guides.models import Booking
+from guides.serializers import BookingSerializer
 
 GOOGLE_CLIENT_ID = "320492427698-7se212gnd06b14a41a3jsca1sqiv4pn7.apps.googleusercontent.com"
 
@@ -279,3 +281,18 @@ def traveler_profile(request):
         serializer.save()
         return Response(serializer.data)
     return Response(serializer.errors, status=400)
+
+
+# ======================
+# TRAVELER BOOKINGS / REQUESTS
+# ======================
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_guide_requests(request):
+    """
+    GET /accounts/profile/requests/
+    Returns all bookings (requests) made by the logged-in traveler.
+    """
+    bookings = Booking.objects.filter(traveler_user=request.user)
+    serializer = BookingSerializer(bookings, many=True)
+    return Response(serializer.data)

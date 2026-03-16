@@ -52,10 +52,11 @@ class Booking(models.Model):
     """A traveler booking / assignment linked to a guide."""
 
     STATUS_CHOICES = [
-        ('active', 'Active'),
-        ('upcoming', 'Upcoming'),
+        ('pending',   'Pending'),
+        ('accepted',  'Accepted'),
+        ('active',    'Active'),
         ('completed', 'Completed'),
-        ('pending', 'Pending'),
+        ('cancelled', 'Cancelled'),
     ]
 
     guide = models.ForeignKey(
@@ -68,6 +69,14 @@ class Booking(models.Model):
         null=True,
         blank=True,
         related_name='guide_bookings',
+    )
+    # Link to the AI-generated itinerary (if the traveler saved one)
+    itinerary = models.ForeignKey(
+        'itinerary.SavedItinerary',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='bookings',
     )
 
     traveler_name = models.CharField(max_length=150)

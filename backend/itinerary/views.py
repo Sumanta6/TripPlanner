@@ -1,8 +1,11 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 
 from ai_engine.itinerary_generator import ItineraryEngine
+from .models import SavedItinerary
+from .serializers import SavedItinerarySerializer, SavedItinerarySummarySerializer
 
 engine = ItineraryEngine()
 
@@ -150,3 +153,73 @@ def generate_itinerary(request):
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+
+# ── Save & Retrieve Itineraries ───────────────────────────────────────────────
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def save_itinerary(request):
+    """
+    POST /api/itinerary/save/
+    Save a generated itinerary to the database for the logged-in traveler.
+    """
+    data = request.data
+    destination = str(data.get("destination", "")).strip()
+    if not destination:
+        return Response({"error": "Destination is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Calculate end_date from start_date + days
+    import datetime
+    start_date_str = data.get("start_date") or data.get("startDate")
+    days = int(data.get("days", 1))
+    start_date = None
+    end_date = None
+    if start_date_str:
+        try:
+            start_date = datetime.date.fromisoformat(str(start_date_str))
+            end_date = start_date + datetime.timedelta(days=days - 1)
+        except ValueError:
+            pass
+
+    itinerary_obj = SavedItinerary.objects.create(
+        traveler=request.user,
+        destination=destination,
+        starting_place=str(data.get("starting_place", "Kathmandu")).strip(),
+        start_date=start_date,
+        end_date=end_date,
+        days=days,
+        notes=str(data.get("notes", "")).strip(),
+        itinerary_data=data.get("itinerary_data") or data.get("itinerary") or {},
+    )
+
+    serializer = SavedItinerarySerializer(itinerary_obj)
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def my_itineraries(request):
+    """
+    GET /api/itinerary/my/
+    Returns a summary list of itineraries saved by the logged-in traveler.
+    """
+    qs = SavedItinerary.objects.filter(traveler=request.user)
+    serializer = SavedItinerarySummarySerializer(qs, many=True)
+    return Response(serializer.data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def itinerary_detail(request, pk):
+    """
+    GET /api/itinerary/<id>/
+    Returns a single saved itinerary (only to its owner).
+    """
+    try:
+        itinerary_obj = SavedItinerary.objects.get(pk=pk, traveler=request.user)
+    except SavedItinerary.DoesNotExist:
+        return Response({"error": "Itinerary not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = SavedItinerarySerializer(itinerary_obj)
+    return Response(serializer.data)

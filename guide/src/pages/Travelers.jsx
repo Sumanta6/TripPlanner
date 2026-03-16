@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FaSearch, FaFilter, FaPhone, FaEnvelope, FaStickyNote, FaMapMarkerAlt, FaCalendarAlt } from 'react-icons/fa';
-import { getMyBookings } from '../services/guidesService';
+import { getMyBookings, updateBookingStatus, initCsrf } from '../services/guidesService';
 import './Travelers.css';
 
 const STATUS_CONFIG = {
@@ -52,6 +52,16 @@ export default function Travelers() {
         load();
         return () => { alive = false; };
     }, []);
+
+    const handleStatusChange = async (id, newStatus) => {
+        try {
+            await initCsrf();
+            const updatedBooking = await updateBookingStatus(id, newStatus);
+            setBookings(prev => prev.map(b => b.id === id ? updatedBooking : b));
+        } catch (err) {
+            alert(err.message || 'Failed to update request status.');
+        }
+    };
 
     const filtered = bookings.filter(t => {
         const matchSearch =
@@ -185,15 +195,36 @@ export default function Travelers() {
 
                                 {/* Card Actions */}
                                 <div className="traveler-card-actions">
-                                    {traveler.traveler_phone && (
-                                        <a href={`tel:${traveler.traveler_phone}`} className="action-link-btn call-btn">
-                                            <FaPhone /> Call
-                                        </a>
-                                    )}
-                                    {traveler.traveler_email && (
-                                        <a href={`mailto:${traveler.traveler_email}`} className="action-link-btn email-btn">
-                                            <FaEnvelope /> Email
-                                        </a>
+                                    {traveler.status === 'pending' ? (
+                                        <>
+                                            <button 
+                                                className="action-link-btn" 
+                                                style={{backgroundColor: '#10b981', color: '#fff'}}
+                                                onClick={() => handleStatusChange(traveler.id, 'active')}
+                                            >
+                                                Accept
+                                            </button>
+                                            <button 
+                                                className="action-link-btn" 
+                                                style={{backgroundColor: '#ef4444', color: '#fff'}}
+                                                onClick={() => handleStatusChange(traveler.id, 'rejected')}
+                                            >
+                                                Reject
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {traveler.traveler_phone && (
+                                                <a href={`tel:${traveler.traveler_phone}`} className="action-link-btn call-btn">
+                                                    <FaPhone /> Call
+                                                </a>
+                                            )}
+                                            {traveler.traveler_email && (
+                                                <a href={`mailto:${traveler.traveler_email}`} className="action-link-btn email-btn">
+                                                    <FaEnvelope /> Email
+                                                </a>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             </div>

@@ -65,6 +65,7 @@ export default function Navbar({ isLoggedIn, setIsLoggedIn, userEmail }) {
             <Link to="/home" className={`nav-link ${location.pathname === "/home" ? "active" : ""}`}>Home</Link>
             <Link to="/destinations" className={`nav-link ${location.pathname === "/destinations" ? "active" : ""}`}>Destinations</Link>
             <Link to="/plan-trip" className={`nav-link ${location.pathname === "/plan-trip" ? "active" : ""}`}>AI Planner</Link>
+            <Link to="/guides" className={`nav-link ${location.pathname === "/guides" ? "active" : ""}`}>Find a Guide</Link>
             {isLoggedIn && (
               <Link to="/profile" className={`nav-link ${location.pathname === "/profile" ? "active" : ""}`}>My Trips</Link>
             )}
@@ -164,6 +165,7 @@ export default function Navbar({ isLoggedIn, setIsLoggedIn, userEmail }) {
               <Link to="/home">Home</Link>
               <Link to="/destinations">Destinations</Link>
               <Link to="/plan-trip">AI Planner</Link>
+              <Link to="/guides">Find a Guide</Link>
               {isLoggedIn && <Link to="/profile">My Trips</Link>}
               <div className="side-divider"></div>
             </div>

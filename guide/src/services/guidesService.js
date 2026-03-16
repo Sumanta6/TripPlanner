@@ -100,6 +100,16 @@ export async function getMyBookings(statusFilter = null) {
     return data;
 }
 
+/**
+ * PATCH /api/guides/me/bookings/<id>/status/ – accept or reject a booking
+ * @param {number} id – booking ID
+ * @param {string} status – new status (e.g., 'active', 'rejected')
+ */
+export async function updateBookingStatus(id, status) {
+    const { data } = await api.patch(`me/bookings/${id}/status/`, { status });
+    return data;
+}
+
 // ── Authenticated – Activity Feed ─────────────────────────────────────────────
 
 /**

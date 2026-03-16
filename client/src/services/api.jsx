@@ -68,4 +68,35 @@ export async function updateMyProfile(updates) {
     return data;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GUIDES & BOOKINGS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** GET /api/guides/ – fetch public list of all guides */
+export async function getGuides() {
+    const { data } = await api.get("/api/guides/");
+    return data;
+}
+
+/** POST /api/guides/:id/request/ – request to book a guide */
+export async function requestGuideWithItinerary(guideId, bookingData) {
+    const { data } = await api.post(`/api/guides/${guideId}/request/`, bookingData);
+    return data;
+}
+
+/** GET /accounts/profile/requests/ – get the traveler's sent guide requests */
+export async function getMyGuideRequests() {
+    const { data } = await api.get("/accounts/profile/requests/");
+    return data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ITINERARY
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const generateItinerary = (data) => api.post('/api/itinerary/generate/', data);
+export const saveItinerary = (data) => api.post('/api/itinerary/save/', data);
+export const getMyItineraries = () => api.get('/api/itinerary/my/');
+export const getItineraryDetail = (id) => api.get(`/api/itinerary/${id}/`);
+
 export default api;

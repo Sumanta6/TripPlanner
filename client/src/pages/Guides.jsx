@@ -1,0 +1,259 @@
+import React, { useState, useEffect } from "react";
+import { getGuides, requestGuideWithItinerary, initCsrf } from "../services/api";
+import { Star, MapPin, Languages, CheckCircle, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import "./Guides.css";
+
+export default function Guides() {
+    const navigate = useNavigate();
+    const [guides, setGuides] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    // Modal state
+    const [selectedGuide, setSelectedGuide] = useState(null);
+    const [showModal, setShowModal] = useState(false);
+    const [bookingData, setBookingData] = useState({
+        destination: "",
+        trip_start: "",
+        trip_end: "",
+        notes: "",
+    });
+    const [submitting, setSubmitting] = useState(false);
+    const [successMessage, setSuccessMessage] = useState("");
+    const [modalError, setModalError] = useState("");
+
+    useEffect(() => {
+        let alive = true;
+        async function fetchGuides() {
+            try {
+                const data = await getGuides();
+                if (alive) setGuides(data);
+            } catch (err) {
+                if (alive) setError(err.response?.data?.detail || "Failed to load guides.");
+            } finally {
+                if (alive) setLoading(false);
+            }
+        }
+        fetchGuides();
+        return () => { alive = false; };
+    }, []);
+
+    const isLoggedIn = () => {
+        return localStorage.getItem("isLoggedIn") === "true" || sessionStorage.getItem("isLoggedIn") === "true";
+    };
+
+    const handleOpenModal = (guide) => {
+        if (!isLoggedIn()) {
+            navigate("/"); // redirect to login if not authenticated
+            return;
+        }
+        setSelectedGuide(guide);
+        setShowModal(true);
+        setBookingData({ destination: "", trip_start: "", trip_end: "", notes: "" });
+        setModalError("");
+        setSuccessMessage("");
+    };
+
+    const handleCloseModal = () => {
+        setShowModal(false);
+        setSelectedGuide(null);
+    };
+
+    const handleInputChange = (e) => {
+        setBookingData({ ...bookingData, [e.target.name]: e.target.value });
+    };
+
+    const handleSubmitBooking = async (e) => {
+        e.preventDefault();
+        
+        if (!bookingData.destination.trim()) {
+            setModalError("Destination is required.");
+            return;
+        }
+        if (!bookingData.trip_start || !bookingData.trip_end) {
+            setModalError("Both start and end dates are required.");
+            return;
+        }
+        if (new Date(bookingData.trip_end) < new Date(bookingData.trip_start)) {
+            setModalError("End date cannot be earlier than start date.");
+            return;
+        }
+
+        setSubmitting(true);
+        setModalError("");
+        try {
+            await initCsrf();
+            await requestGuideWithItinerary(selectedGuide.id, bookingData);
+            setSuccessMessage("Request sent successfully! The guide will review it soon.");
+            setTimeout(() => {
+                handleCloseModal();
+            }, 2500);
+        } catch (err) {
+            setModalError(err.response?.data?.detail || err.response?.data?.error || "Failed to send request. Please try again.");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    if (loading) {
+        return <div className="guides-page flex-center"><div className="loader-spinner"></div></div>;
+    }
+
+    if (error) {
+        return (
+            <div className="guides-page flex-center">
+                <div className="empty-state-card error-card">
+                    <h2>Error</h2>
+                    <p>{error}</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="guides-page">
+            <div className="guides-container setup-animation">
+                <div className="guides-header text-center mb-6">
+                    <h1>Find Your Perfect Guide</h1>
+                    <p className="text-muted">Browse our verified local experts and plan your next big adventure.</p>
+                </div>
+
+                {guides.length === 0 ? (
+                    <div className="empty-state-card mx-auto mt-6">
+                        <MapPin size={48} className="empty-icon text-muted mx-auto" />
+                        <h2 className="text-center">No Guides Found</h2>
+                        <p className="text-center">Check back later for new local experts.</p>
+                    </div>
+                ) : (
+                    <div className="guides-grid">
+                        {guides.map(guide => (
+                            <div key={guide.id} className="guide-card card">
+                                <div className="guide-avatar-wrap">
+                                    {guide.profile_image ? (
+                                        <img src={`http://localhost:8000${guide.profile_image}`} alt={guide.full_name} className="guide-avatar-img"/>
+                                    ) : (
+                                        <div className="guide-avatar-placeholder">
+                                            {(guide.full_name || "G").substring(0, 2).toUpperCase()}
+                                        </div>
+                                    )}
+                                    <div className={`status-dot ${guide.availability === 'available' ? 'active' : 'busy'}`}></div>
+                                </div>
+                                <div className="guide-info text-center mt-3">
+                                    <h3 className="guide-name">{guide.full_name}</h3>
+                                    <p className="guide-specialty text-teal">{guide.specialization || "General Guide"}</p>
+                                    
+                                    <div className="guide-stats flex justify-center gap-4 mt-2">
+                                        <span className="flex items-center gap-1 text-sm"><Star size={14} className="text-gold"/> {guide.rating}</span>
+                                        <span className="flex items-center gap-1 text-sm"><CheckCircle size={14} className="text-green"/> {guide.tours_completed} tours</span>
+                                    </div>
+
+                                    <div className="guide-meta mt-4">
+                                        <div className="meta-row"><MapPin size={16}/> <span>{guide.destinations.join(", ") || "Flexible locations"}</span></div>
+                                        <div className="meta-row mt-2"><Languages size={16}/> <span>{guide.languages.join(", ") || "English"}</span></div>
+                                    </div>
+
+                                    <p className="guide-bio mt-4 text-sm text-muted line-clamp-3">
+                                        {guide.bio || "No bio provided."}
+                                    </p>
+
+                                    <button 
+                                        className="btn-primary w-full mt-6" 
+                                        disabled={guide.availability !== "available"}
+                                        onClick={() => handleOpenModal(guide)}
+                                    >
+                                        {guide.availability === "available" ? "Request Guide" : "Currently Busy"}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* REQUEST MODAL */}
+            {showModal && (
+                <div className="modal-overlay">
+                    <div className="booking-modal card setup-animation">
+                        <button className="close-btn" onClick={handleCloseModal}><X size={20}/></button>
+                        
+                        <div className="modal-header">
+                            <h2>Request {selectedGuide?.full_name}</h2>
+                            <p className="text-muted text-sm">Fill in your trip details.</p>
+                        </div>
+
+                        {successMessage ? (
+                            <div className="booking-success text-center py-6">
+                                <CheckCircle size={48} className="text-green mx-auto mb-3" />
+                                <h3>{successMessage}</h3>
+                            </div>
+                        ) : (
+                            <form className="booking-form mt-4" onSubmit={handleSubmitBooking}>
+                                {modalError && <div className="alert-error mb-4">{modalError}</div>}
+                                
+                                <div className="form-group">
+                                    <label>Destination <span className="text-danger">*</span></label>
+                                    <input 
+                                        type="text" 
+                                        name="destination" 
+                                        required 
+                                        className="edit-input w-full"
+                                        placeholder="e.g. Kathmandu Valley"
+                                        value={bookingData.destination}
+                                        onChange={handleInputChange}
+                                    />
+                                </div>
+
+                                <div className="form-row flex gap-4 mt-3">
+                                    <div className="form-group w-full">
+                                        <label>Start Date <span className="text-danger">*</span></label>
+                                        <input 
+                                            type="date" 
+                                            name="trip_start" 
+                                            required 
+                                            className="edit-input w-full"
+                                            value={bookingData.trip_start}
+                                            onChange={handleInputChange}
+                                            min={new Date().toISOString().split('T')[0]}
+                                        />
+                                    </div>
+                                    <div className="form-group w-full">
+                                        <label>End Date <span className="text-danger">*</span></label>
+                                        <input 
+                                            type="date" 
+                                            name="trip_end" 
+                                            required 
+                                            className="edit-input w-full"
+                                            value={bookingData.trip_end}
+                                            onChange={handleInputChange}
+                                            min={bookingData.trip_start || new Date().toISOString().split('T')[0]}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="form-group mt-3">
+                                    <label>Notes / Requirements</label>
+                                    <textarea 
+                                        name="notes" 
+                                        rows="3" 
+                                        className="edit-input w-full"
+                                        placeholder="Tell the guide what you're looking for..."
+                                        value={bookingData.notes}
+                                        onChange={handleInputChange}
+                                    ></textarea>
+                                </div>
+
+                                <div className="modal-footer flex gap-2 justify-end mt-6">
+                                    <button type="button" className="btn-outline" onClick={handleCloseModal} disabled={submitting}>Cancel</button>
+                                    <button type="submit" className="btn-primary" disabled={submitting}>
+                                        {submitting ? "Sending..." : "Send Request"}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}

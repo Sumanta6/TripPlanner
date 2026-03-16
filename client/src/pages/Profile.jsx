@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getMyProfile, updateMyProfile, initCsrf } from "../services/api";
+import { getMyProfile, updateMyProfile, getMyGuideRequests, initCsrf } from "../services/api";
 import "./Profile.css";
 
 // Icons (Using Lucide React if available, or fallbacks)
@@ -13,6 +13,7 @@ export default function Profile({ setIsLoggedIn }) {
     const navigate = useNavigate();
 
     const [profile, setProfile] = useState(null);
+    const [guideRequests, setGuideRequests] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [notLoggedIn, setNotLoggedIn] = useState(false);
@@ -42,10 +43,15 @@ export default function Profile({ setIsLoggedIn }) {
             setNotLoggedIn(false);
             try {
                 await initCsrf();
-                const data = await getMyProfile();
+                const [profData, requestsData] = await Promise.all([
+                    getMyProfile(),
+                    getMyGuideRequests().catch(() => []) // fail gracefully for requests
+                ]);
+                
                 if (alive) {
-                    setProfile(data);
-                    setForm(data);
+                    setProfile(profData);
+                    setForm(profData);
+                    setGuideRequests(requestsData);
                 }
             } catch (err) {
                 if (!alive) return;
@@ -323,6 +329,35 @@ export default function Profile({ setIsLoggedIn }) {
 
                     {/* RIGHT COLUMN */}
                     <div className="profile-col-right">
+                        
+                        {/* Guide Requests */}
+                        <div className="card mb-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="card-title mb-0">My Guide Requests</h3>
+                            </div>
+                            
+                            <div className="trips-grid">
+                                {guideRequests.length > 0 ? guideRequests.map(req => (
+                                    <div key={req.id} className="trip-card-modern p-4 text-sm" style={{flexDirection: "column"}}>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <h4 className="font-bold text-navy m-0">Guide Request: {req.destination}</h4>
+                                            <span className={`pill ${req.status === 'active' ? 'bg-green text-white' : req.status === 'rejected' ? 'bg-red text-white' : ''}`}>
+                                                {req.status.toUpperCase()}
+                                            </span>
+                                        </div>
+                                        <div className="text-muted mb-2">
+                                            <Map size={14} className="inline mr-1" /> {req.trip_start} to {req.trip_end}
+                                        </div>
+                                        {req.notes && (
+                                            <p className="mt-2 text-xs italic text-gray mt-2 bg-light p-2 rounded">"{req.notes}"</p>
+                                        )}
+                                    </div>
+                                )) : (
+                                    <p className="text-muted text-sm">You haven't requested any guides yet.</p>
+                                )}
+                            </div>
+                        </div>
+
                         <div className="card h-full">
                             <div className="flex justify-between items-center mb-6">
                                 <h3 className="card-title mb-0">My Planned Trips</h3>
