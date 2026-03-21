@@ -18,6 +18,7 @@ class TravelerProfile(models.Model):
     full_name = models.CharField(max_length=150, blank=True)
     phone = models.CharField(max_length=20, blank=True)
     address = models.CharField(max_length=255, blank=True)
+    profile_image = models.ImageField(upload_to='traveler_images/', null=True, blank=True)
     bio = models.TextField(blank=True)
     preferred_destinations = models.JSONField(default=list, blank=True)
     travel_style = models.CharField(max_length=100, blank=True)

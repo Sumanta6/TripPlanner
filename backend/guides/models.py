@@ -52,11 +52,13 @@ class Booking(models.Model):
     """A traveler booking / assignment linked to a guide."""
 
     STATUS_CHOICES = [
-        ('pending',   'Pending'),
-        ('accepted',  'Accepted'),
-        ('active',    'Active'),
-        ('completed', 'Completed'),
-        ('cancelled', 'Cancelled'),
+        ('pending',       'Pending'),
+        ('accepted',      'Accepted'),
+        ('active',        'Active'),
+        ('completed',     'Completed'),
+        ('cancelled',     'Cancelled'),
+        ('rejected',      'Rejected'),
+        ('auto_rejected', 'Auto Rejected'),
     ]
 
     guide = models.ForeignKey(
@@ -108,6 +110,8 @@ class Activity(models.Model):
     TYPE_CHOICES = [
         ('assignment', 'Assignment'),
         ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+        ('auto_rejected', 'Auto Rejected'),
         ('request', 'Request'),
         ('completed', 'Completed'),
         ('upcoming', 'Upcoming'),

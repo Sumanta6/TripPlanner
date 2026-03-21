@@ -9,7 +9,7 @@ class SavedItinerarySerializer(serializers.ModelSerializer):
         model = SavedItinerary
         fields = [
             'id', 'traveler', 'destination', 'starting_place',
-            'start_date', 'end_date', 'days', 'notes',
+            'start_date', 'end_date', 'days', 'budget', 'travelers', 'notes',
             'itinerary_data', 'created_at',
         ]
         read_only_fields = ['id', 'traveler', 'created_at']
@@ -17,11 +17,18 @@ class SavedItinerarySerializer(serializers.ModelSerializer):
 
 class SavedItinerarySummarySerializer(serializers.ModelSerializer):
     """Lightweight serializer (list view, without heavy itinerary_data)."""
+    preview = serializers.SerializerMethodField()
 
     class Meta:
         model = SavedItinerary
         fields = [
             'id', 'destination', 'starting_place',
-            'start_date', 'end_date', 'days', 'notes', 'created_at',
+            'start_date', 'end_date', 'days', 'budget', 'travelers', 'notes', 'preview', 'created_at',
         ]
         read_only_fields = ['id', 'traveler', 'created_at']
+
+    def get_preview(self, obj):
+        try:
+            return obj.itinerary_data.get('itinerary', {}).get('trip_summary', '')
+        except Exception:
+            return ""

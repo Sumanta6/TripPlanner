@@ -1,16 +1,11 @@
 from django.urls import path
-from .views import (
-    generate_itinerary,
-    get_destinations,
-    save_itinerary,
-    my_itineraries,
-    itinerary_detail,
-)
+from . import views
 
 urlpatterns = [
-    path("destinations/", get_destinations, name="itinerary-destinations"),
-    path("generate/", generate_itinerary, name="generate-itinerary"),
-    path("save/", save_itinerary, name="save-itinerary"),
-    path("my/", my_itineraries, name="my-itineraries"),
-    path("<int:pk>/", itinerary_detail, name="itinerary-detail"),
+    path("destinations/", views.get_destinations, name="itinerary-destinations"),
+    path("generate/", views.generate_itinerary, name="generate-itinerary"),
+    path('save/', views.save_itinerary, name='save-itinerary'),
+    path('my/', views.my_itineraries, name='my-itineraries'),
+    path('<int:pk>/', views.itinerary_detail, name='itinerary-detail'),
+    path('<int:pk>/delete/', views.delete_itinerary, name='delete-itinerary'),
 ]

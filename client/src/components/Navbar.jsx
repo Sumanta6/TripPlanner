@@ -46,6 +46,12 @@ export default function Navbar({ isLoggedIn, setIsLoggedIn, userEmail }) {
     localStorage.removeItem("isLoggedIn");
     sessionStorage.removeItem("isLoggedIn");
     localStorage.removeItem("userEmail");
+    
+    // Clear itinerary cache to prevent user data leaking
+    localStorage.removeItem("plantrip_step");
+    localStorage.removeItem("plantrip_formData");
+    localStorage.removeItem("plantrip_itinerary");
+
     setIsLoggedIn(false);
     window.location.href = "/";
   };
@@ -67,7 +73,7 @@ export default function Navbar({ isLoggedIn, setIsLoggedIn, userEmail }) {
             <Link to="/plan-trip" className={`nav-link ${location.pathname === "/plan-trip" ? "active" : ""}`}>AI Planner</Link>
             <Link to="/guides" className={`nav-link ${location.pathname === "/guides" ? "active" : ""}`}>Find a Guide</Link>
             {isLoggedIn && (
-              <Link to="/profile" className={`nav-link ${location.pathname === "/profile" ? "active" : ""}`}>My Trips</Link>
+              <Link to="/my-trips" className={`nav-link ${location.pathname === "/my-trips" ? "active" : ""}`}>My Trips</Link>
             )}
           </div>
 
@@ -110,7 +116,10 @@ export default function Navbar({ isLoggedIn, setIsLoggedIn, userEmail }) {
                   <Link to="/profile" className="dropdown-item">
                     <span className="icon">👤</span> My Profile
                   </Link>
-                  <Link to="/profile" className="dropdown-item">
+                  <Link to="/my-trips" className="dropdown-item">
+                    <span className="icon">🎒</span> My Trips
+                  </Link>
+                  <Link to="/saved-trips" className="dropdown-item">
                     <span className="icon">❤️</span> Saved Trips
                   </Link>
                   <Link to="/profile" className="dropdown-item">
@@ -166,7 +175,8 @@ export default function Navbar({ isLoggedIn, setIsLoggedIn, userEmail }) {
               <Link to="/destinations">Destinations</Link>
               <Link to="/plan-trip">AI Planner</Link>
               <Link to="/guides">Find a Guide</Link>
-              {isLoggedIn && <Link to="/profile">My Trips</Link>}
+              {isLoggedIn && <Link to="/my-trips">My Trips</Link>}
+              {isLoggedIn && <Link to="/saved-trips">Saved Trips</Link>}
               <div className="side-divider"></div>
             </div>
 

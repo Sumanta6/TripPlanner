@@ -170,15 +170,27 @@ def save_itinerary(request):
         return Response({"error": "Destination is required."}, status=status.HTTP_400_BAD_REQUEST)
 
     # Calculate end_date from start_date + days
-    import datetime
-    start_date_str = data.get("start_date") or data.get("startDate")
-    days = int(data.get("days", 1))
-    start_date = None
-    end_date = None
+    from datetime import datetime, timedelta
+    
+    days = data.get('days', 1)
+    try:
+        days = int(days)
+    except ValueError:
+        days = 1
+
+    budget = data.get('budget', None)
+    travelers = data.get('travelers', 1)
+
+    start_date_str = data.get('start_date')
+    start_date_obj = None
+    end_date_obj = None
     if start_date_str:
         try:
-            start_date = datetime.date.fromisoformat(str(start_date_str))
-            end_date = start_date + datetime.timedelta(days=days - 1)
+            start_date_obj = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            if days > 0: # Ensure days is positive for timedelta
+                end_date_obj = start_date_obj + timedelta(days=days - 1)
+            else:
+                end_date_obj = start_date_obj # For 0 or negative days, end date is same as start
         except ValueError:
             pass
 
@@ -186,9 +198,11 @@ def save_itinerary(request):
         traveler=request.user,
         destination=destination,
         starting_place=str(data.get("starting_place", "Kathmandu")).strip(),
-        start_date=start_date,
-        end_date=end_date,
         days=days,
+        start_date=start_date_obj,
+        end_date=end_date_obj,
+        budget=budget,
+        travelers=travelers,
         notes=str(data.get("notes", "")).strip(),
         itinerary_data=data.get("itinerary_data") or data.get("itinerary") or {},
     )
@@ -223,3 +237,13 @@ def itinerary_detail(request, pk):
 
     serializer = SavedItinerarySerializer(itinerary_obj)
     return Response(serializer.data)
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_itinerary(request, pk):
+    try:
+        itinerary = SavedItinerary.objects.get(pk=pk, traveler=request.user)
+        itinerary.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    except SavedItinerary.DoesNotExist:
+        return Response({'error': 'Itinerary not found.'}, status=status.HTTP_404_NOT_FOUND)

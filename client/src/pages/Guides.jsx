@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { getGuides, requestGuideWithItinerary, initCsrf } from "../services/api";
 import { Star, MapPin, Languages, CheckCircle, X } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+import { useNavigate, useLocation } from "react-router-dom";
 import "./Guides.css";
 
 export default function Guides() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [guides, setGuides] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -26,18 +28,26 @@ export default function Guides() {
     useEffect(() => {
         let alive = true;
         async function fetchGuides() {
+            setLoading(true);
             try {
-                const data = await getGuides();
+                const state = location.state || {};
+                const params = {};
+                if (state.trip_start) params.trip_start = state.trip_start;
+                if (state.trip_end) params.trip_end = state.trip_end;
+
+                const data = await getGuides(params);
                 if (alive) setGuides(data);
             } catch (err) {
-                if (alive) setError(err.response?.data?.detail || "Failed to load guides.");
+                const msg = err.response?.data?.detail || "Failed to load guides.";
+                if (alive) setError(msg);
+                toast.error(msg);
             } finally {
                 if (alive) setLoading(false);
             }
         }
         fetchGuides();
         return () => { alive = false; };
-    }, []);
+    }, [location.state]);
 
     const isLoggedIn = () => {
         return localStorage.getItem("isLoggedIn") === "true" || sessionStorage.getItem("isLoggedIn") === "true";
@@ -50,7 +60,14 @@ export default function Guides() {
         }
         setSelectedGuide(guide);
         setShowModal(true);
-        setBookingData({ destination: "", trip_start: "", trip_end: "", notes: "" });
+        const state = location.state || {};
+        setBookingData({ 
+            destination: state.destination || "", 
+            trip_start: state.trip_start || "", 
+            trip_end: state.trip_end || "", 
+            notes: state.itineraryId ? `Hi ${guide.full_name},\n\nI have an AI-generated itinerary attached to this request and would love for you to guide me on this trip.` : "",
+            itinerary_id: state.itineraryId || null 
+        });
         setModalError("");
         setSuccessMessage("");
     };
@@ -63,6 +80,26 @@ export default function Guides() {
     const handleInputChange = (e) => {
         setBookingData({ ...bookingData, [e.target.name]: e.target.value });
     };
+
+    const checkConflict = () => {
+        if (!bookingData.trip_start || !bookingData.trip_end || !selectedGuide?.booked_ranges) return null;
+        
+        const start = new Date(bookingData.trip_start);
+        const end = new Date(bookingData.trip_end);
+        
+        for (const range of selectedGuide.booked_ranges) {
+            const bStart = new Date(range.trip_start);
+            const bEnd = new Date(range.trip_end);
+            
+            // Check if (start <= bEnd) AND (end >= bStart)
+            if (start <= bEnd && end >= bStart) {
+                return `Guide is already booked from ${bStart.toLocaleDateString()} to ${bEnd.toLocaleDateString()}.`;
+            }
+        }
+        return null;
+    };
+
+    const conflictWarning = checkConflict();
 
     const handleSubmitBooking = async (e) => {
         e.preventDefault();
@@ -80,17 +117,26 @@ export default function Guides() {
             return;
         }
 
+        const conflict = checkConflict();
+        if (conflict) {
+            setModalError(conflict);
+            return;
+        }
+
         setSubmitting(true);
         setModalError("");
         try {
             await initCsrf();
             await requestGuideWithItinerary(selectedGuide.id, bookingData);
             setSuccessMessage("Request sent successfully! The guide will review it soon.");
+            toast.success("Booking request sent!");
             setTimeout(() => {
                 handleCloseModal();
             }, 2500);
         } catch (err) {
-            setModalError(err.response?.data?.detail || err.response?.data?.error || "Failed to send request. Please try again.");
+            const msg = err.response?.data?.detail || err.response?.data?.error || "Failed to send request. Please try again.";
+            setModalError(msg);
+            toast.error(msg);
         } finally {
             setSubmitting(false);
         }
@@ -131,15 +177,18 @@ export default function Guides() {
                             <div key={guide.id} className="guide-card card">
                                 <div className="guide-avatar-wrap">
                                     {guide.profile_image ? (
-                                        <img src={`http://localhost:8000${guide.profile_image}`} alt={guide.full_name} className="guide-avatar-img"/>
+                                        <img src={guide.profile_image} alt={guide.full_name} className="guide-avatar-img"/>
                                     ) : (
                                         <div className="guide-avatar-placeholder">
                                             {(guide.full_name || "G").substring(0, 2).toUpperCase()}
                                         </div>
                                     )}
-                                    <div className={`status-dot ${guide.availability === 'available' ? 'active' : 'busy'}`}></div>
+                                    <div className={`status-dot ${guide.availability_badge === 'Available' ? 'active' : 'busy'}`}></div>
                                 </div>
                                 <div className="guide-info text-center mt-3">
+                                    <div className={`availability-banner mb-2 ${guide.availability_badge === 'Available' ? 'available' : 'booked'}`}>
+                                        {guide.availability_badge}
+                                    </div>
                                     <h3 className="guide-name">{guide.full_name}</h3>
                                     <p className="guide-specialty text-teal">{guide.specialization || "General Guide"}</p>
                                     
@@ -158,11 +207,11 @@ export default function Guides() {
                                     </p>
 
                                     <button 
-                                        className="btn-primary w-full mt-6" 
-                                        disabled={guide.availability !== "available"}
+                                        className={`btn-primary w-full mt-6 ${guide.availability_badge !== "Available" ? "btn-disabled" : ""}`} 
+                                        disabled={guide.availability_badge !== "Available"}
                                         onClick={() => handleOpenModal(guide)}
                                     >
-                                        {guide.availability === "available" ? "Request Guide" : "Currently Busy"}
+                                        {guide.availability_badge === "Available" ? "Request Guide" : "Unavailable"}
                                     </button>
                                 </div>
                             </div>
@@ -180,6 +229,11 @@ export default function Guides() {
                         <div className="modal-header">
                             <h2>Request {selectedGuide?.full_name}</h2>
                             <p className="text-muted text-sm">Fill in your trip details.</p>
+                            {bookingData.itinerary_id && (
+                                <div className="bg-teal-50 border border-teal-200 text-teal-700 px-3 py-2 rounded-lg text-sm mt-3 flex items-center gap-2">
+                                    <span>✨</span> AI Itinerary Attached
+                                </div>
+                            )}
                         </div>
 
                         {successMessage ? (
@@ -190,6 +244,11 @@ export default function Guides() {
                         ) : (
                             <form className="booking-form mt-4" onSubmit={handleSubmitBooking}>
                                 {modalError && <div className="alert-error mb-4">{modalError}</div>}
+                                {conflictWarning && !modalError && (
+                                    <div className="alert-warning mb-4 p-3 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-sm flex items-start gap-2">
+                                        <span>⚠️</span> {conflictWarning}
+                                    </div>
+                                )}
                                 
                                 <div className="form-group">
                                     <label>Destination <span className="text-danger">*</span></label>

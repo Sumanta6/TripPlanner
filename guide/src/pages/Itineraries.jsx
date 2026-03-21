@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { FaMapMarkedAlt, FaEye, FaChevronDown, FaChevronUp, FaCheckCircle, FaClock, FaCalendarAlt, FaWallet } from 'react-icons/fa';
 import { getMyBookings } from '../services/guidesService';
 import './Itineraries.css';
 
 const STATUS_CONFIG = {
-    active:    { label: 'Active',    className: 'itin-status-active' },
-    upcoming:  { label: 'Upcoming',  className: 'itin-status-upcoming' },
-    completed: { label: 'Completed', className: 'itin-status-completed' },
     pending:   { label: 'Pending',   className: 'itin-status-pending' },
+    accepted:  { label: 'Accepted',  className: 'itin-status-active' },
+    active:    { label: 'Active',    className: 'itin-status-active' },
+    completed: { label: 'Completed', className: 'itin-status-completed' },
+    rejected:  { label: 'Rejected',  className: 'itin-status-rejected' },
+    auto_rejected: { label: 'Auto Rejected', className: 'itin-status-rejected' },
 };
 
 function SkeletonCard() {
@@ -27,6 +30,17 @@ export default function Itineraries() {
     const [selectedBooking, setSelected] = useState(null);
     const [expandedDays, setExpandedDays] = useState({});
     const [filterStatus, setFilterStatus] = useState('all');
+    
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        if (!loading && bookings.length > 0 && location.state?.autoOpenBookingId) {
+            const b = bookings.find(x => x.id === location.state.autoOpenBookingId);
+            if (b) setSelected(b);
+            navigate(location.pathname, { replace: true });
+        }
+    }, [loading, bookings, location, navigate]);
 
     useEffect(() => {
         let alive = true;
@@ -74,13 +88,13 @@ export default function Itineraries() {
                     <p>View and manage all trip itineraries assigned to you</p>
                 </div>
                 <div className="itin-filter-bar">
-                    {['all', 'active', 'upcoming', 'completed'].map(s => (
+                    {['all', 'pending', 'accepted', 'active', 'completed', 'rejected', 'auto_rejected'].map(s => (
                         <button
                             key={s}
                             className={filterStatus === s ? 'itin-filter-btn active' : 'itin-filter-btn'}
                             onClick={() => setFilterStatus(s)}
                         >
-                            {s.charAt(0).toUpperCase() + s.slice(1)}
+                            {s === 'auto_rejected' ? 'Auto Rejected' : s.charAt(0).toUpperCase() + s.slice(1)}
                         </button>
                     ))}
                 </div>

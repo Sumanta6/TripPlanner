@@ -1,0 +1,22 @@
+.trip-detail-page {
+  display: block; /* Inherits globals, just specific overrides if any */
+}
+
+/* Base tailwind classes are used heavily here, some overrides for timeline classes used from Plantrip.css */
+.trip-detail-page .timeline-day-card {
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  border: 1px solid #e2e8f0;
+}
+
+.trip-detail-page .timeline-day-card:hover {
+  border-color: #cbd5e1;
+}
+
+.trip-detail-page .day-card-header {
+  padding: 1.5rem;
+}
+
+.trip-detail-page .timeline-wrapper {
+  margin: 0;
+}

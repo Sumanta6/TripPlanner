@@ -11,10 +11,12 @@ class SavedItinerary(models.Model):
         related_name='saved_itineraries',
     )
     destination = models.CharField(max_length=200)
-    starting_place = models.CharField(max_length=200, blank=True, default='Kathmandu')
+    starting_place = models.CharField(max_length=200, blank=True)
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
     days = models.PositiveIntegerField(default=1)
+    budget = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    travelers = models.PositiveIntegerField(default=1)
     notes = models.TextField(blank=True)           # e.g. auto-adjustment note
     itinerary_data = models.JSONField(default=dict) # full normalised itinerary payload
     created_at = models.DateTimeField(auto_now_add=True)

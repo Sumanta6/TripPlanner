@@ -1,13 +1,18 @@
 import { useState, useEffect } from 'react';
 import { FaSearch, FaFilter, FaPhone, FaEnvelope, FaStickyNote, FaMapMarkerAlt, FaCalendarAlt } from 'react-icons/fa';
+import toast from 'react-hot-toast';
 import { getMyBookings, updateBookingStatus, initCsrf } from '../services/guidesService';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import './Travelers.css';
 
 const STATUS_CONFIG = {
-    active:    { label: 'Active',    className: 'status-active' },
-    upcoming:  { label: 'Upcoming',  className: 'status-upcoming' },
-    completed: { label: 'Completed', className: 'status-completed' },
     pending:   { label: 'Pending',   className: 'status-pending' },
+    accepted:  { label: 'Accepted',  className: 'status-active' },
+    active:    { label: 'Active',    className: 'status-active' },
+    completed: { label: 'Completed', className: 'status-completed' },
+    rejected:  { label: 'Rejected',  className: 'status-rejected' },
+    auto_rejected: { label: 'Auto Rejected', className: 'status-rejected' },
 };
 
 function SkeletonTravelerCard() {
@@ -34,6 +39,9 @@ export default function Travelers() {
     const [search, setSearch]       = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [expandedNote, setExpandedNote] = useState(null);
+    const [processing, setProcessing] = useState({});
+    const { refreshProfile } = useAuth();
+    const navigate = useNavigate();
 
     useEffect(() => {
         let alive = true;
@@ -54,12 +62,25 @@ export default function Travelers() {
     }, []);
 
     const handleStatusChange = async (id, newStatus) => {
+        if (processing[id]) return;
+        setProcessing(prev => ({ ...prev, [id]: true }));
         try {
             await initCsrf();
             const updatedBooking = await updateBookingStatus(id, newStatus);
             setBookings(prev => prev.map(b => b.id === id ? updatedBooking : b));
+            await refreshProfile(); // Refresh the guide profile to update availability_badge
+            
+            if (newStatus === 'accepted') {
+                toast.success('Booking accepted successfully!');
+                navigate('/itineraries', { state: { autoOpenBookingId: id } });
+            } else if (newStatus === 'rejected') {
+                toast.success('Booking rejected successfully.');
+            }
         } catch (err) {
-            alert(err.message || 'Failed to update request status.');
+            console.error(err);
+            toast.error(err.message || 'Failed to update request status. Please try again.');
+        } finally {
+            setProcessing(prev => ({ ...prev, [id]: false }));
         }
     };
 
@@ -102,17 +123,19 @@ export default function Travelers() {
                     <FaFilter className="filter-icon" />
                     <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
                         <option value="all">All Status</option>
-                        <option value="active">Active</option>
-                        <option value="upcoming">Upcoming</option>
                         <option value="pending">Pending</option>
+                        <option value="accepted">Accepted</option>
+                        <option value="active">Active</option>
                         <option value="completed">Completed</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="auto_rejected">Auto Rejected</option>
                     </select>
                 </div>
             </div>
 
             {/* Stats Row */}
             <div className="travelers-stats-row">
-                {['active', 'upcoming', 'pending', 'completed'].map(s => (
+                {['pending', 'accepted', 'active', 'completed', 'rejected', 'auto_rejected'].map(s => (
                     <div key={s} className={`stat-pill stat-pill-${s}`}>
                         <span className="stat-count">{bookings.filter(t => t.status === s).length}</span>
                         <span className="stat-label">{STATUS_CONFIG[s].label}</span>
@@ -140,7 +163,13 @@ export default function Travelers() {
                             <div className="traveler-card" key={traveler.id}>
                                 {/* Card Header */}
                                 <div className="traveler-card-header">
-                                    <div className="traveler-avatar">{traveler.avatar}</div>
+                                    <div className="traveler-avatar">
+                                        {traveler.avatar && traveler.avatar.length > 2 ? (
+                                            <img src={traveler.avatar} alt={traveler.traveler_name} className="traveler-avatar-img-real" />
+                                        ) : (
+                                            traveler.avatar
+                                        )}
+                                    </div>
                                     <div className="traveler-name-block">
                                         <h3>{traveler.traveler_name}</h3>
                                         <span className={`traveler-status-badge ${sc.className}`}>{sc.label}</span>
@@ -199,17 +228,19 @@ export default function Travelers() {
                                         <>
                                             <button 
                                                 className="action-link-btn" 
-                                                style={{backgroundColor: '#10b981', color: '#fff'}}
-                                                onClick={() => handleStatusChange(traveler.id, 'active')}
+                                                style={{backgroundColor: processing[traveler.id] ? '#9ca3af' : '#10b981', color: '#fff'}}
+                                                onClick={() => handleStatusChange(traveler.id, 'accepted')}
+                                                disabled={processing[traveler.id]}
                                             >
-                                                Accept
+                                                {processing[traveler.id] ? 'Processing...' : 'Accept'}
                                             </button>
                                             <button 
                                                 className="action-link-btn" 
-                                                style={{backgroundColor: '#ef4444', color: '#fff'}}
+                                                style={{backgroundColor: processing[traveler.id] ? '#9ca3af' : '#ef4444', color: '#fff'}}
                                                 onClick={() => handleStatusChange(traveler.id, 'rejected')}
+                                                disabled={processing[traveler.id]}
                                             >
-                                                Reject
+                                                {processing[traveler.id] ? 'Wait...' : 'Reject'}
                                             </button>
                                         </>
                                     ) : (

@@ -6,6 +6,8 @@ from .models import GuideProfile, Booking, Activity
 
 class GuideProfileSerializer(serializers.ModelSerializer):
     """Full serializer – used for list and detail views."""
+    availability_badge = serializers.SerializerMethodField()
+    booked_ranges = serializers.SerializerMethodField()
 
     class Meta:
         model = GuideProfile
@@ -14,9 +16,65 @@ class GuideProfileSerializer(serializers.ModelSerializer):
             'profile_image', 'bio',
             'languages', 'specialization', 'destinations',
             'experience_years', 'rating', 'tours_completed',
-            'availability', 'created_at', 'updated_at',
+            'availability', 'availability_badge', 'booked_ranges', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'availability_badge', 'booked_ranges']
+        
+    def get_availability_badge(self, obj):
+        from django.utils import timezone
+        import datetime
+        
+        # Access request from context
+        request = self.context.get('request')
+        query_params = request.GET if request else {}
+        
+        trip_start_str = query_params.get('trip_start')
+        trip_end_str = query_params.get('trip_end')
+        
+        check_start = None
+        check_end = None
+        
+        if trip_start_str and trip_end_str:
+            try:
+                # Expecting YYYY-MM-DD
+                check_start = datetime.datetime.strptime(trip_start_str, '%Y-%m-%d').date()
+                check_end = datetime.datetime.strptime(trip_end_str, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                pass
+        
+        today = timezone.now().date()
+        
+        # 1. Manual Busy Status (Override)
+        if obj.availability == 'busy':
+            return "Busy / Unavailable"
+
+        # 2. Specific Date Range conflict (if user has dates selected)
+        if check_start and check_end:
+            conflict = obj.bookings.filter(
+                status__in=['accepted', 'active'],
+                trip_start__lte=check_end,
+                trip_end__gte=check_start
+            ).exists()
+            if conflict:
+                return "Unavailable for these dates"
+
+        # 3. Current global status (today)
+        current_trip = obj.bookings.filter(
+            status__in=['accepted', 'active'],
+            trip_start__lte=today,
+            trip_end__gte=today
+        ).order_by('-trip_end').first()
+        
+        if current_trip:
+            return f"Booked until {current_trip.trip_end.strftime('%b %d, %Y')}"
+            
+        return "Available"
+
+    def get_booked_ranges(self, obj):
+        """Returns a list of date ranges where the guide is already committed."""
+        return list(obj.bookings.filter(
+            status__in=['accepted', 'active']
+        ).values('trip_start', 'trip_end'))
 
 
 class GuideProfileUpdateSerializer(serializers.ModelSerializer):
@@ -56,11 +114,12 @@ class BookingSerializer(serializers.ModelSerializer):
 
     avatar = serializers.SerializerMethodField()
     itinerary = NestedItinerarySerializer(read_only=True)
+    guide_name = serializers.CharField(source='guide.full_name', read_only=True)
 
     class Meta:
         model = Booking
         fields = [
-            'id', 'guide', 'traveler_user',
+            'id', 'guide', 'guide_name', 'traveler_user',
             'traveler_name', 'traveler_email', 'traveler_phone',
             'destination', 'trip_start', 'trip_end',
             'status', 'notes', 'avatar', 'itinerary',
@@ -69,7 +128,15 @@ class BookingSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'guide', 'avatar', 'itinerary', 'created_at', 'updated_at']
 
     def get_avatar(self, obj):
-        """Return initials from traveler_name, e.g. 'AB'."""
+        """Return traveler avatar URL if exists, else initials."""
+        if obj.traveler_user and hasattr(obj.traveler_user, 'traveler_profile'):
+            profile = obj.traveler_user.traveler_profile
+            if profile.profile_image:
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(profile.profile_image.url)
+                return profile.profile_image.url
+        
         parts = (obj.traveler_name or '').split()
         return ''.join(p[0].upper() for p in parts[:2]) or '?'
 

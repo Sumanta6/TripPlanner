@@ -61,6 +61,36 @@
     color: rgba(255, 255, 255, 0.9);
 }
 
+.profile-avatar-img-real {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.avatar-edit-overlay {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background: #4f7cff;
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: 2px solid #fff;
+    transition: 0.2s;
+    z-index: 2;
+}
+
+.avatar-edit-overlay:hover {
+    background: #2563eb;
+    transform: scale(1.1);
+}
+
 .profile-avail-toggle {
     border: none;
     border-radius: 999px;

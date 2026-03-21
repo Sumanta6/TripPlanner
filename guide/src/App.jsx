@@ -12,6 +12,7 @@ import Itineraries from './pages/Itineraries';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import { AuthProvider } from './context/AuthContext';
+import { Toaster } from 'react-hot-toast';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const GUIDE_KEY = 'guideLoggedIn';
@@ -59,6 +60,7 @@ export default function App() {
 
     return (
         <AuthProvider loggedIn={loggedIn} onLogout={handleLogout}>
+            <Toaster position="top-right" />
             <Routes>
                 {/* default → login */}
                 <Route path="/" element={<Navigate to={loggedIn ? "/home" : "/login"} replace />} />

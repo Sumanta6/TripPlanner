@@ -102,11 +102,10 @@
 }
 
 .mini-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #4f7cff, #7c3aed);
-    color: #fff;
+    width: 38px;
+    height: 38px;
+    background: #f1f5f9;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -280,6 +279,27 @@
     display: flex;
     align-items: flex-start;
     gap: 14px;
+}
+
+.activity-e.mini-avatar {
+    width: 38px;
+    height: 38px;
+    background: #f1f5f9;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: #4f7cff;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.mini-avatar-img-real {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .activity-emoji-icon {

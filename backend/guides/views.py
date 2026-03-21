@@ -28,6 +28,25 @@ def get_or_create_guide_profile(user):
     return profile
 
 
+def update_outdated_booking_statuses(bookings):
+    """Dynamically progression of accepted -> active -> completed based on current date."""
+    from django.utils import timezone
+    today = timezone.now().date()
+    updated = []
+    
+    for b in bookings:
+        if b.status == 'accepted' and today >= b.trip_start and today <= b.trip_end:
+            b.status = 'active'
+            updated.append(b)
+        elif b.status in ['accepted', 'active'] and today > b.trip_end:
+            b.status = 'completed'
+            updated.append(b)
+            
+    if updated:
+        from .models import Booking
+        Booking.objects.bulk_update(updated, ['status'])
+
+
 # ── Public: Guide List & Detail ───────────────────────────────────────────────
 
 @api_view(['GET'])
@@ -38,7 +57,11 @@ def guide_list(request):
     Returns a list of all registered guides (public).
     """
     guides = GuideProfile.objects.select_related('user').all()
-    serializer = GuideProfileSerializer(guides, many=True)
+    # Pre-process status updates for all listed guides to ensure accurate availability_badge
+    for guide in guides:
+        update_outdated_booking_statuses(guide.bookings.all())
+    
+    serializer = GuideProfileSerializer(guides, many=True, context={'request': request})
     return Response(serializer.data)
 
 
@@ -54,7 +77,7 @@ def guide_detail(request, pk):
     except GuideProfile.DoesNotExist:
         return Response({'error': 'Guide not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    serializer = GuideProfileSerializer(guide)
+    serializer = GuideProfileSerializer(guide, context={'request': request})
     return Response(serializer.data)
 
 
@@ -112,6 +135,16 @@ def request_guide(request, pk):
         return Response({'error': 'End date is required.'}, status=status.HTTP_400_BAD_REQUEST)
     if trip_end < trip_start:
         return Response({'error': 'End date cannot be earlier than start date.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    # Conflict check
+    overlapping = Booking.objects.filter(
+        guide=guide,
+        status__in=['accepted', 'active'],
+        trip_start__lte=trip_end,
+        trip_end__gte=trip_start
+    ).exists()
+    if overlapping:
+        return Response({'error': 'Guide is unavailable for selected dates.'}, status=status.HTTP_400_BAD_REQUEST)
 
     # Note: `guide` and `itinerary` are read_only in the Serializer, so we pass them in `save()`
     # If the user has a traveler profile, safely grab details from it
@@ -124,7 +157,7 @@ def request_guide(request, pk):
     
     data['traveler_email'] = data.get('traveler_email') or request.user.email
 
-    serializer = BookingSerializer(data=data)
+    serializer = BookingSerializer(data=data, context={'request': request})
     if serializer.is_valid():
         save_kwargs = {'guide': guide}
         if request.user.is_authenticated:
@@ -160,7 +193,7 @@ def my_profile(request):
     guide = get_or_create_guide_profile(request.user)
 
     if request.method == 'GET':
-        serializer = GuideProfileSerializer(guide)
+        serializer = GuideProfileSerializer(guide, context={'request': request})
         return Response(serializer.data)
 
     # PATCH
@@ -170,7 +203,7 @@ def my_profile(request):
     if serializer.is_valid():
         serializer.save()
         # Return the full profile after save
-        return Response(GuideProfileSerializer(guide).data)
+        return Response(GuideProfileSerializer(guide, context={'request': request}).data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -186,12 +219,29 @@ def my_bookings(request):
     """
     guide = get_or_create_guide_profile(request.user)
     bookings = guide.bookings.all()
+    
+    # Auto-adjust statuses based on dates before returning
+    update_outdated_booking_statuses(bookings)
 
     status_filter = request.query_params.get('status')
     if status_filter:
         bookings = bookings.filter(status=status_filter)
 
-    serializer = BookingSerializer(bookings, many=True)
+    serializer = BookingSerializer(bookings, many=True, context={'request': request})
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_booked_trips(request):
+    """
+    GET /api/guides/my-trips/
+    Returns all bookings made by the logged-in traveler.
+    """
+    bookings = Booking.objects.filter(traveler_user=request.user).order_by('-created_at')
+    update_outdated_booking_statuses(bookings)
+    
+    serializer = BookingSerializer(bookings, many=True, context={'request': request})
     return Response(serializer.data)
 
 
@@ -208,7 +258,7 @@ def booking_detail(request, pk):
     except Booking.DoesNotExist:
         return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    serializer = BookingSerializer(booking)
+    serializer = BookingSerializer(booking, context={'request': request})
     return Response(serializer.data)
 
 
@@ -232,16 +282,47 @@ def update_booking_status(request, pk):
     booking.status = new_status
     booking.save()
     
+    # Logic for Date Conflicts when ACCEPTED
+    if new_status == 'accepted':
+        # Find overlapping requests
+        overlapping = Booking.objects.filter(
+            guide=guide,
+            status='pending',
+            trip_start__lte=booking.trip_end,
+            trip_end__gte=booking.trip_start
+        ).exclude(pk=booking.pk)
+        
+        for ov_booking in overlapping:
+            ov_booking.status = 'auto_rejected'
+            ov_booking.notes = f"{ov_booking.notes}\n\n[System] Guide unavailable for selected dates."
+            ov_booking.save(update_fields=['status', 'notes'])
+            Activity.objects.create(
+                guide=guide,
+                activity_type='auto_rejected',
+                message=f"Auto-rejected request from {ov_booking.traveler_name} due to date conflict.",
+                highlight=f"To {ov_booking.destination}"
+            )
+
     # Log activity
-    if new_status == 'active':
+    if new_status == 'accepted':
         Activity.objects.create(
             guide=guide,
             activity_type='accepted',
             message=f"Accepted request from {booking.traveler_name}",
             highlight=f"To {booking.destination}"
         )
+    elif new_status == 'rejected':
+        Activity.objects.create(
+            guide=guide,
+            activity_type='rejected',
+            message=f"Declined request from {booking.traveler_name}",
+            highlight=f"To {booking.destination}"
+        )
 
-    serializer = BookingSerializer(booking)
+    # Ensure status is updated if today is the trip start/end
+    update_outdated_booking_statuses([booking])
+
+    serializer = BookingSerializer(booking, context={'request': request})
     return Response(serializer.data)
 
 

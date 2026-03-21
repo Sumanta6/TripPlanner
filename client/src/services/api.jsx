@@ -52,6 +52,8 @@ export async function initCsrf() {
     await api.get("/accounts/csrf-cookie/");
 }
 
+export const getMyBookedTrips = () => api.get('/api/guides/my-trips/').then(res => res.data);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TRAVELER PROFILE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -73,8 +75,8 @@ export async function updateMyProfile(updates) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** GET /api/guides/ – fetch public list of all guides */
-export async function getGuides() {
-    const { data } = await api.get("/api/guides/");
+export async function getGuides(params = {}) {
+    const { data } = await api.get("/api/guides/", { params });
     return data;
 }
 
@@ -94,9 +96,10 @@ export async function getMyGuideRequests() {
 // ITINERARY
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const generateItinerary = (data) => api.post('/api/itinerary/generate/', data);
-export const saveItinerary = (data) => api.post('/api/itinerary/save/', data);
-export const getMyItineraries = () => api.get('/api/itinerary/my/');
-export const getItineraryDetail = (id) => api.get(`/api/itinerary/${id}/`);
+export const generateItinerary = (data) => api.post('/api/itinerary/generate/', data).then(res => res.data);
+export const saveItinerary = (data) => api.post('/api/itinerary/save/', data).then(res => res.data);
+export const getMyItineraries = () => api.get('/api/itinerary/my/').then(res => res.data);
+export const getItineraryDetail = (id) => api.get(`/api/itinerary/${id}/`).then(res => res.data);
+export const deleteItinerary = (id) => api.delete(`/api/itinerary/${id}/delete/`).then(res => res.data);
 
 export default api;

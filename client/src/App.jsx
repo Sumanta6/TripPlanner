@@ -13,6 +13,10 @@ import HowItWorks from "./pages/HowItWorks";
 import Profile from "./pages/Profile";
 import DestinationDetails from "./pages/DestinationDetails";
 import Guides from "./pages/Guides";
+import SavedTrips from "./pages/SavedTrips";
+import MyTrips from "./pages/MyTrips";
+import TripDetail from "./pages/TripDetail";
+import { Toaster } from "react-hot-toast";
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -34,6 +38,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <Toaster position="top-right" />
       <Routes>
         {/* ========================= */}
         {/* LANDING (NO LAYOUT) */}
@@ -66,6 +71,9 @@ function App() {
           <Route path="/home" element={<Home />} />
           <Route path="/destinations" element={<Destinations />} />
           <Route path="/destinations/:id" element={<DestinationDetails />} />
+          <Route path="/saved-trips" element={<SavedTrips />} />
+          <Route path="/my-trips" element={<MyTrips />} />
+          <Route path="/trips/:id" element={<TripDetail />} />
           <Route path="/plan-trip" element={<Plantrip />} />
           <Route path="/guides" element={<Guides />} />
           <Route path="/contact" element={<ContactUs />} />

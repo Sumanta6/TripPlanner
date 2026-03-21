@@ -66,6 +66,7 @@ export default function Profile() {
         try {
             await patchProfile({ availability: next });
             showToast('Availability updated');
+            await refreshProfile(); // Added refreshProfile here
         } catch (_) {
         } finally {
             setSaving(false);
@@ -105,15 +106,45 @@ export default function Profile() {
                 <div className="profile-hero-content">
                     <div className="profile-avatar-wrap">
                         <div className="profile-avatar-circle">
-                            <FaUserCircle className="profile-avatar-icon" />
+                            {p.profile_image ? (
+                                <img src={p.profile_image} alt={p.full_name} className="profile-avatar-img-real" />
+                            ) : (
+                                <FaUserCircle className="profile-avatar-icon" />
+                            )}
+                            {isEditing && (
+                                <label className="avatar-edit-overlay">
+                                    <FaEdit />
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        hidden 
+                                        onChange={async (e) => {
+                                            const file = e.target.files[0];
+                                            if (!file) return;
+                                            const formData = new FormData();
+                                            formData.append('profile_image', file);
+                                            try {
+                                                setSaving(true);
+                                                await patchProfile(formData);
+                                                showToast('Profile image updated');
+                                                await refreshProfile();
+                                            } catch (err) {
+                                                alert('Failed to upload image: ' + err.message);
+                                            } finally {
+                                                setSaving(false);
+                                            }
+                                        }}
+                                    />
+                                </label>
+                            )}
                         </div>
                         <button
-                            className={`profile-avail-toggle ${p.availability || 'available'} ${isEditing ? 'disabled' : ''}`}
+                            className={`profile-avail-toggle ${p.availability_badge === 'Available' ? 'available' : 'busy'} ${isEditing ? 'disabled' : ''}`}
                             onClick={handleToggleAvailability}
                             disabled={saving || isEditing}
                         >
                             {saving && !isEditing ? <FaSpinner className="spin" /> : <span className="avail-dot" />}
-                            {p.availability === 'busy' ? 'Busy' : 'Available'}
+                            {p.availability_badge === 'Available' ? 'Available' : (p.availability_badge || 'Busy')}
                         </button>
                     </div>
                     <div className="profile-hero-info">

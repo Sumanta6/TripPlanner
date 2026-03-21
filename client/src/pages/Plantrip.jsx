@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./Plantrip.css";
 import { getGuides, saveItinerary, requestGuideWithItinerary } from '../services/api';
+import { useNavigate } from "react-router-dom";
 
 const FALLBACK_DESTINATIONS = [
   { name: "Kathmandu Valley", type: "cultural" },
@@ -335,6 +336,7 @@ function normalizeBackendResponse(data, formData, duration) {
 }
 
 function Plantrip() {
+  const navigate = useNavigate();
   const [step, setStep] = useState(() => {
     const saved = localStorage.getItem("plantrip_step");
     const parsed = saved ? parseInt(saved, 10) : 1;
@@ -662,21 +664,7 @@ function Plantrip() {
       }
 
       setItinerary(normalized);
-      // Automatically save itinerary to DB
-      try {
-         const saveRes = await saveItinerary({
-            destination: normalized.destination,
-            starting_place: normalized.starting_place,
-            days: normalized.days,
-            start_date: formData.startDate,
-            notes: normalized.notes,
-            itinerary_data: normalized
-         });
-         setSavedItineraryId(saveRes.id);
-      } catch (err) {
-         console.error("Autosave of itinerary failed:", err);
-      }
-      
+      // Auto-save removed: we keep the generated itinerary in state until the user clicks save.
       setShowSuccess(true);
 
       setTimeout(() => {
@@ -731,8 +719,35 @@ function Plantrip() {
     }
   };
 
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleSaveItinerary = async () => {
-    alert("Itinerary is auto-saved on generation!");
+    if (savedItineraryId) {
+      alert("Itinerary is already saved!");
+      return;
+    }
+    if (!itinerary) return;
+
+    setIsSaving(true);
+    try {
+      const saveRes = await saveItinerary({
+        destination: itinerary.destination,
+        starting_place: itinerary.starting_place,
+        days: itinerary.days,
+        start_date: formData.startDate,
+        budget: itinerary.budget,
+        travelers: formData.travelers,
+        notes: itinerary.notes,
+        itinerary_data: itinerary
+      });
+      setSavedItineraryId(saveRes.id);
+      alert("Itinerary saved successfully! You can find it in 'My Trips'.");
+    } catch (err) {
+      console.error("Save failed:", err);
+      alert("Failed to save the itinerary. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const clearForm = () => {
@@ -1411,9 +1426,24 @@ function Plantrip() {
                 type="button"
                 className="lp-btn-primary save-btn"
                 onClick={handleSaveItinerary}
+                style={savedItineraryId ? { backgroundColor: '#10b981', borderColor: '#10b981', cursor: 'default' } : {}}
+                disabled={isSaving || savedItineraryId}
               >
-                <span className="btn-icon">💾</span> Save Itinerary
+                {isSaving ? (
+                   <><span className="spinner" style={{ marginRight: '8px', width: '16px', height: '16px' }}></span> Saving...</>
+                ) : (
+                   <><span className="btn-icon">{savedItineraryId ? "✓" : "💾"}</span> {savedItineraryId ? "Saved to My Trips" : "Save Itinerary"}</>
+                )}
               </button>
+              {savedItineraryId && (
+                <button
+                  type="button"
+                  className="lp-btn-outline-dark ml-2"
+                  onClick={() => navigate(`/trips/${savedItineraryId}`)}
+                >
+                  View Details
+                </button>
+              )}
             </div>
 
             {showGuides && (
@@ -1516,7 +1546,7 @@ function Plantrip() {
                         disabled={bookedGuideIds.includes(guide.id)}
                         onClick={() => {
                             if (!savedItineraryId) {
-                                alert("Please wait for your itinerary to save or try logging in.");
+                                alert("Please click 'Save Itinerary' below the itinerary first before booking a guide!");
                                 return;
                             }
                             setBookingModal({
