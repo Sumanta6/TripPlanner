@@ -44,11 +44,7 @@ class GuideProfileSerializer(serializers.ModelSerializer):
         
         today = timezone.now().date()
         
-        # 1. Manual Busy Status (Override)
-        if obj.availability == 'busy':
-            return "Busy / Unavailable"
-
-        # 2. Specific Date Range conflict (if user has dates selected)
+        # 1. Specific Date Range conflict (if user has dates selected)
         if check_start and check_end:
             conflict = obj.bookings.filter(
                 status__in=['accepted', 'active'],
@@ -58,15 +54,17 @@ class GuideProfileSerializer(serializers.ModelSerializer):
             if conflict:
                 return "Unavailable for these dates"
 
-        # 3. Current global status (today)
-        current_trip = obj.bookings.filter(
+        # 3. Global status: any active or upcoming trip means they are booked
+        upcoming_trip = obj.bookings.filter(
             status__in=['accepted', 'active'],
-            trip_start__lte=today,
             trip_end__gte=today
-        ).order_by('-trip_end').first()
+        ).order_by('trip_start').first()
         
-        if current_trip:
-            return f"Booked until {current_trip.trip_end.strftime('%b %d, %Y')}"
+        if upcoming_trip:
+            if upcoming_trip.trip_start <= today:
+                return f"Booked until {upcoming_trip.trip_end.strftime('%b %d')}"
+            else:
+                return f"Booked (starts {upcoming_trip.trip_start.strftime('%b %d')})"
             
         return "Available"
 
@@ -192,6 +190,6 @@ class DashboardSerializer(serializers.Serializer):
     top_destinations = serializers.ListField(child=serializers.DictField())
     rating = serializers.DecimalField(max_digits=3, decimal_places=1)
     tours_completed = serializers.IntegerField()
-    experience_years = serializers.IntegerField()
+    experience_years = serializers.DecimalField(max_digits=4, decimal_places=1)
     languages_count = serializers.IntegerField()
     destinations_count = serializers.IntegerField()

@@ -98,95 +98,49 @@ export default function Dashboard() {
                             { label: 'Upcoming',  count: stats?.upcoming_trips ?? 0,   color: '#8b5cf6' },
                             { label: 'Pending',   count: stats?.pending_requests ?? 0, color: '#f59e0b' },
                         ].map(item => {
-                            const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
+                            const totalStats = (stats?.completed_trips || 0) + (stats?.active_trips || 0) + (stats?.upcoming_trips || 0) + (stats?.pending_requests || 0);
+                            const pct = totalStats > 0 ? Math.round((item.count / totalStats) * 100) : 0;
                             return (
-                                <div className="dn-bar-row" key={item.label}>
-                                    <div className="dn-bar-label-row">
+                                <div className="dn-status-row" key={item.label}>
+                                    <div className="dn-status-label">
                                         <span>{item.label}</span>
-                                        <span>{item.count} ({pct}%)</span>
+                                        <strong>{item.count}</strong>
                                     </div>
-                                    <div className="dn-bar-track">
-                                        <div
-                                            className="dn-bar-fill"
-                                            style={{ width: `${pct}%`, background: item.color }}
+                                    <div className="dn-status-track">
+                                        <div 
+                                            className="dn-status-fill" 
+                                            style={{ width: `${pct}%`, backgroundColor: item.color }}
                                         />
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
-
-                    <div className="dn-completion-rate">
-                        <div className="completion-circle">
-                            <svg viewBox="0 0 36 36" className="circular-chart">
-                                <path className="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                <path className="circle" strokeDasharray={`${completionRate}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                <text x="18" y="20.35" className="percentage">{completionRate}%</text>
-                            </svg>
-                        </div>
-                        <div className="completion-info">
-                            <p className="completion-title">Completion Rate</p>
-                            <p className="completion-sub">{stats?.completed_trips ?? 0} of {total} trips completed</p>
-                        </div>
-                    </div>
                 </div>
 
                 {/* Top Destinations */}
                 <div className="dn-card">
                     <h3 className="dn-card-title"><FaMapMarkedAlt /> Top Destinations</h3>
-                    <div className="dn-destinations">
-                        {loading ? (
-                            [1,2,3].map(i => <div key={i} className="skeleton-line long" style={{ margin: '10px 0', borderRadius: 8 }} />)
-                        ) : (stats?.top_destinations ?? []).length === 0 ? (
-                            <p className="dn-empty-hint">No destination data yet.</p>
-                        ) : (
-                            stats.top_destinations.map(({ name, count }, i) => {
-                                const maxCount = Math.max(...stats.top_destinations.map(d => d.count));
-                                return (
-                                    <div className="dn-dest-row" key={name}>
-                                        <div className="dn-dest-rank">{i + 1}</div>
-                                        <div className="dn-dest-info">
-                                            <span className="dn-dest-name">{name}</span>
-                                            <span className="dn-dest-count">{count} trip{count > 1 ? 's' : ''}</span>
-                                        </div>
-                                        <div className="dn-dest-bar">
-                                            <div className="dn-dest-bar-fill" style={{ width: `${(count / maxCount) * 100}%` }} />
-                                        </div>
-                                    </div>
-                                );
-                            })
-                        )}
-                    </div>
-
-                    <div className="dn-rating-block">
-                        <div className="dn-rating-stars">
-                            {[1,2,3,4,5].map(n => (
-                                <FaStar key={n} className={n <= Math.floor(profile?.rating ?? 0) ? 'star-filled' : 'star-empty'} />
+                    {loading ? (
+                        <div className="dn-skeleton-list">
+                            <div className="skeleton-line long" />
+                            <div className="skeleton-line" />
+                            <div className="skeleton-line short" />
+                        </div>
+                    ) : (stats?.top_destinations || []).length === 0 ? (
+                        <p className="dn-empty-hint">No destination data yet. Accept more trips to see trends!</p>
+                    ) : (
+                        <div className="dn-dest-list">
+                            {stats.top_destinations.map((d, i) => (
+                                <div className="dn-dest-item" key={d.destination}>
+                                    <div className="dn-dest-rank">#{i + 1}</div>
+                                    <div className="dn-dest-name">{d.destination}</div>
+                                    <div className="dn-dest-count">{d.count} trips</div>
+                                </div>
                             ))}
                         </div>
-                        <div className="dn-rating-num">{profile?.rating ?? '—'} / 5.0</div>
-                        <div className="dn-rating-label">{profile?.tours_completed ?? 0} completed tours</div>
-                    </div>
+                    )}
                 </div>
-            </div>
-
-            {/* Guide Performance Summary */}
-            <div className="dn-perf-bar">
-                {[
-                    { value: profile?.experience_years ? `${profile.experience_years} yrs` : '—', label: 'Experience' },
-                    { value: stats?.languages_count ?? 0, label: 'Languages' },
-                    { value: stats?.destinations_count ?? 0, label: 'Destinations' },
-                    { value: profile?.tours_completed ?? 0, label: 'Total Tours' },
-                    { value: profile?.rating ? `${profile.rating}⭐` : '—', label: 'Rating' },
-                ].map((item, i, arr) => (
-                    <div key={item.label} style={{ display: 'contents' }}>
-                        <div className="dn-perf-item">
-                            <span className="dn-perf-value">{item.value}</span>
-                            <span className="dn-perf-label">{item.label}</span>
-                        </div>
-                        {i < arr.length - 1 && <div className="dn-perf-divider" />}
-                    </div>
-                ))}
             </div>
         </div>
     );

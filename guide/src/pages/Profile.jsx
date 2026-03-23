@@ -59,20 +59,6 @@ export default function Profile() {
 
     const p = profile || {};
 
-    const handleToggleAvailability = async () => {
-        if (isEditing) return; // Disallow toggle during edit to avoid conflict
-        const next = p.availability === 'available' ? 'busy' : 'available';
-        setSaving(true);
-        try {
-            await patchProfile({ availability: next });
-            showToast('Availability updated');
-            await refreshProfile(); // Added refreshProfile here
-        } catch (_) {
-        } finally {
-            setSaving(false);
-        }
-    };
-
     const handleSaveProfile = async () => {
         setSaving(true);
         try {
@@ -80,7 +66,7 @@ export default function Profile() {
                 ...form,
                 languages: form.languages.split(',').map(s => s.trim()).filter(Boolean),
                 destinations: form.destinations.split(',').map(s => s.trim()).filter(Boolean),
-                experience_years: parseInt(form.experience_years) || 0
+                experience_years: parseFloat(form.experience_years) || 0
             };
             await patchProfile(payload);
             await refreshProfile();
@@ -138,14 +124,12 @@ export default function Profile() {
                                 </label>
                             )}
                         </div>
-                        <button
-                            className={`profile-avail-toggle ${p.availability_badge === 'Available' ? 'available' : 'busy'} ${isEditing ? 'disabled' : ''}`}
-                            onClick={handleToggleAvailability}
-                            disabled={saving || isEditing}
+                        <div
+                            className={`profile-avail-badge ${p.availability_badge === 'Available' ? 'available' : 'busy'}`}
                         >
-                            {saving && !isEditing ? <FaSpinner className="spin" /> : <span className="avail-dot" />}
-                            {p.availability_badge === 'Available' ? 'Available' : (p.availability_badge || 'Busy')}
-                        </button>
+                            <span className="avail-dot" />
+                            {p.availability_badge}
+                        </div>
                     </div>
                     <div className="profile-hero-info">
                         {isEditing ? (
@@ -281,6 +265,7 @@ export default function Profile() {
                                 <input 
                                     type="number" 
                                     min="0"
+                                    step="0.1"
                                     className="profile-edit-input"
                                     value={form.experience_years} 
                                     onChange={e => setForm({...form, experience_years: e.target.value})}

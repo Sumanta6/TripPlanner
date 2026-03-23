@@ -7,14 +7,14 @@ import toast from 'react-hot-toast';
 import './Home.css';
 
 const ACTIVITY_TYPE_CONFIG = {
-    assignment:   { color: '#4f7cff', bg: '#e0e7ff', emoji: '📋' },
-    accepted:     { color: '#10b981', bg: '#d1fae5', emoji: '✅' },
-    rejected:     { color: '#ef4444', bg: '#fee2e2', emoji: '❌' },
+    assignment: { color: '#4f7cff', bg: '#e0e7ff', emoji: '📋' },
+    accepted: { color: '#10b981', bg: '#d1fae5', emoji: '✅' },
+    rejected: { color: '#ef4444', bg: '#fee2e2', emoji: '❌' },
     auto_rejected: { color: '#f43f5e', bg: '#fff1f2', emoji: '⚡' },
-    request:      { color: '#f59e0b', bg: '#fef3c7', emoji: '📩' },
-    completed:    { color: '#8b5cf6', bg: '#ede9fe', emoji: '🏆' },
-    upcoming:     { color: '#06b6d4', bg: '#cffafe', emoji: '📅' },
-    rating:       { color: '#ec4899', bg: '#fce7f3', emoji: '⭐' },
+    request: { color: '#f59e0b', bg: '#fef3c7', emoji: '📩' },
+    completed: { color: '#8b5cf6', bg: '#ede9fe', emoji: '🏆' },
+    upcoming: { color: '#06b6d4', bg: '#cffafe', emoji: '📅' },
+    rating: { color: '#ec4899', bg: '#fce7f3', emoji: '⭐' },
 };
 
 // ── Skeleton Cards ─────────────────────────────────────────────────────────────
@@ -32,10 +32,10 @@ function SkeletonCard() {
 
 export default function Home() {
     const { profile, patchProfile } = useAuth();
-    const [bookings, setBookings]     = useState([]);
-    const [activity, setActivity]     = useState([]);
+    const [bookings, setBookings] = useState([]);
+    const [activity, setActivity] = useState([]);
     const [loadingData, setLoadingData] = useState(true);
-    const [dataError, setDataError]   = useState(null);
+    const [dataError, setDataError] = useState(null);
 
     // Keep local availability in sync with profile
     const availability = profile?.availability || 'available';
@@ -62,11 +62,11 @@ export default function Home() {
         return () => { alive = false; };
     }, []);
 
-    const pendingReqs    = bookings.filter(t => t.status === 'pending');
-    const acceptedReqs   = bookings.filter(t => t.status === 'accepted');
-    const activeReqs     = bookings.filter(t => t.status === 'active');
-    const completedReqs  = bookings.filter(t => t.status === 'completed');
-    const rejectedReqs   = bookings.filter(t => t.status === 'rejected' || t.status === 'auto_rejected');
+    const pendingReqs = bookings.filter(t => t.status === 'pending');
+    const acceptedReqs = bookings.filter(t => t.status === 'accepted');
+    const activeReqs = bookings.filter(t => t.status === 'active');
+    const completedReqs = bookings.filter(t => t.status === 'completed');
+    const rejectedReqs = bookings.filter(t => t.status === 'rejected' || t.status === 'auto_rejected');
 
     const totalActiveCount = activeReqs.length + acceptedReqs.length;
 
@@ -97,7 +97,7 @@ export default function Home() {
             {/* Overview / Summary Cards */}
             <section className="guide-summary-cards">
                 {loadingData ? (
-                    [1,2,3,4].map(i => <SkeletonCard key={i} />)
+                    [1, 2, 3, 4].map(i => <SkeletonCard key={i} />)
                 ) : (
                     <>
                         <div className="summary-card">
@@ -206,7 +206,7 @@ export default function Home() {
                     <h2>Recent Activity</h2>
                     {loadingData ? (
                         <ul className="activity-list">
-                            {[1,2,3].map(i => (
+                            {[1, 2, 3].map(i => (
                                 <li className="activity-item" key={i}>
                                     <div className="skeleton-icon" />
                                     <div className="skeleton-info">

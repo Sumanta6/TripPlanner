@@ -27,7 +27,7 @@ class GuideProfile(models.Model):
     specialization = models.CharField(max_length=200, blank=True)
     destinations = models.JSONField(default=list, blank=True)
 
-    experience_years = models.PositiveIntegerField(default=0)
+    experience_years = models.DecimalField(max_digits=4, decimal_places=1, default=0.0)
     rating = models.DecimalField(max_digits=3, decimal_places=1, default=0.0)
     tours_completed = models.PositiveIntegerField(default=0)
 

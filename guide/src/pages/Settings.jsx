@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
-    FaLock, FaBell, FaSignOutAlt, FaEye, FaEyeSlash,
-    FaToggleOn, FaToggleOff, FaSave, FaChevronRight, FaSpinner
+    FaLock, FaSignOutAlt, FaEye, FaEyeSlash,
+    FaSave, FaChevronRight, FaSpinner
 } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import { getCookie } from '../services/guidesService';
@@ -21,13 +21,7 @@ export default function Settings() {
     const [showOldPass, setShowOldPass]     = useState(false);
     const [showNewPass, setShowNewPass]     = useState(false);
     const [showConfPass, setShowConfPass]   = useState(false);
-    const [notifications, setNotifications] = useState({
-        newAssignment: true,
-        tripReminders: true,
-        messages: true,
-        ratings: false,
-        systemUpdates: false,
-    });
+
 
     // Password form
     const [passwordForm, setPasswordForm] = useState({
@@ -78,7 +72,6 @@ export default function Settings() {
 
     const sections = [
         { key: 'password',      icon: FaLock,       label: 'Security & Password' },
-        { key: 'notifications', icon: FaBell,       label: 'Notifications' },
         { key: 'logout',        icon: FaSignOutAlt, label: 'Logout Account' },
     ];
 
@@ -155,36 +148,7 @@ export default function Settings() {
                         </div>
                     )}
 
-                    {/* Notifications */}
-                    {activeSection === 'notifications' && (
-                        <div className="settings-section">
-                            <h2>Notification Preferences</h2>
-                            <p className="section-desc">Choose what you want to be notified about</p>
-                            <div className="notification-list">
-                                {[
-                                    { key: 'newAssignment', label: 'New Traveler Assignments', desc: 'Alert when a new traveler is assigned to you' },
-                                    { key: 'tripReminders', label: 'Trip Reminders', desc: 'Reminders 3 days and 1 day before a trip starts' },
-                                    { key: 'messages',      label: 'Messages from Travelers', desc: 'Get notified when travelers send you messages' },
-                                    { key: 'ratings',       label: 'New Ratings & Reviews', desc: 'When a traveler leaves a rating for you' },
-                                    { key: 'systemUpdates', label: 'System Updates', desc: 'Platform announcements and feature updates' },
-                                ].map(item => (
-                                    <div key={item.key} className="notification-item">
-                                        <div className="notification-info">
-                                            <span className="notification-label">{item.label}</span>
-                                            <span className="notification-desc">{item.desc}</span>
-                                        </div>
-                                        <button
-                                            className={`toggle-btn ${notifications[item.key] ? 'on' : 'off'}`}
-                                            onClick={() => setNotifications(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
-                                            title={notifications[item.key] ? 'Turn off' : 'Turn on'}
-                                        >
-                                            {notifications[item.key] ? <FaToggleOn /> : <FaToggleOff />}
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+
 
                     {/* Logout */}
                     {activeSection === 'logout' && (
