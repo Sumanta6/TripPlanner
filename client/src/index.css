@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
+  /* Brand Colors */
   --navy: #0A2540;
   --navy-dark: #061729;
   --teal: #00B4D8;
@@ -8,15 +9,41 @@
   --gold: #f59e0b;
   --green: #10b981;
   --purple: #7c3aed;
-  --blue: #4f7cff;
+  --blue: #1d4ed8;
+  
+  /* Semantic Colors - Light (Default) */
   --white: #ffffff;
   --bg-light: #f8fafc;
-  --text-dark: #1e293b;
+  --bg-hover: #f1f5f9;
+  --border-color: #eaedf0;
+  --text-dark: #111827;
   --text-gray: #64748b;
-  --radius-card: 16px;
+  
+  /* Shadows & UI */
+  --shadow-small: 0 1px 3px rgba(0,0,0,0.03);
   --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.08);
   --shadow-card-hover: 0 20px 40px rgba(0, 0, 0, 0.14);
+  --radius-card: 16px;
   --transition: 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* ══ DARK THEME OVERRIDES ══ */
+[data-theme="dark"] {
+  --white:         #1e293b;
+  --bg-light:      #0f172a;
+  --bg-hover:      #1e293b;
+  --border-color:  #334155;
+  --text-dark:     #f8fafc;
+  --text-gray:     #94a3b8;
+  
+  --navy:          #38bdf8; /* Accessible blue for dark bgs */
+  --navy-dark:     #7dd3fc;
+  
+  --shadow-small:  0 1px 3px rgba(0,0,0,0.3);
+  --shadow-card:   0 8px 24px rgba(0, 0, 0, 0.40);
+  --shadow-card-hover: 0 20px 40px rgba(0, 0, 0, 0.55);
+  
+  color-scheme: dark;
 }
 
 * {
@@ -32,15 +59,125 @@ body {
   -moz-osx-font-smoothing: grayscale;
   color: var(--text-dark);
   background-color: var(--bg-light);
+  /* Smooth theme transition */
+  transition: background-color 0.25s ease, color 0.2s ease;
+}
+
+/* Global Transistions for Theme Support */
+*, *::before, *::after {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.15s ease, box-shadow 0.25s ease;
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
-/* Base Link Reset */
 a {
   text-decoration: none;
   color: inherit;
 }
+
+/* ══ Component Overrides for Dark Mode ══ */
+
+[data-theme="dark"] .navbar.scrolled {
+  background: #020617;
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .profile-dropdown,
+[data-theme="dark"] .side-menu {
+  background: var(--white);
+  border-color: var(--border-color);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="dark"] .dropdown-header,
+[data-theme="dark"] .side-menu-header,
+[data-theme="dark"] .dropdown-divider,
+[data-theme="dark"] .side-divider {
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .dropdown-item,
+[data-theme="dark"] .secondary-link {
+  color: var(--text-gray);
+}
+
+[data-theme="dark"] .dropdown-item:hover,
+[data-theme="dark"] .secondary-link:hover {
+  background: var(--bg-hover);
+  color: var(--text-dark);
+}
+
+/* Buttons in Dark Mode */
+[data-theme="dark"] .btn-login,
+[data-theme="dark"] .btn-secondary {
+  color: var(--text-dark);
+}
+
+/* Hero & Landing */
+[data-theme="dark"] .hero-section {
+  background: radial-gradient(circle at top right, #1e3a8a 0%, #0f172a 100%);
+}
+
+[data-theme="dark"] .feature-card,
+[data-theme="dark"] .itinerary-card,
+[data-theme="dark"] .guide-card,
+[data-theme="dark"] .sg-theme-card {
+  background: var(--white);
+  border-color: var(--border-color);
+  color: var(--text-dark);
+}
+
+/* ════ LEGACY UTILITIES (Fixes Guides & older pages) ════ */
+.btn-primary {
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-outline {
+  background: transparent;
+  color: var(--blue);
+  border: 1px solid var(--blue);
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-outline:hover { background: var(--blue); color: #fff; }
+
+.card {
+  background: var(--white);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-color);
+  padding: 24px;
+}
+
+.text-muted { color: var(--text-gray); }
+.flex-center { display: flex; align-items: center; justify-content: center; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.setup-animation { animation: fadeIn 0.4s ease forwards; }
+
+.edit-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-light);
+  color: var(--text-dark);
+}
+.edit-input:focus { outline: none; border-color: var(--blue); }

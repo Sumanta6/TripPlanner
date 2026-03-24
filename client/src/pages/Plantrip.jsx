@@ -244,15 +244,15 @@ function normalizeBackendResponse(data, formData, duration) {
   const rawDays = Array.isArray(data.itinerary)
     ? data.itinerary
     : Array.isArray(data?.itinerary?.days)
-    ? data.itinerary.days
-    : [];
+      ? data.itinerary.days
+      : [];
 
   const normalizedDays = rawDays.map((day, index) => {
     const rawSchedule = Array.isArray(day.schedule)
       ? day.schedule
       : Array.isArray(day.activities)
-      ? day.activities
-      : [];
+        ? day.activities
+        : [];
 
     const normalizedActivities = rawSchedule.map((item) => ({
       time_of_day: item.time || item.time_of_day || "Flexible",
@@ -282,8 +282,8 @@ function normalizeBackendResponse(data, formData, duration) {
         typeof day.meals === "string"
           ? day.meals
           : Array.isArray(day.meals)
-          ? day.meals.join(", ")
-          : "",
+            ? day.meals.join(", ")
+            : "",
       local_tips: day.notes || day.local_tips || "",
       altitude: day.altitude || ""
     };
@@ -306,15 +306,13 @@ function normalizeBackendResponse(data, formData, duration) {
   const travelTips = Array.isArray(data.travel_tips)
     ? data.travel_tips
     : Array.isArray(data?.itinerary?.travel_tips)
-    ? data.itinerary.travel_tips
-    : [];
+      ? data.itinerary.travel_tips
+      : [];
 
   const tripSummary =
     data?.itinerary?.trip_summary ||
-    `${summary.destination || formData.destination} itinerary for ${duration} day${
-      duration > 1 ? "s" : ""
-    }, planned for ${formData.travelers} traveler${
-      Number(formData.travelers) > 1 ? "s" : ""
+    `${summary.destination || formData.destination} itinerary for ${duration} day${duration > 1 ? "s" : ""
+    }, planned for ${formData.travelers} traveler${Number(formData.travelers) > 1 ? "s" : ""
     } with a ${budgetLabel(formData.budget).toLowerCase()} budget.`;
 
   return {
@@ -353,20 +351,20 @@ function Plantrip() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showGuides, setShowGuides] = useState(false);
   const [generationError, setGenerationError] = useState(null);
-  
+
   // Real guides state
   const [guides, setGuides] = useState([]);
   const [savedItineraryId, setSavedItineraryId] = useState(null);
   const [bookedGuideIds, setBookedGuideIds] = useState([]);
-  
+
   // Booking modal state
   const [bookingModal, setBookingModal] = useState({
-      isOpen: false,
-      guide: null,
-      notes: "",
-      isSubmitting: false,
-      error: null,
-      success: null
+    isOpen: false,
+    guide: null,
+    notes: "",
+    isSubmitting: false,
+    error: null,
+    success: null
   });
 
   const [itinerary, setItinerary] = useState(() =>
@@ -398,8 +396,8 @@ function Plantrip() {
           const rawItems = Array.isArray(data?.results)
             ? data.results
             : Array.isArray(data)
-            ? data
-            : [];
+              ? data
+              : [];
 
           if (rawItems.length > 0) {
             setDestinations(rawItems.map(d => ({
@@ -546,12 +544,12 @@ function Plantrip() {
   const duration =
     formData.startDate && formData.endDate
       ? Math.max(
-          0,
-          Math.ceil(
-            (new Date(formData.endDate) - new Date(formData.startDate)) /
-              (1000 * 60 * 60 * 24)
-          )
+        0,
+        Math.ceil(
+          (new Date(formData.endDate) - new Date(formData.startDate)) /
+          (1000 * 60 * 60 * 24)
         )
+      )
       : 0;
 
   const selectedTravelStyleLabel = useMemo(() => {
@@ -689,33 +687,33 @@ function Plantrip() {
   const submitGuideRequest = async () => {
     setBookingModal(prev => ({ ...prev, isSubmitting: true, error: null }));
     try {
-        const payload = {
-            guide: bookingModal.guide.id,
-            itinerary_id: savedItineraryId,
-            destination: itinerary?.destination || formData.destination,
-            trip_start: formData.startDate,
-            trip_end: calculatedEndDate,
-            notes: bookingModal.notes
-        };
-        await requestGuideWithItinerary(bookingModal.guide.id, payload);
-        
-        setBookedGuideIds(prev => [...prev, bookingModal.guide.id]);
-        setBookingModal(prev => ({ 
-            ...prev, 
-            isSubmitting: false, 
-            success: "Requirement sent successfully! The guide will review your request and get back to you soon." 
-        }));
-        
-        // Auto-close after 3 seconds
-        setTimeout(() => {
-            setBookingModal({ isOpen: false, guide: null, notes: "", isSubmitting: false, error: null, success: null });
-        }, 3000);
+      const payload = {
+        guide: bookingModal.guide.id,
+        itinerary_id: savedItineraryId,
+        destination: itinerary?.destination || formData.destination,
+        trip_start: formData.startDate,
+        trip_end: calculatedEndDate,
+        notes: bookingModal.notes
+      };
+      await requestGuideWithItinerary(bookingModal.guide.id, payload);
+
+      setBookedGuideIds(prev => [...prev, bookingModal.guide.id]);
+      setBookingModal(prev => ({
+        ...prev,
+        isSubmitting: false,
+        success: "Requirement sent successfully! The guide will review your request and get back to you soon."
+      }));
+
+      // Auto-close after 3 seconds
+      setTimeout(() => {
+        setBookingModal({ isOpen: false, guide: null, notes: "", isSubmitting: false, error: null, success: null });
+      }, 3000);
     } catch (err) {
-        let msg = err.message || "Failed to request guide. Please try again.";
-        if (err.statusCode === 401 || err.statusCode === 403) {
-            msg = "You must be logged in to request a guide.";
-        }
-        setBookingModal(prev => ({ ...prev, isSubmitting: false, error: msg }));
+      let msg = err.message || "Failed to request guide. Please try again.";
+      if (err.statusCode === 401 || err.statusCode === 403) {
+        msg = "You must be logged in to request a guide.";
+      }
+      setBookingModal(prev => ({ ...prev, isSubmitting: false, error: msg }));
     }
   };
 
@@ -812,9 +810,8 @@ function Plantrip() {
         {["Basics", "Preferences", "Confirm"].map((label, index) => (
           <div
             key={label}
-            className={`step ${step === index + 1 ? "active" : ""} ${
-              step > index + 1 ? "completed" : ""
-            }`}
+            className={`step ${step === index + 1 ? "active" : ""} ${step > index + 1 ? "completed" : ""
+              }`}
           >
             <div className="step-circle">{step > index + 1 ? "✓" : index + 1}</div>
             <div className="step-label">{label}</div>
@@ -842,9 +839,8 @@ function Plantrip() {
               <label>Destination *</label>
               <div className="dest-search-wrapper" ref={destWrapperRef}>
                 <input
-                  className={`dest-search-input ${
-                    validationErrors.destination ? "error" : ""
-                  }`}
+                  className={`dest-search-input ${validationErrors.destination ? "error" : ""
+                    }`}
                   type="text"
                   placeholder="Search destinations like Pokhara, Kathmandu Valley, Chitwan..."
                   value={destQuery}
@@ -1430,9 +1426,9 @@ function Plantrip() {
                 disabled={isSaving || savedItineraryId}
               >
                 {isSaving ? (
-                   <><span className="spinner" style={{ marginRight: '8px', width: '16px', height: '16px' }}></span> Saving...</>
+                  <><span className="spinner" style={{ marginRight: '8px', width: '16px', height: '16px' }}></span> Saving...</>
                 ) : (
-                   <><span className="btn-icon">{savedItineraryId ? "✓" : "💾"}</span> {savedItineraryId ? "Saved to My Trips" : "Save Itinerary"}</>
+                  <><span className="btn-icon">{savedItineraryId ? "✓" : "💾"}</span> {savedItineraryId ? "Saved to My Trips" : "Save Itinerary"}</>
                 )}
               </button>
               {savedItineraryId && (
@@ -1463,9 +1459,9 @@ function Plantrip() {
                     <div key={guide.id} className="lp-dest-card guide-match-card">
                       <div className="guide-card-header">
                         <div className="guide-avatar-large">
-                            {guide.profile_image ? (
-                                <img src={`http://localhost:8000${guide.profile_image}`} alt={guide.full_name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                            ) : "👤"}
+                          {guide.profile_image ? (
+                            <img src={`http://localhost:8000${guide.profile_image}`} alt={guide.full_name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                          ) : "👤"}
                         </div>
                         <div>
                           <h3
@@ -1545,18 +1541,18 @@ function Plantrip() {
                         style={{ width: "100%", justifyContent: "center", backgroundColor: bookedGuideIds.includes(guide.id) ? "#e2e8f0" : undefined, color: bookedGuideIds.includes(guide.id) ? "#64748b" : undefined, borderColor: bookedGuideIds.includes(guide.id) ? "#cbd5e1" : undefined }}
                         disabled={bookedGuideIds.includes(guide.id)}
                         onClick={() => {
-                            if (!savedItineraryId) {
-                                alert("Please click 'Save Itinerary' below the itinerary first before booking a guide!");
-                                return;
-                            }
-                            setBookingModal({
-                                isOpen: true,
-                                guide: guide,
-                                notes: `Hi ${guide.full_name.split(' ')[0]},\n\nI'm planning a ${formData.days}-day trip to ${itinerary.destination} starting ${formData.startDate}. I have generated an AI itinerary and would like you to guide me for this trip. Please check my plan and let me know if you are available.`,
-                                isSubmitting: false,
-                                error: null,
-                                success: null
-                            });
+                          if (!savedItineraryId) {
+                            alert("Please click 'Save Itinerary' below the itinerary first before booking a guide!");
+                            return;
+                          }
+                          setBookingModal({
+                            isOpen: true,
+                            guide: guide,
+                            notes: `Hi ${guide.full_name.split(' ')[0]},\n\nI'm planning a ${formData.days}-day trip to ${itinerary.destination} starting ${formData.startDate}. I have generated an AI itinerary and would like you to guide me for this trip. Please check my plan and let me know if you are available.`,
+                            isSubmitting: false,
+                            error: null,
+                            success: null
+                          });
                         }}
                       >
                         {bookedGuideIds.includes(guide.id) ? "✓ Request Sent" : "Request Guide"}
@@ -1564,7 +1560,7 @@ function Plantrip() {
                     </div>
                   ))}
                   {matchedGuides.length === 0 && (
-                      <div className="info-box"><span className="info-icon">🔍</span><span>No guides found matching this destination yet. Try clearing the destination filter.</span></div>
+                    <div className="info-box"><span className="info-icon">🔍</span><span>No guides found matching this destination yet. Try clearing the destination filter.</span></div>
                   )}
                 </div>
               </div>
@@ -1574,51 +1570,51 @@ function Plantrip() {
       </div>
 
       {bookingModal.isOpen && bookingModal.guide && (
-          <div className="modal-overlay">
-              <div className="modal-content auth-modal" style={{ maxWidth: "500px", padding: "30px" }}>
-                  <button className="close-btn" onClick={() => setBookingModal({ ...bookingModal, isOpen: false })}>×</button>
-                  <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                      <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>Request {bookingModal.guide.full_name}</h2>
-                      <p style={{ color: 'var(--text-gray)', fontSize: '0.9rem' }}>Send a booking inquiry along with your proposed itinerary.</p>
+        <div className="modal-overlay">
+          <div className="modal-content auth-modal" style={{ maxWidth: "500px", padding: "30px" }}>
+            <button className="close-btn" onClick={() => setBookingModal({ ...bookingModal, isOpen: false })}>×</button>
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>Request {bookingModal.guide.full_name}</h2>
+              <p style={{ color: 'var(--text-gray)', fontSize: '0.9rem' }}>Send a booking inquiry along with your proposed itinerary.</p>
+            </div>
+
+            {bookingModal.error && <p className="error-message" style={{ marginBottom: '15px' }}>{bookingModal.error}</p>}
+            {bookingModal.success && <div className="success-banner pop-in" style={{ padding: '15px', marginBottom: '15px' }}>
+              <span className="success-icon" style={{ fontSize: '1.2rem', marginRight: '10px' }}>✅</span> {bookingModal.success}
+            </div>}
+
+            {!bookingModal.success && (
+              <div className="auth-form">
+                <div className="form-group" style={{ marginBottom: '15px' }}>
+                  <label>Attached Plan</label>
+                  <div style={{ padding: '10px', background: '#f8fafc', borderRadius: '8px', fontSize: '0.9rem', color: 'var(--navy)', border: '1px solid #e2e8f0' }}>
+                    <strong>{itinerary.destination}</strong> ({formData.days} Days)<br />
+                    <span style={{ color: 'var(--text-gray)', fontSize: '0.85rem' }}>{formatDateDisplay(formData.startDate)} – {formatDateDisplay(calculatedEndDate)}</span>
                   </div>
-                  
-                  {bookingModal.error && <p className="error-message" style={{ marginBottom: '15px' }}>{bookingModal.error}</p>}
-                  {bookingModal.success && <div className="success-banner pop-in" style={{ padding: '15px', marginBottom: '15px' }}>
-                      <span className="success-icon" style={{ fontSize: '1.2rem', marginRight: '10px' }}>✅</span> {bookingModal.success}
-                  </div>}
-                  
-                  {!bookingModal.success && (
-                      <div className="auth-form">
-                          <div className="form-group" style={{ marginBottom: '15px' }}>
-                              <label>Attached Plan</label>
-                              <div style={{ padding: '10px', background: '#f8fafc', borderRadius: '8px', fontSize: '0.9rem', color: 'var(--navy)', border: '1px solid #e2e8f0' }}>
-                                  <strong>{itinerary.destination}</strong> ({formData.days} Days)<br/>
-                                  <span style={{ color: 'var(--text-gray)', fontSize: '0.85rem' }}>{formatDateDisplay(formData.startDate)} – {formatDateDisplay(calculatedEndDate)}</span>
-                              </div>
-                          </div>
-                          
-                          <div className="form-group" style={{ marginBottom: '20px' }}>
-                              <label>Message to Guide</label>
-                              <textarea 
-                                  value={bookingModal.notes} 
-                                  onChange={(e) => setBookingModal({...bookingModal, notes: e.target.value})}
-                                  rows={5}
-                                  style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', resize: 'vertical' }}
-                              />
-                          </div>
-                          
-                          <button 
-                              className="lp-btn-primary" 
-                              style={{ width: '100%', justifyContent: 'center' }}
-                              onClick={submitGuideRequest}
-                              disabled={bookingModal.isSubmitting}
-                          >
-                              {bookingModal.isSubmitting ? <><span className="spinner" style={{ marginRight: '8px', width: '16px', height: '16px' }}></span> Sending...</> : "Send Request"}
-                          </button>
-                      </div>
-                  )}
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '20px' }}>
+                  <label>Message to Guide</label>
+                  <textarea
+                    value={bookingModal.notes}
+                    onChange={(e) => setBookingModal({ ...bookingModal, notes: e.target.value })}
+                    rows={5}
+                    style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', resize: 'vertical' }}
+                  />
+                </div>
+
+                <button
+                  className="lp-btn-primary"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={submitGuideRequest}
+                  disabled={bookingModal.isSubmitting}
+                >
+                  {bookingModal.isSubmitting ? <><span className="spinner" style={{ marginRight: '8px', width: '16px', height: '16px' }}></span> Sending...</> : "Send Request"}
+                </button>
               </div>
+            )}
           </div>
+        </div>
       )}
     </>
   );

@@ -46,7 +46,7 @@ export default function Navbar({ isLoggedIn, setIsLoggedIn, userEmail }) {
     localStorage.removeItem("isLoggedIn");
     sessionStorage.removeItem("isLoggedIn");
     localStorage.removeItem("userEmail");
-    
+
     // Clear itinerary cache to prevent user data leaking
     localStorage.removeItem("plantrip_step");
     localStorage.removeItem("plantrip_formData");
@@ -122,7 +122,7 @@ export default function Navbar({ isLoggedIn, setIsLoggedIn, userEmail }) {
                   <Link to="/saved-trips" className="dropdown-item">
                     <span className="icon">❤️</span> Saved Trips
                   </Link>
-                  <Link to="/profile" className="dropdown-item">
+                  <Link to="/settings" className="dropdown-item">
                     <span className="icon">⚙️</span> Settings
                   </Link>
                   <div className="dropdown-divider"></div>

@@ -11,6 +11,7 @@ import ContactUs from "./pages/ContactUs";
 import Blog from "./pages/Blog";
 import HowItWorks from "./pages/HowItWorks";
 import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
 import DestinationDetails from "./pages/DestinationDetails";
 import Guides from "./pages/Guides";
 import SavedTrips from "./pages/SavedTrips";
@@ -34,6 +35,10 @@ function App() {
 
     const email = localStorage.getItem("userEmail");
     if (email) setUserEmail(email);
+
+    // Load theme
+    const savedTheme = localStorage.getItem("theme") || "light";
+    document.documentElement.setAttribute("data-theme", savedTheme);
   }, []);
 
   return (
@@ -80,6 +85,7 @@ function App() {
           <Route path="/blog" element={<Blog />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/profile" element={<Profile setIsLoggedIn={setIsLoggedIn} />} />
+          <Route path="/settings" element={<Settings setIsLoggedIn={setIsLoggedIn} />} />
         </Route>
       </Routes>
     </BrowserRouter>

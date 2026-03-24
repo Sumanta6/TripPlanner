@@ -14,9 +14,9 @@ import { getMyProfile, updateMyProfile, initCsrf } from '../services/guidesServi
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children, loggedIn, onLogout }) {
-    const [profile, setProfile]   = useState(null);
-    const [loading, setLoading]   = useState(false);
-    const [error, setError]       = useState(null);
+    const [profile, setProfile] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
     const fetchProfile = useCallback(async () => {
         if (!loggedIn) {

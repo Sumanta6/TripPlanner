@@ -1,22 +1,516 @@
+/* =========================================
+   TRIP DETAILS PREMIUM SAAS STYLING
+   ========================================= */
+
 .trip-detail-page {
-  display: block; /* Inherits globals, just specific overrides if any */
+    background-color: #f8fafc;
+    min-height: 100vh;
+    font-family: 'Inter', sans-serif;
+    color: #1e293b;
+    padding-bottom: 80px;
+    animation: tdFadeIn 0.5s ease-out;
 }
 
-/* Base tailwind classes are used heavily here, some overrides for timeline classes used from Plantrip.css */
-.trip-detail-page .timeline-day-card {
-  margin-bottom: 1.5rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  border: 1px solid #e2e8f0;
+@keyframes tdFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
-.trip-detail-page .timeline-day-card:hover {
-  border-color: #cbd5e1;
+/* ERROR STATE */
+.td-error-state {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 100px 20px;
 }
 
-.trip-detail-page .day-card-header {
-  padding: 1.5rem;
+.td-error-card {
+    background: #ffffff;
+    max-width: 500px;
+    text-align: center;
+    padding: 40px;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);
+    border: 1px solid #f1f5f9;
 }
 
-.trip-detail-page .timeline-wrapper {
-  margin: 0;
+.td-error-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 16px;
+}
+
+.td-error-message {
+    color: #64748b;
+    margin-bottom: 24px;
+    line-height: 1.6;
+}
+
+/* HERO HEADER */
+.td-hero {
+    position: relative;
+    background-color: #0f172a;
+    color: #ffffff;
+    padding: 80px 20px 60px;
+    overflow: hidden;
+}
+
+.td-hero-bg {
+    position: absolute;
+    inset: 0;
+    /* background-image is set inline in JSX to bypass webpack public url resolution */
+    background-size: cover;
+    background-position: center;
+    opacity: 0.25;
+    mix-blend-mode: overlay;
+}
+
+.td-hero-gradient {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 0%, #0f172a 100%);
+}
+
+.td-hero-content {
+    position: relative;
+    z-index: 10;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.td-back-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #94a3b8;
+    background: none;
+    border: none;
+    font-size: 15px;
+    cursor: pointer;
+    margin-bottom: 32px;
+    transition: color 0.2s;
+}
+
+.td-back-btn:hover {
+    color: #ffffff;
+}
+
+.td-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.td-badge-primary {
+    background: rgba(20, 184, 166, 0.2);
+    color: #5eead4;
+    border: 1px solid rgba(20, 184, 166, 0.3);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.td-badge-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.td-hero-title {
+    font-size: 48px;
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 32px;
+    letter-spacing: -0.02em;
+}
+
+.td-hero-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
+    color: #cbd5e1;
+    font-size: 15px;
+}
+
+.td-stat-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.td-stat-icon {
+    color: #2dd4bf;
+}
+
+/* MAIN CONTAINER */
+.td-main-container {
+    max-width: 1000px;
+    margin: 32px auto 0;
+    padding: 0 20px;
+}
+
+/* ACTIONS BAR */
+.td-actions-bar {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 20px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+    border: 1px solid rgba(241, 245, 249, 1);
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.td-ref-id {
+    font-size: 14px;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.td-actions-buttons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.td-delete-btn, .td-book-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.td-delete-btn {
+    background: #ffffff;
+    border: 1px solid #fca5a5;
+    color: #dc2626;
+}
+
+.td-delete-btn:hover {
+    background: #fef2f2;
+}
+
+.td-book-btn {
+    background: linear-gradient(135deg, #14b8a6 0%, #2563eb 100%);
+    color: #ffffff;
+    border: none;
+    box-shadow: 0 4px 6px -1px rgba(20, 184, 166, 0.4);
+}
+
+.td-book-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 12px -2px rgba(20, 184, 166, 0.5);
+}
+
+/* CONTENT GRID */
+.td-content-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 40px;
+}
+
+@media (max-width: 860px) {
+    .td-content-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.td-section-title {
+    font-size: 24px;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 24px;
+}
+
+/* TIMELINE STYLES */
+.td-timeline-wrapper {
+    position: relative;
+}
+
+.td-timeline-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e2e8f0;
+    left: 24px;
+    z-index: 1;
+}
+
+@media (max-width: 768px) {
+    .td-timeline-line { display: none; }
+}
+
+.td-day-card {
+    position: relative;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);
+    border: 1px solid #f1f5f9;
+    margin-bottom: 24px;
+    margin-left: 64px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    z-index: 2;
+}
+
+@media (max-width: 768px) {
+    .td-day-card { margin-left: 0; }
+}
+
+.td-day-card.expanded {
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.08);
+    border-color: #cbd5e1;
+}
+
+.td-day-marker {
+    position: absolute;
+    left: -64px;
+    top: 24px;
+    width: 32px;
+    height: 32px;
+    background: #14b8a6;
+    color: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 14px;
+    box-shadow: 0 0 0 6px #f8fafc;
+    z-index: 3;
+}
+
+@media (max-width: 768px) {
+    .td-day-marker { display: none; }
+}
+
+.day-card-header {
+    padding: 24px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.day-header-titles {
+    display: flex;
+    flex-direction: column;
+}
+
+.td-day-label {
+    font-size: 14px;
+    color: #0d9488;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.td-day-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-top: 4px;
+}
+
+.expand-icon {
+    font-size: 14px;
+    color: #94a3b8;
+    transition: transform 0.3s ease;
+}
+
+.expand-icon.rotated {
+    transform: rotate(180deg);
+}
+
+.td-day-badges {
+    display: flex;
+    gap: 8px;
+    padding: 0 24px;
+    margin-bottom: 16px;
+}
+
+.td-day-badge {
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 999px;
+}
+
+.td-collapse-content {
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), padding 0.4s ease;
+    border-top: 1px solid transparent;
+}
+
+.td-day-card.expanded .td-collapse-content {
+    border-top-color: #f1f5f9;
+}
+
+/* ACTIVITIES */
+.activities-list {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.activity-block {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.activity-time-badge {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    box-shadow: inset 0 2px 4px 0 rgba(0,0,0,0.02);
+    border: 1px solid #f1f5f9;
+    flex-shrink: 0;
+}
+
+.activity-details {
+    flex: 1;
+}
+
+.td-act-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.td-act-desc {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #475569;
+}
+
+.td-local-tip {
+    margin-top: 24px;
+    background: #fffbeb;
+    border: 1px solid #fef3c7;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    gap: 12px;
+}
+
+.td-tip-icon {
+    font-size: 18px;
+}
+
+.td-tip-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #92400e;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.td-tip-text {
+    font-size: 14px;
+    color: #b45309;
+    line-height: 1.5;
+}
+
+/* SIDEBAR */
+.td-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.td-sidebar-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);
+    border: 1px solid #f1f5f9;
+}
+
+.td-sidebar-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.td-sidebar-text {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #475569;
+}
+
+.td-budget-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.td-budget-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+}
+
+.td-budget-cat {
+    color: #64748b;
+}
+
+.td-budget-amt {
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.td-tips-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.td-tip-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 14px;
+    color: #475569;
+    line-height: 1.5;
+}
+
+.td-tip-bullet {
+    color: #14b8a6;
+    font-weight: 800;
 }

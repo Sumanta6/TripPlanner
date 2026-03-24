@@ -61,12 +61,12 @@ export default function Guides() {
         setSelectedGuide(guide);
         setShowModal(true);
         const state = location.state || {};
-        setBookingData({ 
-            destination: state.destination || "", 
-            trip_start: state.trip_start || "", 
-            trip_end: state.trip_end || "", 
+        setBookingData({
+            destination: state.destination || "",
+            trip_start: state.trip_start || "",
+            trip_end: state.trip_end || "",
             notes: state.itineraryId ? `Hi ${guide.full_name},\n\nI have an AI-generated itinerary attached to this request and would love for you to guide me on this trip.` : "",
-            itinerary_id: state.itineraryId || null 
+            itinerary_id: state.itineraryId || null
         });
         setModalError("");
         setSuccessMessage("");
@@ -83,14 +83,14 @@ export default function Guides() {
 
     const checkConflict = () => {
         if (!bookingData.trip_start || !bookingData.trip_end || !selectedGuide?.booked_ranges) return null;
-        
+
         const start = new Date(bookingData.trip_start);
         const end = new Date(bookingData.trip_end);
-        
+
         for (const range of selectedGuide.booked_ranges) {
             const bStart = new Date(range.trip_start);
             const bEnd = new Date(range.trip_end);
-            
+
             // Check if (start <= bEnd) AND (end >= bStart)
             if (start <= bEnd && end >= bStart) {
                 return `Guide is already booked from ${bStart.toLocaleDateString()} to ${bEnd.toLocaleDateString()}.`;
@@ -103,7 +103,7 @@ export default function Guides() {
 
     const handleSubmitBooking = async (e) => {
         e.preventDefault();
-        
+
         if (!bookingData.destination.trim()) {
             setModalError("Destination is required.");
             return;
@@ -177,7 +177,7 @@ export default function Guides() {
                             <div key={guide.id} className="guide-card card">
                                 <div className="guide-avatar-wrap">
                                     {guide.profile_image ? (
-                                        <img src={guide.profile_image} alt={guide.full_name} className="guide-avatar-img"/>
+                                        <img src={guide.profile_image} alt={guide.full_name} className="guide-avatar-img" />
                                     ) : (
                                         <div className="guide-avatar-placeholder">
                                             {(guide.full_name || "G").substring(0, 2).toUpperCase()}
@@ -191,23 +191,23 @@ export default function Guides() {
                                     </div>
                                     <h3 className="guide-name">{guide.full_name}</h3>
                                     <p className="guide-specialty text-teal">{guide.specialization || "General Guide"}</p>
-                                    
+
                                     <div className="guide-stats flex justify-center gap-4 mt-2">
-                                        <span className="flex items-center gap-1 text-sm"><Star size={14} className="text-gold"/> {guide.rating}</span>
-                                        <span className="flex items-center gap-1 text-sm"><CheckCircle size={14} className="text-green"/> {guide.tours_completed} tours</span>
+                                        <span className="flex items-center gap-1 text-sm"><Star size={14} className="text-gold" /> {guide.rating}</span>
+                                        <span className="flex items-center gap-1 text-sm"><CheckCircle size={14} className="text-green" /> {guide.tours_completed} tours</span>
                                     </div>
 
                                     <div className="guide-meta mt-4">
-                                        <div className="meta-row"><MapPin size={16}/> <span>{guide.destinations.join(", ") || "Flexible locations"}</span></div>
-                                        <div className="meta-row mt-2"><Languages size={16}/> <span>{guide.languages.join(", ") || "English"}</span></div>
+                                        <div className="meta-row"><MapPin size={16} /> <span>{guide.destinations.join(", ") || "Flexible locations"}</span></div>
+                                        <div className="meta-row mt-2"><Languages size={16} /> <span>{guide.languages.join(", ") || "English"}</span></div>
                                     </div>
 
                                     <p className="guide-bio mt-4 text-sm text-muted line-clamp-3">
                                         {guide.bio || "No bio provided."}
                                     </p>
 
-                                    <button 
-                                        className={`btn-primary w-full mt-6 ${guide.availability_badge !== "Available" ? "btn-disabled" : ""}`} 
+                                    <button
+                                        className={`btn-primary w-full mt-6 ${guide.availability_badge !== "Available" ? "btn-disabled" : ""}`}
                                         disabled={guide.availability_badge !== "Available"}
                                         onClick={() => handleOpenModal(guide)}
                                     >
@@ -224,8 +224,8 @@ export default function Guides() {
             {showModal && (
                 <div className="modal-overlay">
                     <div className="booking-modal card setup-animation">
-                        <button className="close-btn" onClick={handleCloseModal}><X size={20}/></button>
-                        
+                        <button className="close-btn" onClick={handleCloseModal}><X size={20} /></button>
+
                         <div className="modal-header">
                             <h2>Request {selectedGuide?.full_name}</h2>
                             <p className="text-muted text-sm">Fill in your trip details.</p>
@@ -249,13 +249,13 @@ export default function Guides() {
                                         <span>⚠️</span> {conflictWarning}
                                     </div>
                                 )}
-                                
+
                                 <div className="form-group">
                                     <label>Destination <span className="text-danger">*</span></label>
-                                    <input 
-                                        type="text" 
-                                        name="destination" 
-                                        required 
+                                    <input
+                                        type="text"
+                                        name="destination"
+                                        required
                                         className="edit-input w-full"
                                         placeholder="e.g. Kathmandu Valley"
                                         value={bookingData.destination}
@@ -266,10 +266,10 @@ export default function Guides() {
                                 <div className="form-row flex gap-4 mt-3">
                                     <div className="form-group w-full">
                                         <label>Start Date <span className="text-danger">*</span></label>
-                                        <input 
-                                            type="date" 
-                                            name="trip_start" 
-                                            required 
+                                        <input
+                                            type="date"
+                                            name="trip_start"
+                                            required
                                             className="edit-input w-full"
                                             value={bookingData.trip_start}
                                             onChange={handleInputChange}
@@ -278,10 +278,10 @@ export default function Guides() {
                                     </div>
                                     <div className="form-group w-full">
                                         <label>End Date <span className="text-danger">*</span></label>
-                                        <input 
-                                            type="date" 
-                                            name="trip_end" 
-                                            required 
+                                        <input
+                                            type="date"
+                                            name="trip_end"
+                                            required
                                             className="edit-input w-full"
                                             value={bookingData.trip_end}
                                             onChange={handleInputChange}
@@ -292,9 +292,9 @@ export default function Guides() {
 
                                 <div className="form-group mt-3">
                                     <label>Notes / Requirements</label>
-                                    <textarea 
-                                        name="notes" 
-                                        rows="3" 
+                                    <textarea
+                                        name="notes"
+                                        rows="3"
                                         className="edit-input w-full"
                                         placeholder="Tell the guide what you're looking for..."
                                         value={bookingData.notes}
