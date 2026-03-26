@@ -1,3 +1,73 @@
+/* ── Theme Variables ─────────────────────────────────────────────────────────── */
+:root {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-hero: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0891b2 100%);
+  --card-bg: #ffffff;
+  --card-border: #f1f5f9;
+  --card-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+  --card-shadow-hover: 0 20px 25px -5px rgba(0,0,0,0.08), 0 8px 10px -6px rgba(0,0,0,0.04);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --border: #e2e8f0;
+  --border-light: #f1f5f9;
+  --accent: #4f7cff;
+  --accent-bg: #eff6ff;
+  --teal: #0891b2;
+  --teal-bg: rgba(8,145,178,0.08);
+  --green: #10b981;
+  --green-bg: #d1fae5;
+  --red: #ef4444;
+  --red-bg: #fee2e2;
+  --amber: #f59e0b;
+  --amber-bg: #fef3c7;
+  --purple: #8b5cf6;
+  --purple-bg: #ede9fe;
+  --pink: #ec4899;
+  --pink-bg: #fce7f3;
+  --gold: #d97706;
+  --stat-glass: rgba(255,255,255,0.85);
+  --hero-text: #ffffff;
+  --hero-sub: rgba(255,255,255,0.7);
+  --toggle-bg: #e2e8f0;
+  --timeline-line: #e2e8f0;
+  --navbar-bg: #ffffff;
+  --navbar-border: #f1f5f9;
+  --navbar-text: #334155;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-hero: linear-gradient(135deg, #0c1222 0%, #162033 50%, #0e4a5c 100%);
+  --card-bg: #1e293b;
+  --card-border: #334155;
+  --card-shadow: 0 4px 6px -1px rgba(0,0,0,0.3), 0 2px 4px -1px rgba(0,0,0,0.2);
+  --card-shadow-hover: 0 20px 25px -5px rgba(0,0,0,0.4), 0 8px 10px -6px rgba(0,0,0,0.3);
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --border: #334155;
+  --border-light: #1e293b;
+  --accent: #6d9bff;
+  --accent-bg: rgba(79,124,255,0.12);
+  --teal: #22d3ee;
+  --teal-bg: rgba(34,211,238,0.1);
+  --green-bg: rgba(16,185,129,0.15);
+  --red-bg: rgba(239,68,68,0.15);
+  --amber-bg: rgba(245,158,11,0.15);
+  --purple-bg: rgba(139,92,246,0.15);
+  --pink-bg: rgba(236,72,153,0.15);
+  --stat-glass: rgba(30,41,59,0.85);
+  --toggle-bg: #334155;
+  --timeline-line: #334155;
+  --navbar-bg: #1e293b;
+  --navbar-border: #334155;
+  --navbar-text: #e2e8f0;
+}
+
+/* ── Base Reset ──────────────────────────────────────────────────────────────── */
 *,
 *::before,
 *::after {
@@ -9,12 +79,13 @@ body {
   font-family: 'Inter', 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f8fafc;
-  color: #1e293b;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 a {
-  color: #4f7cff;
+  color: var(--accent);
   text-decoration: none;
 }
 
@@ -35,7 +106,7 @@ a:hover {
 .skeleton-line,
 .skeleton-icon,
 .skeleton-avatar {
-  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background: linear-gradient(90deg, var(--border) 25%, var(--border-light) 50%, var(--border) 75%);
   background-size: 800px 100%;
   animation: skeleton-shimmer 1.4s infinite linear;
   border-radius: 6px;
@@ -70,9 +141,9 @@ a:hover {
 .dn-error-banner,
 .itin-error-banner,
 .profile-error-banner {
-  background: #fff1f2;
-  border: 1px solid #fecdd3;
-  color: #be123c;
+  background: var(--red-bg);
+  border: 1px solid var(--red);
+  color: var(--red);
   border-radius: 10px;
   padding: 12px 18px;
   margin: 12px 0;
@@ -83,7 +154,7 @@ a:hover {
 .home-empty-hint,
 .dn-empty-hint,
 .profile-empty-hint {
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 0.87rem;
   font-style: italic;
   padding: 6px 0;
@@ -95,26 +166,26 @@ a:hover {
   align-items: center;
   gap: 14px;
   padding: 60px 20px;
-  color: #94a3b8;
+  color: var(--text-muted);
   text-align: center;
 }
 .itin-empty-icon { font-size: 3rem; opacity: 0.3; }
 .itin-empty p { max-width: 420px; line-height: 1.6; }
 
 .itin-notes-box {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 16px 20px;
   font-size: 0.95rem;
   line-height: 1.7;
-  color: #475569;
+  color: var(--text-secondary);
   white-space: pre-wrap;
 }
 
 .itin-notes-preview {
   font-size: 0.82rem;
-  color: #64748b;
+  color: var(--text-muted);
   margin-top: 6px;
   font-style: italic;
 }
@@ -125,14 +196,14 @@ a:hover {
   align-items: center;
   gap: 14px;
   padding: 40px 20px;
-  color: #94a3b8;
+  color: var(--text-muted);
   text-align: center;
 }
 .itin-empty-modal svg { font-size: 2.5rem; opacity: 0.25; }
 
 /* ── Settings ─────────────────────────────────────────────────────────────────── */
 .settings-error {
-  color: #be123c;
+  color: var(--red);
   font-size: 0.87rem;
   margin: -6px 0 10px;
 }
@@ -142,7 +213,7 @@ a:hover {
   position: fixed;
   bottom: 24px;
   right: 24px;
-  background: #10b981;
+  background: var(--green);
   color: #fff;
   padding: 12px 22px;
   border-radius: 10px;

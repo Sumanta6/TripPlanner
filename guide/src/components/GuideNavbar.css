@@ -1,207 +1,341 @@
-/* ==============================
-   GUIDE NAVBAR
-   ============================== */
+/* ══════════════════════════════════════════════════════════════════════════════
+   Guide Navbar – Premium SaaS Navigation
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+@keyframes navSlideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+
+@keyframes navFadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Navbar Shell ────────────────────────────────────────────────────────────── */
 .guide-navbar {
-    background-color: #ffffff;
-    height: 70px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 1rem;
-    position: sticky;
-    top: 0;
-    z-index: 999;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    /* Same client shadow feel */
-    border-bottom: 1px solid #f1f5f9;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: var(--navbar-bg);
+  border-bottom: 1px solid var(--navbar-border, var(--border));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  animation: navSlideDown 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.guide-navbar.scrolled {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06);
 }
 
 .guide-navbar-container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    height: 70px;
-    max-width: 1200px;
-    width: 100%;
-    padding: 0 24px;
+  max-width: 1140px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  height: 60px;
+  padding: 0 24px;
+  gap: 8px;
 }
 
-/* Logo */
+/* ══════════════════════════════════════════════════════════════════════════════
+   BRAND / LOGO
+   ══════════════════════════════════════════════════════════════════════════════ */
 .guide-navbar-logo {
-    color: #1a202c;
-    display: flex;
-    align-items: center;
-    text-decoration: none;
-    font-size: 1.4rem;
-    font-weight: 600;
-    gap: 8px;
-    transition: opacity 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  margin-right: auto;
+  transition: opacity 0.2s;
 }
 
-.guide-navbar-logo:hover {
-    opacity: 0.8;
-}
+.guide-navbar-logo:hover { opacity: 0.85; }
 
-.guide-navbar-logo strong {
-    background: linear-gradient(135deg, #4f7cff, #8ec5ff);
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+.guide-logo-wrap {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #4f7cff, #7c3aed);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .guide-logo-icon {
-    font-size: 1.8rem;
-    color: #4f7cff;
+  font-size: 17px;
+  color: #fff;
 }
 
-/* Nav Menu */
+.guide-logo-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-secondary, #64748b);
+  letter-spacing: -0.01em;
+}
+
+.guide-logo-text strong {
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   NAV LINKS
+   ══════════════════════════════════════════════════════════════════════════════ */
 .guide-nav-menu {
-    display: flex;
-    align-items: center;
-    list-style: none;
-    text-align: center;
-    margin: 0;
-    padding: 0;
-    gap: 8px;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
 }
 
-.guide-nav-item {
-    height: 70px;
-}
-
-/* Nav Links */
 .guide-nav-link {
-    color: #4b5563;
-    display: flex;
-    align-items: center;
-    text-decoration: none;
-    padding: 0 16px;
-    height: 100%;
-    font-weight: 500;
-    border-bottom: 3px solid transparent;
-    transition: all 0.2s ease;
-    font-size: 15px;
-    gap: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary, #64748b);
+  text-decoration: none;
+  position: relative;
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  white-space: nowrap;
+  overflow: hidden;
 }
 
+/* Subtle background glow on hover */
 .guide-nav-link:hover {
-    color: #4f7cff;
-    border-bottom: 3px solid #4f7cff;
-    background-color: #f8fafc;
+  color: var(--text-primary, #1e293b);
+  background: rgba(255, 255, 255, 0.4);
+  text-decoration: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5), 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+[data-theme='dark'] .guide-nav-link:hover {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .guide-nav-link.active {
-    color: #4f7cff;
-    border-bottom: 3px solid #4f7cff;
-    font-weight: 600;
+  color: var(--accent, #4f7cff);
+  background: var(--accent-bg, rgba(79, 124, 255, 0.08));
+  font-weight: 600;
+}
+
+/* Animated top glow line on active */
+.guide-nav-link::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent, #4f7cff), transparent);
+  border-radius: 0 0 4px 4px;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateX(-50%);
+  opacity: 0;
+}
+
+.guide-nav-link.active::before {
+  width: 80%;
+  opacity: 1;
+}
+
+/* Animated bottom glow dot */
+.guide-nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  background: var(--accent, #4f7cff);
+  border-radius: 50%;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translate(-50%, 10px);
+  opacity: 0;
+  box-shadow: 0 0 8px var(--accent, #4f7cff);
+}
+
+.guide-nav-link.active::after {
+  transform: translate(-50%, 0);
+  opacity: 1;
 }
 
 .guide-nav-icon {
-    font-size: 18px;
-}
-
-/* Logout Button */
-.guide-nav-logout-btn {
-    background-color: transparent;
-    color: #ef4444;
-    /* red-500 */
-    border: 1px solid #fee2e2;
-    border-radius: 8px;
-    padding: 8px 16px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: 16px;
-    margin-top: 15px;
-    /* Alignment within the 70px height */
-    transition: all 0.2s ease;
-}
-
-.guide-nav-logout-btn:hover {
-    background-color: #fef2f2;
-    border-color: #fecaca;
-    color: #dc2626;
+  font-size: 14px;
 }
 
 .guide-nav-divider {
-    display: none;
+  display: none;
 }
 
-/* Hamburger Icon */
+/* ══════════════════════════════════════════════════════════════════════════════
+   RIGHT CONTROLS
+   ══════════════════════════════════════════════════════════════════════════════ */
+.guide-navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+/* ── Theme Toggle ────────────────────────────────────────────────────────────── */
+.theme-toggle-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border, #e2e8f0);
+  background: var(--card-bg, #fff);
+  color: var(--text-secondary, #64748b);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--accent-bg, #eff6ff);
+  color: var(--accent, #4f7cff);
+  border-color: var(--accent, #4f7cff);
+  transform: scale(1.08);
+}
+
+.theme-toggle-btn:active {
+  transform: scale(0.94);
+}
+
+.theme-toggle-btn .theme-icon {
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.theme-toggle-btn:hover .theme-icon {
+  transform: rotate(20deg);
+}
+
+/* ── Logout Button ───────────────────────────────────────────────────────────── */
+.guide-nav-logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted, #94a3b8);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.guide-nav-logout-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.guide-nav-logout-btn:active {
+  transform: scale(0.96);
+}
+
+.guide-nav-logout-btn .guide-nav-icon {
+  transition: transform 0.2s ease;
+}
+
+.guide-nav-logout-btn:hover .guide-nav-icon {
+  transform: translateX(2px);
+}
+
+/* ── Hamburger ───────────────────────────────────────────────────────────────── */
 .guide-menu-icon {
-    display: none;
-    font-size: 1.6rem;
-    color: #1a202c;
-    cursor: pointer;
+  display: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--text-primary, #1e293b);
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  border: none;
+  background: none;
 }
 
-/* ==============================
-   RESPONSIVE DESIGN (MOBILE)
-   ============================== */
-@media screen and (max-width: 960px) {
-    .guide-nav-menu {
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        height: calc(100vh - 70px);
-        position: absolute;
-        top: 70px;
-        left: -100%;
-        opacity: 0;
-        transition: all 0.4s ease;
-        background-color: #ffffff;
-        box-shadow: 0 10px 15px rgba(0, 0, 0, 0.05);
-        padding-bottom: 24px;
-    }
+.guide-menu-icon:hover {
+  background: var(--bg-secondary, #f1f5f9);
+}
 
-    .guide-nav-menu.active {
-        left: 0;
-        opacity: 1;
-        z-index: 1000;
-    }
+/* ══════════════════════════════════════════════════════════════════════════════
+   RESPONSIVE – Mobile Menu
+   ══════════════════════════════════════════════════════════════════════════════ */
+@media screen and (max-width: 768px) {
+  .guide-navbar-container {
+    padding: 0 16px;
+  }
 
-    .guide-nav-item {
-        width: 100%;
-        height: 60px;
-    }
+  .guide-menu-icon {
+    display: flex;
+  }
 
-    .guide-nav-link {
-        width: 100%;
-        justify-content: center;
-        border-bottom: none;
-        font-size: 1.2rem;
-    }
+  .guide-nav-menu {
+    display: none;
+    flex-direction: column;
+    position: absolute;
+    top: 60px;
+    left: 0;
+    right: 0;
+    background: var(--navbar-bg, #fff);
+    border-bottom: 1px solid var(--border, #e2e8f0);
+    padding: 8px 12px;
+    gap: 2px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    animation: navFadeIn 0.25s ease-out both;
+  }
 
-    .guide-nav-link:hover {
-        border-bottom: none;
-        background-color: #f1f5f9;
-    }
+  .guide-nav-menu.active {
+    display: flex;
+  }
 
-    .guide-nav-link.active {
-        border-bottom: none;
-        background-color: #e2e8f0;
-    }
+  .guide-nav-link {
+    width: 100%;
+    padding: 11px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
 
-    .guide-menu-icon {
-        display: block;
-    }
+  .guide-nav-link::after {
+    display: none;
+  }
 
-    .guide-nav-divider {
-        display: block;
-        width: 80%;
-        height: 1px;
-        background-color: #e2e8f0;
-        margin: 16px auto;
-    }
+  .guide-nav-link.active {
+    background: var(--accent-bg, rgba(79, 124, 255, 0.08));
+  }
 
-    .guide-nav-logout-btn {
-        width: 80%;
-        margin: 0 auto;
-        justify-content: center;
-        padding: 12px;
-        font-size: 1.1rem;
-    }
+  .guide-nav-divider {
+    display: block;
+    height: 1px;
+    background: var(--border, #e2e8f0);
+    margin: 6px 0;
+  }
+
+  .guide-nav-logout-btn {
+    width: 100%;
+    padding: 11px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
 }

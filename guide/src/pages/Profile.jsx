@@ -10,23 +10,48 @@ const DESTINATIONS_COLORS = [
     '#4f7cff', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'
 ];
 
+/* ── Premium Skeleton Loader ─────────────────────────────────────────────────── */
 function ProfileSkeleton() {
     return (
         <div className="profile-page">
             <div className="profile-hero">
                 <div className="profile-hero-bg" />
                 <div className="profile-hero-content">
-                    <div className="skeleton-avatar large-avatar" />
-                    <div className="skeleton-info" style={{ flex: 1, gap: 12 }}>
-                        <div className="skeleton-line short" />
-                        <div className="skeleton-line long" />
+                    <div className="profile-avatar-wrap">
+                        <div className="skeleton-avatar" />
                     </div>
+                    <div className="profile-hero-info" style={{ flex: 1 }}>
+                        <div className="skeleton-line short" style={{ height: 32 }} />
+                        <div className="skeleton-line long" style={{ height: 18 }} />
+                        <div className="skeleton-line short" style={{ height: 40, width: '35%', borderRadius: 12 }} />
+                    </div>
+                </div>
+            </div>
+            <div className="profile-main">
+                <div className="profile-left">
+                    {[1, 2, 3].map(i => (
+                        <div key={i} className="profile-card" style={{ '--delay': `${i * 0.08}s` }}>
+                            <div className="skeleton-card-line short" />
+                            <div className="skeleton-card-line long" />
+                            <div className="skeleton-card-line" style={{ width: '60%' }} />
+                        </div>
+                    ))}
+                </div>
+                <div className="profile-right">
+                    {[1, 2].map(i => (
+                        <div key={i} className="profile-card" style={{ '--delay': `${i * 0.08}s` }}>
+                            <div className="skeleton-card-line short" />
+                            <div className="skeleton-card-line long" />
+                            <div className="skeleton-card-line long" />
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>
     );
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════ */
 export default function Profile() {
     const { profile, loading, error, patchProfile, refreshProfile } = useAuth();
     const [saving, setSaving] = useState(false);
@@ -34,7 +59,6 @@ export default function Profile() {
     const [isEditing, setIsEditing] = useState(false);
     const [form, setForm] = useState(null);
 
-    // Initialize form when profile changes
     useEffect(() => {
         if (profile) {
             setForm({
@@ -86,7 +110,8 @@ export default function Profile() {
 
     return (
         <div className="profile-page">
-            {/* Hero Banner */}
+
+            {/* ═══════════ HERO SECTION ═══════════ */}
             <div className="profile-hero">
                 <div className="profile-hero-bg" />
                 <div className="profile-hero-content">
@@ -100,10 +125,10 @@ export default function Profile() {
                             {isEditing && (
                                 <label className="avatar-edit-overlay">
                                     <FaEdit />
-                                    <input 
-                                        type="file" 
-                                        accept="image/*" 
-                                        hidden 
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        hidden
                                         onChange={async (e) => {
                                             const file = e.target.files[0];
                                             if (!file) return;
@@ -124,45 +149,44 @@ export default function Profile() {
                                 </label>
                             )}
                         </div>
-                        <div
-                            className={`profile-avail-badge ${p.availability_badge === 'Available' ? 'available' : 'busy'}`}
-                        >
+                        <div className={`profile-avail-badge ${p.availability_badge === 'Available' ? 'available' : 'busy'}`}>
                             <span className="avail-dot" />
                             {p.availability_badge}
                         </div>
                     </div>
+
                     <div className="profile-hero-info">
                         {isEditing ? (
-                            <input 
-                                type="text" 
+                            <input
+                                type="text"
                                 className="profile-edit-input title-input"
-                                value={form.full_name} 
-                                onChange={e => setForm({...form, full_name: e.target.value})}
+                                value={form.full_name}
+                                onChange={e => setForm({ ...form, full_name: e.target.value })}
                                 placeholder="Your Full Name"
                             />
                         ) : (
                             <h1>{p.full_name || p.email || 'Your Profile'}</h1>
                         )}
-                        
+
                         {isEditing ? (
-                            <input 
-                                type="text" 
+                            <input
+                                type="text"
                                 className="profile-edit-input spec-input"
-                                value={form.specialization} 
-                                onChange={e => setForm({...form, specialization: e.target.value})}
+                                value={form.specialization}
+                                onChange={e => setForm({ ...form, specialization: e.target.value })}
                                 placeholder="e.g. Cultural Tours & Trekking Guide"
                             />
                         ) : (
                             <p className="profile-specialization">{p.specialization || 'No specialization set'}</p>
                         )}
-                        
+
                         <div className="profile-rating">
                             <FaStar className="star-icon" />
                             <strong>{p.rating ?? 0}</strong>
                             <span className="rating-label">/ 5.0 · {p.tours_completed ?? 0} tours completed</span>
                         </div>
                     </div>
-                    
+
                     <div className="profile-hero-actions">
                         {isEditing ? (
                             <>
@@ -182,47 +206,39 @@ export default function Profile() {
                 </div>
             </div>
 
-            {/* Main Content */}
+            {/* ═══════════ MAIN CONTENT ═══════════ */}
             <div className="profile-main">
-                {/* Left Column */}
+
+                {/* ── Left Column ── */}
                 <div className="profile-left">
-                    {/* Contact Card */}
-                    <div className="profile-card">
+
+                    {/* Contact */}
+                    <div className="profile-card" style={{ '--delay': '0.1s' }}>
                         <h3 className="profile-card-title">Contact Information</h3>
                         <div className="profile-info-row">
-                            <FaEnvelope className="pinfo-icon email" />
+                            <div className="pinfo-icon email"><FaEnvelope /></div>
                             <div>
                                 <label>Email</label>
                                 <span>{p.email || '—'}</span>
                             </div>
                         </div>
                         <div className="profile-info-row">
-                            <FaPhone className="pinfo-icon phone" />
+                            <div className="pinfo-icon phone"><FaPhone /></div>
                             <div className="edit-full-width">
                                 <label>Phone</label>
                                 {isEditing ? (
-                                    <input 
-                                        type="text" 
-                                        className="profile-edit-input"
-                                        value={form.phone} 
-                                        onChange={e => setForm({...form, phone: e.target.value})}
-                                    />
+                                    <input type="text" className="profile-edit-input" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
                                 ) : (
                                     <span>{p.phone || '—'}</span>
                                 )}
                             </div>
                         </div>
                         <div className="profile-info-row">
-                            <FaMapMarkerAlt className="pinfo-icon location" />
+                            <div className="pinfo-icon location"><FaMapMarkerAlt /></div>
                             <div className="edit-full-width">
                                 <label>Address</label>
                                 {isEditing ? (
-                                    <input 
-                                        type="text" 
-                                        className="profile-edit-input"
-                                        value={form.address} 
-                                        onChange={e => setForm({...form, address: e.target.value})}
-                                    />
+                                    <input type="text" className="profile-edit-input" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
                                 ) : (
                                     <span>{p.address || '—'}</span>
                                 )}
@@ -230,16 +246,16 @@ export default function Profile() {
                         </div>
                     </div>
 
-                    {/* Languages Card */}
-                    <div className="profile-card">
+                    {/* Languages */}
+                    <div className="profile-card" style={{ '--delay': '0.18s' }}>
                         <h3 className="profile-card-title"><FaGlobe className="card-title-icon" /> Languages Spoken</h3>
                         {isEditing ? (
                             <div className="edit-full-width">
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     className="profile-edit-input"
-                                    value={form.languages} 
-                                    onChange={e => setForm({...form, languages: e.target.value})}
+                                    value={form.languages}
+                                    onChange={e => setForm({ ...form, languages: e.target.value })}
                                     placeholder="English, Spanish, French (comma separated)"
                                 />
                                 <span className="profile-edit-hint">Comma separated</span>
@@ -258,17 +274,17 @@ export default function Profile() {
                     </div>
 
                     {/* Experience */}
-                    <div className="profile-card">
+                    <div className="profile-card" style={{ '--delay': '0.26s' }}>
                         <h3 className="profile-card-title"><FaBriefcase className="card-title-icon" /> Experience</h3>
                         {isEditing ? (
-                             <div className="edit-full-width">
-                                <input 
-                                    type="number" 
+                            <div className="edit-full-width">
+                                <input
+                                    type="number"
                                     min="0"
                                     step="0.1"
                                     className="profile-edit-input"
-                                    value={form.experience_years} 
-                                    onChange={e => setForm({...form, experience_years: e.target.value})}
+                                    value={form.experience_years}
+                                    onChange={e => setForm({ ...form, experience_years: e.target.value })}
                                 />
                                 <span className="profile-edit-hint">Years of professional guiding</span>
                             </div>
@@ -281,18 +297,19 @@ export default function Profile() {
                     </div>
                 </div>
 
-                {/* Right Column */}
+                {/* ── Right Column ── */}
                 <div className="profile-right">
+
                     {/* Bio */}
-                    <div className="profile-card bio-card">
+                    <div className="profile-card bio-card" style={{ '--delay': '0.12s' }}>
                         <div className="bio-header">
                             <h3 className="profile-card-title">About Me</h3>
                         </div>
                         {isEditing ? (
-                            <textarea 
+                            <textarea
                                 className="profile-edit-textarea"
-                                value={form.bio} 
-                                onChange={e => setForm({...form, bio: e.target.value})}
+                                value={form.bio}
+                                onChange={e => setForm({ ...form, bio: e.target.value })}
                                 rows={6}
                                 placeholder="Tell travelers about yourself, your background, and your guiding philosophy..."
                             />
@@ -304,15 +321,15 @@ export default function Profile() {
                     </div>
 
                     {/* Destinations */}
-                    <div className="profile-card">
+                    <div className="profile-card" style={{ '--delay': '0.2s' }}>
                         <h3 className="profile-card-title"><FaMountain className="card-title-icon" /> Covered Destinations</h3>
                         {isEditing ? (
                             <div className="edit-full-width">
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     className="profile-edit-input"
-                                    value={form.destinations} 
-                                    onChange={e => setForm({...form, destinations: e.target.value})}
+                                    value={form.destinations}
+                                    onChange={e => setForm({ ...form, destinations: e.target.value })}
                                     placeholder="Kathmandu, Pokhara, Everest Base Camp (comma separated)"
                                 />
                                 <span className="profile-edit-hint">Comma separated</span>
@@ -337,8 +354,8 @@ export default function Profile() {
                         )}
                     </div>
 
-                    {/* Stats */}
-                    <div className="profile-card stats-row-card">
+                    {/* Performance Stats */}
+                    <div className="profile-card stats-row-card" style={{ '--delay': '0.28s' }}>
                         <div className="profile-stat">
                             <div className="profile-stat-number">{p.tours_completed ?? 0}</div>
                             <div className="profile-stat-label">Tours Completed</div>

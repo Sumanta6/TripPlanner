@@ -1,214 +1,315 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { FaUsers, FaMapMarkedAlt, FaClock, FaCalendarCheck, FaUserCircle, FaChartBar } from 'react-icons/fa';
+import {
+    FaCalendarAlt, FaChartLine, FaUsers, FaStar,
+    FaMapMarkedAlt, FaUserCircle, FaChartBar
+} from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
-import { getMyBookings, getMyActivity } from '../services/guidesService';
+import { getMyBookings, getMyActivity, getMyDashboard } from '../services/guidesService';
 import toast from 'react-hot-toast';
 import './Home.css';
 
-const ACTIVITY_TYPE_CONFIG = {
-    assignment: { color: '#4f7cff', bg: '#e0e7ff', emoji: '📋' },
-    accepted: { color: '#10b981', bg: '#d1fae5', emoji: '✅' },
-    rejected: { color: '#ef4444', bg: '#fee2e2', emoji: '❌' },
-    auto_rejected: { color: '#f43f5e', bg: '#fff1f2', emoji: '⚡' },
-    request: { color: '#f59e0b', bg: '#fef3c7', emoji: '📩' },
-    completed: { color: '#8b5cf6', bg: '#ede9fe', emoji: '🏆' },
-    upcoming: { color: '#06b6d4', bg: '#cffafe', emoji: '📅' },
-    rating: { color: '#ec4899', bg: '#fce7f3', emoji: '⭐' },
+/* ── Activity type colour map ────────────────────────────────────────────────── */
+const ACT_CONFIG = {
+    assignment: { bg: '#e0e7ff', emoji: '📋' },
+    accepted:   { bg: 'var(--green-bg)', emoji: '✅' },
+    rejected:   { bg: 'var(--red-bg)',   emoji: '❌' },
+    auto_rejected: { bg: 'var(--red-bg)', emoji: '⚡' },
+    request:    { bg: 'var(--amber-bg)', emoji: '📩' },
+    completed:  { bg: 'var(--purple-bg)', emoji: '🏆' },
+    upcoming:   { bg: 'var(--teal-bg)',  emoji: '📅' },
+    rating:     { bg: 'var(--pink-bg)',  emoji: '⭐' },
 };
 
-// ── Skeleton Cards ─────────────────────────────────────────────────────────────
-function SkeletonCard() {
+/* ── useCountUp hook  ────────────────────────────────────────────────────────── */
+function useCountUp(target, duration = 1400) {
+    const [value, setValue] = useState(0);
+    const rafRef = useRef(null);
+
+    useEffect(() => {
+        if (target == null || isNaN(target)) { setValue(0); return; }
+        const start = performance.now();
+        const from = 0;
+        const to = Number(target);
+        const isDecimal = !Number.isInteger(to);
+
+        function tick(now) {
+            const elapsed = now - start;
+            const progress = Math.min(elapsed / duration, 1);
+            // ease-out cubic
+            const ease = 1 - Math.pow(1 - progress, 3);
+            const current = from + (to - from) * ease;
+            setValue(isDecimal ? parseFloat(current.toFixed(1)) : Math.round(current));
+            if (progress < 1) rafRef.current = requestAnimationFrame(tick);
+        }
+
+        rafRef.current = requestAnimationFrame(tick);
+        return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    }, [target, duration]);
+
+    return value;
+}
+
+/* ── Helper: format date as "Mar 25" ─────────────────────────────────────────── */
+function shortDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+/* ── Skeleton Stat Card ──────────────────────────────────────────────────────── */
+function SkeletonStatCard() {
     return (
-        <div className="summary-card skeleton-card">
-            <div className="skeleton-icon" />
-            <div className="skeleton-info">
-                <div className="skeleton-line short" />
-                <div className="skeleton-line long" />
+        <div className="gh-stat-card skeleton">
+            <div className="gh-stat-icon" />
+            <div className="gh-stat-info">
+                <div className="gh-stat-label" />
+                <div className="gh-stat-value" />
             </div>
         </div>
     );
 }
 
+/* ── Animated Stat Card ──────────────────────────────────────────────────────── */
+function StatCard({ icon, label, value, color, bg, suffix = '' }) {
+    const animated = useCountUp(value);
+    return (
+        <div className="gh-stat-card">
+            <div className="gh-stat-icon" style={{ color, background: bg }}>
+                {icon}
+            </div>
+            <div className="gh-stat-info">
+                <div className="gh-stat-label">{label}</div>
+                <div className="gh-stat-value">{animated}{suffix}</div>
+            </div>
+        </div>
+    );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════ */
 export default function Home() {
     const { profile, patchProfile } = useAuth();
+
+    const [dashboard, setDashboard] = useState(null);
     const [bookings, setBookings] = useState([]);
     const [activity, setActivity] = useState([]);
-    const [loadingData, setLoadingData] = useState(true);
-    const [dataError, setDataError] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [toggling, setToggling] = useState(false);
 
-    // Keep local availability in sync with profile
     const availability = profile?.availability || 'available';
+    const firstName = profile?.full_name?.split(' ')[0] || 'Guide';
 
+    /* ── Fetch all data in parallel ──────────────────────────────────────────── */
     useEffect(() => {
         let alive = true;
         async function load() {
-            setLoadingData(true);
-            setDataError(null);
+            setLoading(true);
+            setError(null);
             try {
-                const [b, a] = await Promise.all([getMyBookings(), getMyActivity(10)]);
+                const [dash, bk, act] = await Promise.all([
+                    getMyDashboard(),
+                    getMyBookings(),
+                    getMyActivity(8),
+                ]);
                 if (alive) {
-                    setBookings(b);
-                    setActivity(a);
+                    setDashboard(dash);
+                    setBookings(bk);
+                    setActivity(act);
                 }
             } catch (err) {
-                if (alive) setDataError(err.message);
-                toast.error("Failed to load dashboard data: " + err.message);
+                if (alive) setError(err.message);
+                toast.error('Failed to load dashboard data');
             } finally {
-                if (alive) setLoadingData(false);
+                if (alive) setLoading(false);
             }
         }
         load();
         return () => { alive = false; };
     }, []);
 
-    const pendingReqs = bookings.filter(t => t.status === 'pending');
-    const acceptedReqs = bookings.filter(t => t.status === 'accepted');
-    const activeReqs = bookings.filter(t => t.status === 'active');
-    const completedReqs = bookings.filter(t => t.status === 'completed');
-    const rejectedReqs = bookings.filter(t => t.status === 'rejected' || t.status === 'auto_rejected');
-
-    const totalActiveCount = activeReqs.length + acceptedReqs.length;
-
-    const handleToggle = async () => {
+    /* ── Toggle availability ─────────────────────────────────────────────────── */
+    const handleToggle = useCallback(async () => {
+        if (toggling) return;
         const next = availability === 'available' ? 'busy' : 'available';
-        try { await patchProfile({ availability: next }); } catch (_) { /* handled in context */ }
-    };
+        setToggling(true);
+        try {
+            await patchProfile({ availability: next });
+            toast.success(`Status set to ${next === 'available' ? 'Available' : 'Busy'}`);
+        } catch (_) { /* handled in context */ }
+        finally { setToggling(false); }
+    }, [availability, patchProfile, toggling]);
 
-    const firstName = profile?.full_name?.split(' ')[0] || 'Guide';
+    /* ── Derived data ────────────────────────────────────────────────────────── */
+    const upcomingTrips = bookings.filter(b => b.status === 'accepted');
+    const today = new Date().toLocaleDateString('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+    });
 
+    /* ════════════════════════════════════════════════════════════════════════── */
     return (
-        <div className="guide-home-page">
-            <header className="guide-home-header">
-                <div className="guide-home-welcome">
-                    <h1>Welcome back, {firstName}! 👋</h1>
-                    <p>Here's your activity overview for today — {new Date().toLocaleDateString('en-NP', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        <div className="gh-page">
+
+            {/* ── HERO ─────────────────────────────────────────────────────────── */}
+            <section className="gh-hero">
+                <div className="gh-hero-left">
+                    <div className="gh-avatar">
+                        {profile?.profile_image ? (
+                            <img src={`http://localhost:8000${profile.profile_image}`} alt={firstName} />
+                        ) : '👤'}
+                    </div>
+                    <div className="gh-hero-text">
+                        <h1>Welcome back, {firstName}! 👋</h1>
+                        <p>{today}</p>
+                    </div>
                 </div>
+
                 <button
-                    className={`guide-status-badge interactive ${profile?.availability_badge === 'Available' ? 'available' : 'busy'}`}
+                    className="gh-avail-toggle"
                     onClick={handleToggle}
+                    disabled={toggling}
                     title="Click to toggle availability"
                 >
-                    <span className="status-dot" />
-                    {profile?.availability_badge || (availability === 'available' ? 'Available' : 'Busy')}
+                    <span className={`gh-avail-dot ${availability}`} />
+                    {availability === 'available' ? 'Available' : 'Busy'}
                 </button>
-            </header>
+            </section>
 
-            {/* Overview / Summary Cards */}
-            <section className="guide-summary-cards">
-                {loadingData ? (
-                    [1, 2, 3, 4].map(i => <SkeletonCard key={i} />)
+            {/* ── Error Banner ──────────────────────────────────────────────────── */}
+            {error && (
+                <div className="gh-error-banner">⚠️ {error}</div>
+            )}
+
+            {/* ── STAT CARDS ───────────────────────────────────────────────────── */}
+            <section className="gh-stats-grid">
+                {loading ? (
+                    [1, 2, 3, 4].map(i => <SkeletonStatCard key={i} />)
                 ) : (
                     <>
-                        <div className="summary-card">
-                            <div className="summary-icon"><FaUsers /></div>
-                            <div className="summary-info">
-                                <h3>Assigned Travelers</h3>
-                                <p className="summary-number">{bookings.length}</p>
-                            </div>
-                        </div>
-                        <div className="summary-card">
-                            <div className="summary-icon" style={{ color: '#10b981', backgroundColor: '#d1fae5' }}>
-                                <FaMapMarkedAlt />
-                            </div>
-                            <div className="summary-info">
-                                <h3>Confirmed Trips</h3>
-                                <p className="summary-number">{totalActiveCount}</p>
-                            </div>
-                        </div>
-                        <div className="summary-card">
-                            <div className="summary-icon" style={{ color: '#f59e0b', backgroundColor: '#fef3c7' }}>
-                                <FaClock />
-                            </div>
-                            <div className="summary-info">
-                                <h3>Pending</h3>
-                                <p className="summary-number">{pendingReqs.length}</p>
-                            </div>
-                        </div>
-                        <div className="summary-card">
-                            <div className="summary-icon" style={{ color: '#8b5cf6', backgroundColor: '#ede9fe' }}>
-                                <FaCalendarCheck />
-                            </div>
-                            <div className="summary-info">
-                                <h3>Completed</h3>
-                                <p className="summary-number">{completedReqs.length}</p>
-                            </div>
-                        </div>
+                        <StatCard
+                            icon={<FaCalendarAlt />}
+                            label="Total Bookings"
+                            value={dashboard?.total_travelers ?? 0}
+                            color="#4f7cff"
+                            bg="var(--accent-bg)"
+                        />
+                        <StatCard
+                            icon={<FaChartLine />}
+                            label="Active Trips"
+                            value={dashboard?.active_trips ?? 0}
+                            color="var(--teal)"
+                            bg="var(--teal-bg)"
+                        />
+                        <StatCard
+                            icon={<FaUsers />}
+                            label="Completed"
+                            value={dashboard?.completed_trips ?? 0}
+                            color="var(--green)"
+                            bg="var(--green-bg)"
+                        />
+                        <StatCard
+                            icon={<FaStar />}
+                            label="Rating"
+                            value={dashboard?.rating ?? 0}
+                            color="var(--amber)"
+                            bg="var(--amber-bg)"
+                            suffix=" ★"
+                        />
                     </>
                 )}
             </section>
 
-            {dataError && (
-                <div className="home-error-banner">⚠️ {dataError}</div>
-            )}
-
-            {/* Quick Actions & Recent Activity Area */}
-            <div className="guide-home-content">
-                {/* Quick Actions */}
-                <section className="quick-actions-section">
-                    <h2>Quick Actions</h2>
-                    <div className="quick-actions-grid">
-                        <Link to="/travelers" className="action-btn"><FaUsers /> View Travelers</Link>
-                        <Link to="/itineraries" className="action-btn secondary"><FaMapMarkedAlt /> View Itineraries</Link>
-                        <Link to="/profile" className="action-btn outline"><FaUserCircle /> Update Profile</Link>
-                        <Link to="/dashboard" className="action-btn secondary"><FaChartBar /> Analytics Dashboard</Link>
+            {/* ── QUICK ACTIONS ─────────────────────────────────────────────────── */}
+            <section className="gh-actions-row">
+                <Link to="/travelers" className="gh-action-card">
+                    <div className="gh-action-icon" style={{ background: 'var(--accent-bg)', color: 'var(--accent)' }}>
+                        <FaUsers />
                     </div>
+                    View Requests
+                </Link>
+                <Link to="/profile" className="gh-action-card">
+                    <div className="gh-action-icon" style={{ background: 'var(--teal-bg)', color: 'var(--teal)' }}>
+                        <FaUserCircle />
+                    </div>
+                    Update Profile
+                </Link>
+                <Link to="/dashboard" className="gh-action-card">
+                    <div className="gh-action-icon" style={{ background: 'var(--purple-bg)', color: 'var(--purple)' }}>
+                        <FaChartBar />
+                    </div>
+                    Analytics
+                </Link>
+            </section>
 
-                    {/* Categorized Booking Sections */}
-                    <div className="booking-segments mt-6">
-                        {[
-                            { title: '📥 Pending Requests', list: pendingReqs, status: 'pending' },
-                            { title: '✈️ Active & Upcoming Trips', list: [...acceptedReqs, ...activeReqs], status: 'active' },
-                            { title: '📁 Rejected / Archived', list: rejectedReqs, status: 'rejected' },
-                            { title: '✅ Completed Trips', list: completedReqs, status: 'completed' }
-                        ].map(segment => (
-                            <div key={segment.title} className="home-segment mb-6">
-                                <div className="segment-header flex justify-between items-center mb-3">
-                                    <h3 className="text-lg font-bold">{segment.title}</h3>
-                                    {segment.list.length > 0 && <span className="segment-count-badge text-sm">{segment.list.length}</span>}
-                                </div>
-                                {loadingData ? (
-                                    <div className="skeleton-line long" />
-                                ) : segment.list.length === 0 ? (
-                                    <p className="text-muted text-sm italic">No {segment.title.toLowerCase().split(' ').slice(1).join(' ')} here.</p>
-                                ) : (
-                                    <div className="mini-traveler-list">
-                                        {segment.list.slice(0, 3).map(t => (
-                                            <div className="mini-traveler-row" key={t.id}>
-                                                <div className="mini-avatar">
-                                                    {t.avatar && t.avatar.length > 2 ? (
-                                                        <img src={t.avatar} alt={t.traveler_name} className="mini-avatar-img-real" />
-                                                    ) : (
-                                                        t.avatar || (t.traveler_name || "?").charAt(0)
-                                                    )}
-                                                </div>
-                                                <div className="mini-info">
-                                                    <span className="mini-name">{t.traveler_name}</span>
-                                                    <span className="mini-dest">{t.destination}</span>
-                                                </div>
-                                                <span className={`mini-status-badge ${t.status}`}>
-                                                    {t.status.charAt(0).toUpperCase() + t.status.slice(1).replace('_', ' ')}
-                                                </span>
-                                            </div>
-                                        ))}
-                                        {segment.list.length > 3 && (
-                                            <Link to="/travelers" className="view-all-link text-xs block mt-2">View all {segment.list.length} travelers →</Link>
-                                        )}
+            {/* ── CONTENT GRID (Upcoming Trips + Activity) ──────────────────────── */}
+            <div className="gh-content-grid">
+
+                {/* Upcoming Trips */}
+                <section className="gh-section">
+                    <h2 className="gh-section-title">
+                        <span className="icon">✈️</span> Upcoming Trips
+                    </h2>
+
+                    {loading ? (
+                        <div className="gh-trip-list">
+                            {[1, 2, 3].map(i => (
+                                <div className="gh-trip-row" key={i}>
+                                    <div className="skeleton-icon" style={{ borderRadius: 10 }} />
+                                    <div className="skeleton-info">
+                                        <div className="skeleton-line short" />
+                                        <div className="skeleton-line long" />
                                     </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : upcomingTrips.length === 0 ? (
+                        <div className="gh-empty-trips">
+                            <div className="gh-empty-icon">🧭</div>
+                            <p className="gh-empty-title">No upcoming trips yet</p>
+                            <p className="gh-empty-sub">
+                                Once travelers book you for a trip, their upcoming plans will appear here.
+                                Stay available and keep your profile updated!
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="gh-trip-list">
+                            {upcomingTrips.slice(0, 5).map(trip => (
+                                <div className="gh-trip-row" key={trip.id}>
+                                    <div className="gh-trip-avatar">
+                                        {(trip.traveler_name || '?').charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="gh-trip-info">
+                                        <div className="gh-trip-name">{trip.traveler_name}</div>
+                                        <div className="gh-trip-dest">
+                                            <FaMapMarkedAlt style={{ fontSize: 11, marginRight: 4, opacity: 0.6 }} />
+                                            {trip.destination}
+                                        </div>
+                                    </div>
+                                    <div className="gh-trip-date">
+                                        {shortDate(trip.trip_start)} – {shortDate(trip.trip_end)}
+                                    </div>
+                                </div>
+                            ))}
+                            {upcomingTrips.length > 5 && (
+                                <Link to="/travelers" style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, textAlign: 'center', display: 'block', marginTop: 8 }}>
+                                    View all {upcomingTrips.length} trips →
+                                </Link>
+                            )}
+                        </div>
+                    )}
                 </section>
 
                 {/* Recent Activity */}
-                <section className="recent-activity-section">
-                    <h2>Recent Activity</h2>
-                    {loadingData ? (
-                        <ul className="activity-list">
+                <section className="gh-section">
+                    <h2 className="gh-section-title">
+                        <span className="icon">📊</span> Recent Activity
+                    </h2>
+
+                    {loading ? (
+                        <ul className="gh-timeline">
                             {[1, 2, 3].map(i => (
-                                <li className="activity-item" key={i}>
-                                    <div className="skeleton-icon" />
+                                <li className="gh-timeline-item skeleton" key={i}>
+                                    <div className="gh-timeline-dot" />
                                     <div className="skeleton-info">
                                         <div className="skeleton-line long" />
                                         <div className="skeleton-line short" />
@@ -217,23 +318,29 @@ export default function Home() {
                             ))}
                         </ul>
                     ) : activity.length === 0 ? (
-                        <p className="home-empty-hint">No recent activity to show.</p>
+                        <div className="gh-empty-trips">
+                            <div className="gh-empty-icon">📋</div>
+                            <p className="gh-empty-title">No recent activity</p>
+                            <p className="gh-empty-sub">
+                                Your latest actions like bookings, completions, and ratings will show up here.
+                            </p>
+                        </div>
                     ) : (
-                        <ul className="activity-list">
+                        <ul className="gh-timeline">
                             {activity.map(item => {
-                                const cfg = ACTIVITY_TYPE_CONFIG[item.activity_type] || ACTIVITY_TYPE_CONFIG.assignment;
+                                const cfg = ACT_CONFIG[item.activity_type] || ACT_CONFIG.assignment;
                                 return (
-                                    <li className="activity-item" key={item.id}>
-                                        <div className="activity-emoji-icon" style={{ background: cfg.bg }}>
+                                    <li className="gh-timeline-item" key={item.id}>
+                                        <div className="gh-timeline-dot" style={{ background: cfg.bg }}>
                                             {cfg.emoji}
                                         </div>
-                                        <div className="activity-text">
-                                            <p>
+                                        <div className="gh-timeline-text">
+                                            <p className="gh-timeline-msg">
                                                 {item.message}{' '}
-                                                <strong style={{ color: cfg.color }}>{item.highlight}</strong>
+                                                <strong>{item.highlight}</strong>
                                             </p>
-                                            <span className="activity-sub">{item.sub}</span>
-                                            <span className="activity-time">{item.time}</span>
+                                            {item.sub && <span className="gh-timeline-sub">{item.sub}</span>}
+                                            <span className="gh-timeline-time">{item.time}</span>
                                         </div>
                                     </li>
                                 );
