@@ -98,6 +98,9 @@ export default function Home() {
     const [toggling, setToggling] = useState(false);
 
     const availability = profile?.availability || 'available';
+    const availBadge = profile?.availability_badge || (availability === 'available' ? 'Available' : 'Busy');
+    const isBooked = availBadge.toLowerCase().startsWith('booked');
+    const isAvailable = availBadge === 'Available';
     const firstName = profile?.full_name?.split(' ')[0] || 'Guide';
 
     /* ── Fetch all data in parallel ──────────────────────────────────────────── */
@@ -164,15 +167,24 @@ export default function Home() {
                     </div>
                 </div>
 
-                <button
-                    className="gh-avail-toggle"
-                    onClick={handleToggle}
-                    disabled={toggling}
-                    title="Click to toggle availability"
-                >
-                    <span className={`gh-avail-dot ${availability}`} />
-                    {availability === 'available' ? 'Available' : 'Busy'}
-                </button>
+                {isBooked ? (
+                    /* Booked badge – no toggle, just status display */
+                    <div className="gh-status-badge booked">
+                        <span className="gh-status-dot booked" />
+                        {availBadge}
+                    </div>
+                ) : (
+                    /* Available / Busy toggle */
+                    <button
+                        className="gh-avail-toggle"
+                        onClick={handleToggle}
+                        disabled={toggling}
+                        title="Click to toggle availability"
+                    >
+                        <span className={`gh-avail-dot ${isAvailable ? 'available' : 'busy'}`} />
+                        {availBadge}
+                    </button>
+                )}
             </section>
 
             {/* ── Error Banner ──────────────────────────────────────────────────── */}

@@ -1,48 +1,95 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
-  /* Brand Colors */
-  --navy: #0A2540;
-  --navy-dark: #061729;
-  --teal: #00B4D8;
-  --teal-light: #90E0EF;
-  --gold: #f59e0b;
-  --green: #10b981;
+  color-scheme: light;
+
+  /* Semantic Theme Tokens */
+  --color-bg: #f4f8fb;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #fbfdff;
+  --color-surface-muted: #eef4f8;
+  --color-border: #d9e4ec;
+  --color-border-strong: #bfd1de;
+  --color-text-primary: #102542;
+  --color-text-secondary: #5f7287;
+  --color-text-muted: #7f93a8;
+  --color-accent: #1d8a9b;
+  --color-accent-strong: #0f5f73;
+  --color-accent-soft: #d8eef2;
+  --color-success: #10b981;
+  --color-success-soft: #dcfce7;
+  --color-warning: #f59e0b;
+  --color-warning-soft: #fef3c7;
+  --color-danger: #ef4444;
+  --color-danger-soft: #fee2e2;
+  --color-overlay: rgba(8, 20, 35, 0.58);
+
+  /* Brand/Legacy Aliases */
+  --navy: #102542;
+  --navy-dark: #0b1b2d;
+  --teal: var(--color-accent);
+  --teal-light: #8fd8e3;
+  --gold: var(--color-warning);
+  --green: var(--color-success);
   --purple: #7c3aed;
-  --blue: #1d4ed8;
-  
-  /* Semantic Colors - Light (Default) */
-  --white: #ffffff;
-  --bg-light: #f8fafc;
-  --bg-hover: #f1f5f9;
-  --border-color: #eaedf0;
-  --text-dark: #111827;
-  --text-gray: #64748b;
-  
+  --blue: #1f6fd1;
+  --white: var(--color-surface);
+  --bg-light: var(--color-bg);
+  --bg-hover: var(--color-surface-muted);
+  --border-color: var(--color-border);
+  --text-dark: var(--color-text-primary);
+  --text-gray: var(--color-text-secondary);
+
   /* Shadows & UI */
-  --shadow-small: 0 1px 3px rgba(0,0,0,0.03);
-  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.08);
-  --shadow-card-hover: 0 20px 40px rgba(0, 0, 0, 0.14);
+  --shadow-small: 0 1px 3px rgba(16, 37, 66, 0.06);
+  --shadow-card: 0 10px 30px rgba(16, 37, 66, 0.08);
+  --shadow-card-hover: 0 20px 44px rgba(16, 37, 66, 0.14);
   --radius-card: 16px;
   --transition: 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 /* ══ DARK THEME OVERRIDES ══ */
 [data-theme="dark"] {
-  --white:         #1e293b;
-  --bg-light:      #0f172a;
-  --bg-hover:      #1e293b;
-  --border-color:  #334155;
-  --text-dark:     #f8fafc;
-  --text-gray:     #94a3b8;
-  
-  --navy:          #38bdf8; /* Accessible blue for dark bgs */
-  --navy-dark:     #7dd3fc;
-  
-  --shadow-small:  0 1px 3px rgba(0,0,0,0.3);
-  --shadow-card:   0 8px 24px rgba(0, 0, 0, 0.40);
-  --shadow-card-hover: 0 20px 40px rgba(0, 0, 0, 0.55);
-  
+  color-scheme: dark;
+
+  --color-bg: #0d1623;
+  --color-surface: #152131;
+  --color-surface-elevated: #1a293b;
+  --color-surface-muted: #213144;
+  --color-border: #31465d;
+  --color-border-strong: #47607c;
+  --color-text-primary: #e7f0fa;
+  --color-text-secondary: #afc0d3;
+  --color-text-muted: #8ca0b7;
+  --color-accent: #59b6c4;
+  --color-accent-strong: #2c8ca0;
+  --color-accent-soft: rgba(89, 182, 196, 0.16);
+  --color-success: #16c28f;
+  --color-success-soft: rgba(22, 194, 143, 0.18);
+  --color-warning: #f4b44f;
+  --color-warning-soft: rgba(244, 180, 79, 0.16);
+  --color-danger: #ff7b7b;
+  --color-danger-soft: rgba(255, 123, 123, 0.16);
+  --color-overlay: rgba(2, 6, 16, 0.72);
+
+  --navy: var(--color-text-primary);
+  --navy-dark: #d3e0ef;
+  --teal: var(--color-accent);
+  --teal-light: #9ce1ea;
+  --gold: var(--color-warning);
+  --green: var(--color-success);
+  --blue: #5b9fff;
+  --white: var(--color-surface);
+  --bg-light: var(--color-bg);
+  --bg-hover: var(--color-surface-muted);
+  --border-color: var(--color-border);
+  --text-dark: var(--color-text-primary);
+  --text-gray: var(--color-text-secondary);
+
+  --shadow-small: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 12px 30px rgba(0, 0, 0, 0.34);
+  --shadow-card-hover: 0 22px 48px rgba(0, 0, 0, 0.44);
+
   color-scheme: dark;
 }
 
@@ -57,8 +104,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: var(--text-dark);
-  background-color: var(--bg-light);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg);
   /* Smooth theme transition */
   transition: background-color 0.25s ease, color 0.2s ease;
 }
@@ -78,11 +125,6 @@ a {
 }
 
 /* ══ Component Overrides for Dark Mode ══ */
-
-[data-theme="dark"] .navbar.scrolled {
-  background: #020617;
-  border-bottom-color: rgba(255, 255, 255, 0.1);
-}
 
 [data-theme="dark"] .profile-dropdown,
 [data-theme="dark"] .side-menu {
@@ -131,7 +173,7 @@ a {
 
 /* ════ LEGACY UTILITIES (Fixes Guides & older pages) ════ */
 .btn-primary {
-  background: var(--blue);
+  background: linear-gradient(135deg, var(--color-accent-strong), var(--blue));
   color: #fff;
   border: none;
   padding: 12px 24px;
@@ -143,23 +185,23 @@ a {
   align-items: center;
   justify-content: center;
 }
-.btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn-primary:hover { opacity: 0.96; transform: translateY(-1px); box-shadow: 0 10px 24px rgba(16, 37, 66, 0.16); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-outline {
   background: transparent;
   color: var(--blue);
-  border: 1px solid var(--blue);
+  border: 1px solid var(--color-border-strong);
   padding: 12px 24px;
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
 }
-.btn-outline:hover { background: var(--blue); color: #fff; }
+.btn-outline:hover { background: var(--color-accent-soft); color: var(--text-dark); border-color: var(--blue); }
 
 .card {
-  background: var(--white);
+  background: var(--color-surface);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   border: 1px solid var(--border-color);
@@ -177,7 +219,7 @@ a {
   padding: 10px 14px;
   border-radius: 8px;
   border: 1px solid var(--border-color);
-  background: var(--bg-light);
+  background: var(--color-surface-elevated);
   color: var(--text-dark);
 }
-.edit-input:focus { outline: none; border-color: var(--blue); }
+.edit-input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px var(--color-accent-soft); }

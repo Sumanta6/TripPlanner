@@ -1,213 +1,206 @@
 """
-Destinations API - fetches Nepal tourist places from Geoapify Places API.
+Destinations API
+─────────────────────────────────────────────────────────────────────────────
+Two separate surfaces:
+
+  1. /api/itinerary/destinations/  — serves from the local GeoNameDestination
+     table (fast, offline-capable, pre-seeded from GeoNames).
+
+  2. /api/destinations/ (legacy)  — kept for backward-compat but now also
+     delegates to the local DB instead of making a live Geoapify call.
+─────────────────────────────────────────────────────────────────────────────
 """
-import requests
-from rest_framework.views import APIView
+from django.db.models import Case, F, IntegerField, Q, Value, When
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from django.conf import settings
 
-# Nepal bounding box (lon_min, lat_min, lon_max, lat_max)
-NEPAL_BBOX = "80.0586,26.347,88.2015,30.447"
+from .models import GeoNameDestination
+from .serializers import GeoNameDestinationSerializer
 
-# Map frontend category to Geoapify categories
-CATEGORY_MAP = {
-    "all": "tourism.sights,natural,religion,museum,accommodation",
-    "nature": "natural",
-    "temples": "religion",
-    "museums": "museum",
-    "hotels": "accommodation",
-    "sights": "tourism.sights",
+PAGE_SIZE_DEFAULT = 24
+PAGE_SIZE_MAX = 100
+
+PROVINCE_FILTER_MAP = {
+    "bagmati":         "Bagmati Province",
+    "gandaki":         "Gandaki Province",
+    "lumbini":         "Lumbini Province",
+    "koshi":           "Koshi Province",
+    "madhesh":         "Madhesh Province",
+    "karnali":         "Karnali Province",
+    "sudurpashchim":   "Sudurpashchim Province",
+}
+
+SORT_OPTIONS = {
+    "recommended": ["-content_score", "province", "name"],
+    "popular": ["-content_score", "name"],
+    "name_asc": ["name"],
+    "name_desc": ["-name"],
+    "region": ["province", "district", "name"],
 }
 
 
-def normalize_category(geoapify_cat):
-    """Map Geoapify category string to our display category."""
-    if not geoapify_cat:
-        return "Sight"
-    cat = str(geoapify_cat).lower()
-    if "natural" in cat:
-        return "Nature"
-    if "religion" in cat or "temple" in cat:
-        return "Temples"
-    if "museum" in cat:
-        return "Museums"
-    if "accommodation" in cat or "hotel" in cat:
-        return "Hotels"
-    return "Sight"
+def _build_queryset(params):
+    """Shared queryset builder for both views."""
+    qs = GeoNameDestination.objects.all()
+
+    # Text search — name, province, district
+    search = (params.get("search") or "").strip()
+    if search:
+        qs = qs.filter(
+            Q(name__icontains=search)
+            | Q(province__icontains=search)
+            | Q(district__icontains=search)
+        )
+
+    # Province filter
+    province_key = (params.get("province") or params.get("region") or "").strip().lower()
+    if province_key and province_key != "all":
+        province_full = PROVINCE_FILTER_MAP.get(province_key, province_key)
+        qs = qs.filter(province__icontains=province_full)
+
+    # Category filter (Major City / Village/Town)
+    category = (params.get("category") or "").strip().lower()
+    if category and category != "all":
+        qs = qs.filter(category__icontains=category)
+
+    qs = qs.annotate(
+        content_score=Case(
+            When(popularity_score__isnull=False, then=F("popularity_score")),
+            When(category__iexact="Major City", then=Value(84)),
+            When(
+                Q(name__icontains="base camp")
+                | Q(name__icontains="lake")
+                | Q(name__icontains="mustang")
+                | Q(name__icontains="manang")
+                | Q(name__icontains="khumbu")
+                | Q(name__icontains="lukla")
+                | Q(name__icontains="namche")
+                | Q(name__icontains="rara")
+                | Q(name__icontains="phoksundo")
+                | Q(name__icontains="himal")
+                | Q(name__icontains="pass")
+                | Q(name__icontains="hill"),
+                then=Value(90),
+            ),
+            default=Value(76),
+            output_field=IntegerField(),
+        )
+    )
+
+    sort_key = (params.get("sort") or "recommended").strip().lower()
+    return qs.order_by(*SORT_OPTIONS.get(sort_key, SORT_OPTIONS["recommended"]))
 
 
-def transform_place(feature, index):
-    """Transform Geoapify feature to our clean JSON format."""
-    props = feature.get("properties", {})
-    geom = feature.get("geometry", {})
-    coords = geom.get("coordinates", [0, 0])
+@api_view(["GET"])
+def local_destinations(request):
+    """
+    GET /api/itinerary/destinations/
+    Serves Nepal destinations from the local GeoNameDestination table.
 
-    name = props.get("name") or "Unnamed Place"
-    address = props.get("address", {})
-    if isinstance(address, dict):
-        city = address.get("city") or address.get("town") or address.get("village") or ""
-        state = address.get("state") or ""
-        country = address.get("country") or "Nepal"
-        location = ", ".join(filter(None, [city, state, country])) or "Nepal"
-    else:
-        location = str(address) if address else "Nepal"
+    Query params:
+        search      – partial match on name / province / district
+        province    – one of: bagmati | gandaki | lumbini | koshi |
+                              madhesh | karnali | sudurpashchim | all
+        region      – alias for province
+        category    – 'Major City' | 'Village/Town' | all
+        sort        – recommended | popular | name_asc | name_desc | region
+        page        – page number (1-indexed)
+        page_size   – items per page (max 100, default 24)
+    """
+    try:
+        page      = max(1, int(request.query_params.get("page", 1)))
+        page_size = min(
+            PAGE_SIZE_MAX,
+            max(1, int(request.query_params.get("page_size", PAGE_SIZE_DEFAULT))),
+        )
+    except (ValueError, TypeError):
+        return Response(
+            {"error": "page and page_size must be integers."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-    categories = props.get("categories", "")
-    if isinstance(categories, str):
-        cat_str = categories
-    else:
-        cat_str = ",".join(categories) if categories else ""
-    category = normalize_category(cat_str)
+    qs = _build_queryset(request.query_params)
 
-    raw = props.get("datasource", {}).get("raw", {})
-    description = raw.get("description") or raw.get("wikipedia") or props.get("description") or ""
-    if not description and name:
-        description = f"Discover {name} in Nepal. A must-visit destination for travelers."
+    total  = qs.count()
+    offset = (page - 1) * page_size
+    items  = qs[offset : offset + page_size]
 
-    place_id = props.get("place_id") or props.get("osm_id") or feature.get("id") or str(index)
+    serializer = GeoNameDestinationSerializer(items, many=True)
+    return Response(
+        {
+            "results":   serializer.data,
+            "count":     total,
+            "page":      page,
+            "page_size": page_size,
+            "has_next":  (offset + page_size) < total,
+        }
+    )
 
-    return {
-        "id": place_id,
-        "name": name,
-        "location": location,
-        "coordinates": {"lat": coords[1], "lon": coords[0]},
-        "category": category,
-        "description": (description[:300] + "...") if len(description) > 300 else description,
-        "image_url": props.get("image") or None,
-    }
+
+@api_view(["GET"])
+def local_destination_detail(request, geoname_id):
+    """
+    GET /api/itinerary/destinations/<geoname_id>/
+    Returns a single destination by its GeoNames ID.
+    """
+    try:
+        dest = GeoNameDestination.objects.get(geoname_id=geoname_id)
+    except GeoNameDestination.DoesNotExist:
+        return Response(
+            {"error": "Destination not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    serializer = GeoNameDestinationSerializer(dest)
+    return Response(serializer.data)
+
+
+# ── Legacy /api/destinations/ endpoint ────────────────────────────────────────
+# Now delegates to the local DB so Geoapify is no longer required.
+
+from rest_framework.views import APIView   # noqa: E402  (kept below for grouping)
 
 
 class GeoapifyDestinationsView(APIView):
     """
-    GET /api/destinations/
-    Fetches Nepal tourist places from Geoapify Places API.
-    Query params: page, page_size, search, category
+    Legacy: GET /api/destinations/
+    Redirects logic to local DB; Geoapify key no longer required.
     """
-
     def get(self, request):
-        api_key = getattr(settings, "GEOAPIFY_API_KEY", None)
-        if not api_key:
-            return Response(
-                {"error": "GEOAPIFY_API_KEY not configured"},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-
-        page = max(1, int(request.query_params.get("page", 1)))
-        page_size = min(50, max(1, int(request.query_params.get("page_size", 20))))
-        search = (request.query_params.get("search") or "").strip()
-        category = (request.query_params.get("category") or "all").lower()
-
-        geoapify_cat = CATEGORY_MAP.get(category, CATEGORY_MAP["all"])
-        offset = (page - 1) * page_size
-
-        url = "https://api.geoapify.com/v2/places"
-        params = {
-            "categories": geoapify_cat,
-            "filter": f"rect:{NEPAL_BBOX}",
-            "limit": page_size,
-            "offset": offset,
-            "apiKey": api_key,
-        }
-        if search:
-            params["text"] = search
-
         try:
-            resp = requests.get(url, params=params, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
-        except requests.RequestException as e:
-            return Response(
-                {"error": f"Geoapify API error: {str(e)}"},
-                status=status.HTTP_502_BAD_GATEWAY,
+            page      = max(1, int(request.query_params.get("page", 1)))
+            page_size = min(
+                PAGE_SIZE_MAX,
+                max(1, int(request.query_params.get("page_size", PAGE_SIZE_DEFAULT))),
             )
+        except (ValueError, TypeError):
+            page, page_size = 1, PAGE_SIZE_DEFAULT
 
-        features = data.get("features", [])
-        results = [transform_place(f, i) for i, f in enumerate(features)]
+        qs     = _build_queryset(request.query_params)
+        total  = qs.count()
+        offset = (page - 1) * page_size
+        items  = qs[offset : offset + page_size]
+        data   = GeoNameDestinationSerializer(items, many=True).data
 
-        # If search is provided, optionally filter by name (Geoapify text search may vary)
-        if search:
-            search_lower = search.lower()
-            results = [r for r in results if search_lower in r["name"].lower()]
-
-        has_next = len(features) >= page_size
-
-        return Response({
-            "results": results,
-            "count": len(results),
-            "page": page,
-            "page_size": page_size,
-            "has_next": has_next,
-        })
+        return Response(
+            {
+                "results":   data,
+                "count":     total,
+                "page":      page,
+                "page_size": page_size,
+                "has_next":  (offset + page_size) < total,
+            }
+        )
 
 
 class GeoapifyDestinationDetailView(APIView):
-    """
-    GET /api/destinations/:id/
-    Fetches a single place by ID from Geoapify Place Details API.
-    """
-
+    """Legacy detail; delegates to local DB."""
     def get(self, request, pk):
-        api_key = getattr(settings, "GEOAPIFY_API_KEY", None)
-        if not api_key:
-            return Response(
-                {"error": "GEOAPIFY_API_KEY not configured"},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-
-        url = "https://api.geoapify.com/v2/place-details"
-        params = {"id": pk, "apiKey": api_key}
-
         try:
-            resp = requests.get(url, params=params, timeout=10)
-            if resp.status_code == 404:
-                return Response({"error": "Destination not found"}, status=status.HTTP_404_NOT_FOUND)
-            resp.raise_for_status()
-            data = resp.json()
-        except requests.RequestException as e:
+            dest = GeoNameDestination.objects.get(geoname_id=pk)
+        except GeoNameDestination.DoesNotExist:
             return Response(
-                {"error": f"Geoapify API error: {str(e)}"},
-                status=status.HTTP_502_BAD_GATEWAY,
+                {"error": "Destination not found."},
+                status=status.HTTP_404_NOT_FOUND,
             )
-
-        # Place Details returns FeatureCollection with features array
-        features = data.get("features", [])
-        if not features:
-            return Response({"error": "Destination not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        feat = features[0]
-        props = feat.get("properties", {})
-        geom = feat.get("geometry", {})
-        coords = geom.get("coordinates", [0, 0])
-        if geom.get("type") == "Point" and len(coords) >= 2:
-            lon, lat = coords[0], coords[1]
-        else:
-            lon, lat = 0, 0
-
-        name = props.get("name") or "Unnamed Place"
-        address = props.get("address", {})
-        if isinstance(address, dict):
-            city = address.get("city") or address.get("town") or address.get("village") or ""
-            state = address.get("state") or ""
-            country = address.get("country") or "Nepal"
-            location = ", ".join(filter(None, [city, state, country])) or "Nepal"
-        else:
-            location = str(address) if address else "Nepal"
-
-        categories = props.get("categories", "")
-        cat_str = ",".join(categories) if isinstance(categories, (list, tuple)) else str(categories)
-        category = normalize_category(cat_str)
-
-        description = props.get("description") or ""
-        if not description:
-            description = f"Discover {name} in Nepal. A must-visit destination for travelers."
-
-        return Response({
-            "id": pk,
-            "name": name,
-            "location": location,
-            "coordinates": {"lat": lat, "lon": lon},
-            "category": category,
-            "description": description,
-            "image_url": props.get("image") or None,
-        })
+        return Response(GeoNameDestinationSerializer(dest).data)

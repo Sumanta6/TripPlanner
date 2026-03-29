@@ -1,42 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./Plantrip.css";
-import { getGuides, saveItinerary, requestGuideWithItinerary } from '../services/api';
+import { generateItinerary, getGuides, getPlannerDestinations, saveItinerary, requestGuideWithItinerary } from '../services/api';
 import { useNavigate } from "react-router-dom";
-
-const FALLBACK_DESTINATIONS = [
-  { name: "Kathmandu Valley", type: "cultural" },
-  { name: "Pokhara", type: "city" },
-  { name: "Chitwan National Park", type: "wildlife" },
-  { name: "Lumbini", type: "cultural" },
-  { name: "Everest Base Camp", type: "trekking" },
-  { name: "Annapurna Base Camp", type: "trekking" },
-  { name: "Langtang Valley Trek", type: "trekking" },
-  { name: "Ghorepani Poon Hill Trek", type: "trekking" },
-  { name: "Bhaktapur", type: "cultural" },
-  { name: "Patan", type: "cultural" },
-  { name: "Nagarkot", type: "adventure" },
-  { name: "Dhulikhel", type: "city" },
-  { name: "Bandipur", type: "cultural" },
-  { name: "Begnas Lake", type: "lake" },
-  { name: "Bardia National Park", type: "wildlife" },
-  { name: "Janakpur", type: "cultural" },
-  { name: "Ilam", type: "city" },
-  { name: "Dharan", type: "city" },
-  { name: "Biratnagar", type: "city" },
-  { name: "Butwal", type: "city" },
-  { name: "Hetauda", type: "city" },
-  { name: "Kakani", type: "adventure" },
-  { name: "Chandragiri Hills", type: "adventure" },
-  { name: "Sarangkot", type: "adventure" },
-  { name: "Ghandruk", type: "cultural" },
-  { name: "Jomsom", type: "city" },
-  { name: "Kalinchowk", type: "adventure" },
-  { name: "Banke National Park", type: "wildlife" },
-  { name: "Besisahar", type: "city" },
-  { name: "Manang", type: "city" },
-  { name: "Khopra Ridge Trek", type: "trekking" },
-  { name: "Helambu Trek", type: "trekking" }
-];
 
 const TRAVEL_STYLES = [
   { id: "trekking", label: "Trekking", icon: "🥾" },
@@ -44,7 +9,15 @@ const TRAVEL_STYLES = [
   { id: "culture", label: "Cultural & Heritage", icon: "🏛️" },
   { id: "wildlife", label: "Wildlife Safari", icon: "🦏" },
   { id: "religious", label: "Spiritual Tour", icon: "🛕" },
-  { id: "relax", label: "Relaxation", icon: "🏞️" }
+  { id: "relax", label: "Relaxation", icon: "🏞️" },
+  { id: "luxury", label: "Luxury Escape", icon: "✨" },
+  { id: "family", label: "Family Trip", icon: "👨‍👩‍👧‍👦" },
+  { id: "roadtrip", label: "Road Trip", icon: "🚗" },
+  { id: "wellness", label: "Wellness Retreat", icon: "🧘" },
+  { id: "solo", label: "Solo Travel", icon: "🎒" },
+  { id: "romantic", label: "Romantic Getaway", icon: "💞" },
+  { id: "backpacking", label: "Backpacking", icon: "🎟️" },
+  { id: "festival", label: "Festival Experience", icon: "🎊" }
 ];
 
 const INTERESTS = [
@@ -55,34 +28,32 @@ const INTERESTS = [
   { id: "photography", label: "Photography", icon: "📸" },
   { id: "culture", label: "Local Culture", icon: "🏠" },
   { id: "food", label: "Food & Cuisine", icon: "🍜" },
-  { id: "adventure", label: "Adventure", icon: "⛰️" }
+  { id: "adventure", label: "Adventure", icon: "⛰️" },
+  { id: "hiking", label: "Hiking", icon: "🥾" },
+  { id: "viewpoints", label: "Viewpoints", icon: "🌄" },
+  { id: "history", label: "History", icon: "📜" },
+  { id: "architecture", label: "Architecture", icon: "🏛️" },
+  { id: "museums", label: "Museums", icon: "🖼️" },
+  { id: "monasteries", label: "Monasteries", icon: "🙏" },
+  { id: "camping", label: "Camping", icon: "⛺" },
+  { id: "snow", label: "Snow", icon: "❄️" },
+  { id: "waterfalls", label: "Waterfalls", icon: "💧" },
+  { id: "hidden_gems", label: "Hidden Gems", icon: "💎" },
+  { id: "shopping", label: "Shopping", icon: "🛍️" },
+  { id: "nightlife", label: "Nightlife", icon: "🌃" },
+  { id: "meditation", label: "Meditation", icon: "🧘" },
+  { id: "scenic_drives", label: "Scenic Drives", icon: "🚙" },
+  { id: "rural_village", label: "Rural Village Experience", icon: "🌾" }
 ];
-
-const HOTEL_LEVELS = [
-  { id: "budget", label: "Budget" },
-  { id: "standard", label: "Standard" },
-  { id: "luxury", label: "Luxury" }
-];
-
-const PACES = [
-  { id: "slow", label: "Slow & Relaxed" },
-  { id: "balanced", label: "Balanced" },
-  { id: "fast", label: "Fast-Paced" }
-];
-
-
 
 const DEFAULT_FORM_DATA = {
-  startingPlace: "Kathmandu",
   destination: "",
   startDate: "",
   days: 3,
   travelers: "2",
   budget: 50000,
   travelStyle: "",
-  interests: [],
-  pace: "balanced",
-  hotelLevel: "standard"
+  interests: []
 };
 
 function safeJSONParse(value, fallback) {
@@ -99,11 +70,6 @@ function getTodayLocalDate() {
   return new Date(now - tzOffset).toISOString().split("T")[0];
 }
 
-function normalizeDestinationType(type) {
-  if (!type) return "unknown";
-  return String(type).toLowerCase().trim();
-}
-
 function dedupeDestinations(items) {
   const map = new Map();
 
@@ -112,6 +78,7 @@ function dedupeDestinations(items) {
     const key = item.name.trim().toLowerCase();
     if (!map.has(key)) {
       map.set(key, {
+        ...item,
         name: item.name.trim(),
         type: item.type || "unknown"
       });
@@ -317,7 +284,6 @@ function normalizeBackendResponse(data, formData, duration) {
 
   return {
     destination: summary.destination || data.destination || formData.destination,
-    starting_place: data.starting_place || formData.startingPlace,
     budget: Number(summary.budget || data.budget || formData.budget || 0),
     days: data.days || formData.days,
     notes: data.notes || "",
@@ -374,40 +340,52 @@ function Plantrip() {
   const [expandedDays, setExpandedDays] = useState({});
   const resultsRef = useRef(null);
 
-  const [destinations, setDestinations] = useState(() =>
-    dedupeDestinations(FALLBACK_DESTINATIONS)
-  );
-  const [destQuery, setDestQuery] = useState("");
-  const [destOpen, setDestOpen] = useState(false);
-  const [destActiveIdx, setDestActiveIdx] = useState(-1);
-  const destWrapperRef = useRef(null);
-
+  const [destinations, setDestinations] = useState([]);
+  const [destinationLoadError, setDestinationLoadError] = useState("");
+  const [destinationSuggestions, setDestinationSuggestions] = useState([]);
   const today = useMemo(() => getTodayLocalDate(), []);
+  const calculatedEndDate = useMemo(() => {
+    if (!formData.startDate || !formData.days) return "";
+    const date = new Date(formData.startDate);
+    date.setDate(date.getDate() + (formData.days - 1));
+    return date.toISOString().split("T")[0];
+  }, [formData.startDate, formData.days]);
+  const hasPlannerProgress = useMemo(() => {
+    return Boolean(
+      itinerary ||
+      formData.destination ||
+      formData.startDate ||
+      Number(formData.days) !== DEFAULT_FORM_DATA.days ||
+      String(formData.travelers) !== String(DEFAULT_FORM_DATA.travelers) ||
+      Number(formData.budget) !== DEFAULT_FORM_DATA.budget ||
+      formData.travelStyle ||
+      formData.interests.length
+    );
+  }, [formData, itinerary]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadDestinations() {
       try {
-        const res = await fetch("http://localhost:8000/api/itinerary/destinations/");
-        const data = await res.json();
+        const data = await getPlannerDestinations();
+        const rawItems = Array.isArray(data?.results)
+          ? data.results
+          : Array.isArray(data)
+            ? data
+            : [];
 
-        if (!cancelled && res.ok) {
-          const rawItems = Array.isArray(data?.results)
-            ? data.results
-            : Array.isArray(data)
-              ? data
-              : [];
-
+        if (!cancelled) {
+          setDestinationLoadError("");
           if (rawItems.length > 0) {
-            setDestinations(rawItems.map(d => ({
-              ...d,
-              type: d.type || d.category || "unknown"
-            })));
+            setDestinations(dedupeDestinations(rawItems));
           }
         }
       } catch {
-        // fallback stays
+        if (!cancelled) {
+          setDestinationLoadError("Supported destinations could not be loaded. Please refresh and try again.");
+          setDestinations([]);
+        }
       }
     }
 
@@ -419,29 +397,34 @@ function Plantrip() {
   }, []);
 
   useEffect(() => {
-    const onClickOutside = (e) => {
-      if (destWrapperRef.current && !destWrapperRef.current.contains(e.target)) {
-        setDestOpen(false);
-        setDestActiveIdx(-1);
-      }
-    };
+    let cancelled = false;
 
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, []);
-
-  // Fetch real guides on mount
-  useEffect(() => {
     async function loadGuides() {
       try {
-        const data = await getGuides();
-        setGuides(Array.isArray(data) ? data : data.results || []);
+        const params = {};
+        if (formData.startDate && calculatedEndDate) {
+          params.trip_start = formData.startDate;
+          params.trip_end = calculatedEndDate;
+        }
+
+        const data = await getGuides(params);
+        if (!cancelled) {
+          setGuides(Array.isArray(data) ? data : data.results || []);
+        }
       } catch (err) {
-        console.error("Failed to load guides:", err);
+        if (!cancelled) {
+          console.error("Failed to load guides:", err);
+          setGuides([]);
+        }
       }
     }
+
     loadGuides();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.startDate, calculatedEndDate]);
 
   useEffect(() => {
     localStorage.setItem("plantrip_step", String(step));
@@ -463,32 +446,23 @@ function Plantrip() {
     }
   }, [itinerary]);
 
-  useEffect(() => {
-    if (formData.destination && !destQuery) {
-      setDestQuery(formData.destination);
-    }
-  }, [formData.destination, destQuery]);
-
-  const filteredDestinations = useMemo(() => {
-    const q = destQuery.trim().toLowerCase();
-
-    if (!q) return destinations.slice(0, 12);
-
-    const startsWith = destinations.filter((d) =>
-      d.name.toLowerCase().startsWith(q)
-    );
-    const includes = destinations.filter(
-      (d) =>
-        !d.name.toLowerCase().startsWith(q) &&
-        d.name.toLowerCase().includes(q)
-    );
-
-    return [...startsWith, ...includes].slice(0, 12);
-  }, [destQuery, destinations]);
-
   const selectedDestinationData = useMemo(() => {
     return destinations.find(d => d.name === formData.destination);
   }, [formData.destination, destinations]);
+
+  const isSupportedDestination = useMemo(() => {
+    if (!formData.destination.trim()) return false;
+    return destinations.some((destination) => destination.name === formData.destination);
+  }, [destinations, formData.destination]);
+
+  useEffect(() => {
+    if (formData.destination && destinations.length > 0 && !isSupportedDestination) {
+      setValidationErrors((prev) => ({
+        ...prev,
+        destination: "This destination is not currently supported by the AI planner. Please choose one of the available destinations."
+      }));
+    }
+  }, [destinations, formData.destination, isSupportedDestination]);
 
   const [durationMessage, setDurationMessage] = useState("");
 
@@ -514,17 +488,10 @@ function Plantrip() {
     }
   }, [formData.destination, selectedDestinationData, formData.days]);
 
-  const calculatedEndDate = useMemo(() => {
-    if (!formData.startDate || !formData.days) return "";
-    const date = new Date(formData.startDate);
-    date.setDate(date.getDate() + (formData.days - 1));
-    return date.toISOString().split("T")[0];
-  }, [formData.startDate, formData.days]);
-
   const matchedGuides = useMemo(() => {
     const destinationText = (itinerary?.destination || formData.destination || "").toLowerCase();
 
-    return guides.map((guide) => {
+    const ranked = guides.map((guide) => {
       const gDestinations = guide.destinations || [];
       const score = gDestinations.reduce((acc, dest) => {
         const d = String(dest).toLowerCase();
@@ -535,34 +502,29 @@ function Plantrip() {
         return acc;
       }, 0);
 
-      return { ...guide, _matchScore: score };
-    })
-      .sort((a, b) => b._matchScore - a._matchScore || (b.rating || 0) - (a.rating || 0))
+      return {
+        ...guide,
+        _matchScore: score,
+        _isAvailableForTrip: guide.availability_badge === "Available",
+      };
+    });
+
+    const relevant = ranked.filter((guide) => guide._matchScore > 0);
+    const pool = relevant.length ? relevant : ranked;
+
+    return pool
+      .sort(
+        (a, b) =>
+          Number(b._isAvailableForTrip) - Number(a._isAvailableForTrip) ||
+          b._matchScore - a._matchScore ||
+          (b.rating || 0) - (a.rating || 0)
+      )
       .slice(0, 3);
   }, [formData.destination, itinerary, guides]);
-
-  const duration =
-    formData.startDate && formData.endDate
-      ? Math.max(
-        0,
-        Math.ceil(
-          (new Date(formData.endDate) - new Date(formData.startDate)) /
-          (1000 * 60 * 60 * 24)
-        )
-      )
-      : 0;
 
   const selectedTravelStyleLabel = useMemo(() => {
     return TRAVEL_STYLES.find((s) => s.id === formData.travelStyle)?.label || "Not selected";
   }, [formData.travelStyle]);
-
-  const selectedPaceLabel = useMemo(() => {
-    return PACES.find((p) => p.id === formData.pace)?.label || "Balanced";
-  }, [formData.pace]);
-
-  const selectedHotelLabel = useMemo(() => {
-    return HOTEL_LEVELS.find((h) => h.id === formData.hotelLevel)?.label || "Standard";
-  }, [formData.hotelLevel]);
 
   const selectedInterestsText = useMemo(() => {
     return formData.interests
@@ -570,14 +532,6 @@ function Plantrip() {
       .filter(Boolean)
       .join(", ");
   }, [formData.interests]);
-
-  const selectDestination = (d) => {
-    setFormData((prev) => ({ ...prev, destination: d.name }));
-    setDestQuery(d.name);
-    setDestOpen(false);
-    setDestActiveIdx(-1);
-    setValidationErrors((prev) => ({ ...prev, destination: undefined }));
-  };
 
   const toggleInterest = (id) => {
     setFormData((prev) => ({
@@ -600,12 +554,27 @@ function Plantrip() {
 
     if (!formData.destination.trim()) {
       errors.destination = "Please select a destination";
+    } else if (!isSupportedDestination) {
+      errors.destination = "This destination is not currently supported by the AI planner. Please choose one of the available destinations.";
     }
     if (!formData.startDate) {
       errors.startDate = "Start date is required";
     }
     if (!formData.days || formData.days <= 0) {
       errors.days = "Please enter a valid duration";
+    }
+
+    return errors;
+  };
+
+  const validateStep2 = () => {
+    const errors = {};
+
+    if (!formData.travelStyle) {
+      errors.travelStyle = "Select at least one travel style to shape the itinerary.";
+    }
+    if (!formData.interests.length) {
+      errors.interests = "Select at least one interest so the planner can personalize the route.";
     }
 
     return errors;
@@ -621,40 +590,55 @@ function Plantrip() {
     }
   };
 
+  const handleContinueStep2 = () => {
+    const errors = validateStep2();
+    setValidationErrors((prev) => ({ ...prev, ...errors }));
+
+    if (Object.keys(errors).length === 0) {
+      setStep(3);
+      setValidationErrors((prev) => ({
+        ...prev,
+        travelStyle: undefined,
+        interests: undefined
+      }));
+    }
+  };
+
+  const applySuggestedDestination = (name) => {
+    setFormData((prev) => ({ ...prev, destination: name }));
+    setDestinationSuggestions([]);
+    setGenerationError(null);
+    setValidationErrors((prev) => ({ ...prev, destination: undefined }));
+  };
+
   const handleGenerateItinerary = async () => {
+    const errors = { ...validateStep1(), ...validateStep2() };
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      setStep(errors.destination || errors.startDate || errors.days ? 1 : 2);
+      return;
+    }
+
     setIsGenerating(true);
     setGenerationError(null);
     setShowSuccess(false);
     setShowGuides(false);
+    setDestinationSuggestions([]);
 
     try {
       const payload = {
         destination: normalizeDestinationInput(formData.destination),
-        starting_place: formData.startingPlace,
         days: formData.days,
         start_date: formData.startDate,
         budget: Number(formData.budget),
         travel_style: formData.travelStyle,
         interests: formData.interests,
-        people: Number(formData.travelers),
-        pace: formData.pace,
-        hotel_level: formData.hotelLevel
+        people: Number(formData.travelers)
       };
 
-      const response = await fetch("http://localhost:8000/api/itinerary/generate/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+      const data = await generateItinerary(payload);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setGenerationError(data?.message || data?.error || "Failed to generate itinerary.");
-        return;
-      }
-
-      const normalized = normalizeBackendResponse(data, formData, duration);
+      const normalized = normalizeBackendResponse(data, formData, formData.days);
 
       if (!normalized || !normalized?.itinerary?.days?.length) {
         setGenerationError("The itinerary was generated but no day-wise plan was returned.");
@@ -675,10 +659,16 @@ function Plantrip() {
           setShowGuides(true);
         }, 900);
       }, 120);
-    } catch {
-      setGenerationError(
-        "Network error. Please ensure the backend server is running on port 8000."
-      );
+    } catch (err) {
+      const apiMessage =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        "Network error. Please ensure the backend server is running on port 8000.";
+      const suggestions = Array.isArray(err?.response?.data?.suggestions)
+        ? err.response.data.suggestions
+        : [];
+      setDestinationSuggestions(suggestions);
+      setGenerationError(apiMessage);
     } finally {
       setIsGenerating(false);
     }
@@ -730,7 +720,6 @@ function Plantrip() {
     try {
       const saveRes = await saveItinerary({
         destination: itinerary.destination,
-        starting_place: itinerary.starting_place,
         days: itinerary.days,
         start_date: formData.startDate,
         budget: itinerary.budget,
@@ -757,9 +746,6 @@ function Plantrip() {
     setExpandedDays({});
     setShowSuccess(false);
     setShowGuides(false);
-    setDestQuery("");
-    setDestOpen(false);
-    setDestActiveIdx(-1);
 
     localStorage.removeItem("plantrip_step");
     localStorage.removeItem("plantrip_formData");
@@ -768,56 +754,37 @@ function Plantrip() {
 
   return (
     <>
-      <section
-        className="plantrip-hero lp-hero"
-        style={{ minHeight: "400px", height: "auto", paddingBottom: "60px" }}
-      >
-        <div
-          className="lp-hero-bg fade-in"
-          style={{ backgroundImage: "url('/images/hero-pokhara.jpg')" }}
-        />
-        <div
-          className="lp-hero-overlay"
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(6,23,41,0.85) 0%, rgba(6,23,41,0.6) 100%)"
-          }}
-        />
-        <div className="lp-hero-content pt-nav" style={{ maxWidth: "800px" }}>
-          <div
-            className="lp-section-badge"
-            style={{
-              borderColor: "rgba(0,180,216,0.5)",
-              color: "var(--teal-light)",
-              background: "rgba(0,180,216,0.1)"
-            }}
-          >
-            ✨ AI-Powered Planning
+      <section className="planner-top-shell">
+        <div className="planner-top-card">
+          <div className="planner-top-scenic-accent" aria-hidden="true"></div>
+          <div className="planner-top-header">
+            <div className="planner-top-copy">
+              <p className="planner-top-eyebrow">Plan your next journey</p>
+              <h1>AI Trip Planner</h1>
+              <p className="planner-top-subtitle">
+                Build a smarter Nepal itinerary with a clear, guided flow and destination-aware recommendations.
+              </p>
+            </div>
+            {hasPlannerProgress && (
+              <button type="button" className="restart-btn planner-reset-btn" onClick={clearForm}>
+                Start Over
+              </button>
+            )}
           </div>
-          <h1
-            className="lp-hero-title"
-            style={{ fontSize: "clamp(2rem, 4vw, 3.5rem)" }}
-          >
-            Design Your Perfect Trip
-          </h1>
-          <p className="lp-hero-sub mx-auto text-white">
-            Tell us about your plan and TripPlanner will build a smarter Nepal itinerary for you.
-          </p>
+
+          <div className="plantrip-steps">
+            {["Basics", "Preferences", "Confirm"].map((label, index) => (
+              <div
+                key={label}
+                className={`step ${step === index + 1 ? "active" : ""} ${step > index + 1 ? "completed" : ""} ${step === 3 && index === 2 ? "success-active" : ""}`}
+              >
+                <div className="step-circle">{step > index + 1 || (step === 3 && index === 2) ? "✓" : index + 1}</div>
+                <div className="step-label">{label}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
-
-      <div className="plantrip-steps">
-        {["Basics", "Preferences", "Confirm"].map((label, index) => (
-          <div
-            key={label}
-            className={`step ${step === index + 1 ? "active" : ""} ${step > index + 1 ? "completed" : ""
-              }`}
-          >
-            <div className="step-circle">{step > index + 1 ? "✓" : index + 1}</div>
-            <div className="step-label">{label}</div>
-          </div>
-        ))}
-      </div>
 
       <div className="plantrip-container">
         {step === 1 && (
@@ -828,7 +795,7 @@ function Plantrip() {
                 <p className="card-subtitle">Choose destination, dates and travelers</p>
               </div>
 
-              {(formData.destination || duration > 0) && (
+              {hasPlannerProgress && (
                 <button type="button" className="clear-btn" onClick={clearForm}>
                   🧹 Clear
                 </button>
@@ -837,89 +804,33 @@ function Plantrip() {
 
             <div className="form-group">
               <label>Destination *</label>
-              <div className="dest-search-wrapper" ref={destWrapperRef}>
-                <input
-                  className={`dest-search-input ${validationErrors.destination ? "error" : ""
-                    }`}
-                  type="text"
-                  placeholder="Search destinations like Pokhara, Kathmandu Valley, Chitwan..."
-                  value={destQuery}
-                  onFocus={() => {
-                    setDestOpen(true);
-                    setDestActiveIdx(-1);
-                  }}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setDestQuery(value);
-                    setDestOpen(true);
-                    setDestActiveIdx(-1);
-                    setFormData((prev) => ({ ...prev, destination: value }));
-                  }}
-                  onKeyDown={(e) => {
-                    if (!destOpen) return;
-
-                    if (e.key === "ArrowDown") {
-                      e.preventDefault();
-                      setDestActiveIdx((i) =>
-                        Math.min(i + 1, filteredDestinations.length - 1)
-                      );
-                    } else if (e.key === "ArrowUp") {
-                      e.preventDefault();
-                      setDestActiveIdx((i) => Math.max(i - 1, 0));
-                    } else if (e.key === "Enter") {
-                      e.preventDefault();
-                      const chosen =
-                        filteredDestinations[destActiveIdx] ||
-                        filteredDestinations[0];
-                      if (chosen) selectDestination(chosen);
-                    } else if (e.key === "Escape") {
-                      setDestOpen(false);
-                      setDestActiveIdx(-1);
-                    }
-                  }}
-                />
-
-                {destOpen && filteredDestinations.length > 0 && (
-                  <div className="dest-dropdown">
-                    {filteredDestinations.map((d, idx) => (
-                      <button
-                        key={`${d.name}-${idx}`}
-                        type="button"
-                        className={`dest-option ${idx === destActiveIdx ? "active" : ""}`}
-                        onMouseEnter={() => setDestActiveIdx(idx)}
-                        onClick={() => selectDestination(d)}
-                      >
-                        <span className="dest-option-name">{d.name}</span>
-                        <span
-                          className={`dest-type-badge type-${normalizeDestinationType(d.type)}`}
-                        >
-                          {d.type || "unknown"}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <select
+                value={formData.destination}
+                onChange={(e) => {
+                  setFormData((prev) => ({ ...prev, destination: e.target.value }));
+                  setValidationErrors((prev) => ({ ...prev, destination: undefined }));
+                  setGenerationError(null);
+                  setDestinationSuggestions([]);
+                }}
+                className={validationErrors.destination ? "error" : ""}
+              >
+                <option value="">Select your destination</option>
+                {destinations.map((d) => (
+                  <option key={d.geoname_id || d.name} value={d.name}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
 
               {validationErrors.destination && (
                 <span className="error-message">⚠️ {validationErrors.destination}</span>
               )}
+              {destinationLoadError && (
+                <span className="error-message">⚠️ {destinationLoadError}</span>
+              )}
             </div>
 
-            <div className="grid-2">
-              <div className="form-group">
-                <label>Starting Place *</label>
-                <select
-                  value={formData.startingPlace}
-                  onChange={(e) => setFormData({ ...formData, startingPlace: e.target.value })}
-                >
-                  <option value="Kathmandu">Kathmandu</option>
-                  <option value="Pokhara">Pokhara</option>
-                  <option value="Chitwan">Chitwan</option>
-                  <option value="Lumbini">Lumbini</option>
-                </select>
-              </div>
-
+            <div className="grid-2 trip-basics-grid">
               <div className="form-group">
                 <label>Number of Travelers</label>
                 <select
@@ -935,9 +846,7 @@ function Plantrip() {
                   ))}
                 </select>
               </div>
-            </div>
 
-            <div className="grid-2">
               <div className="form-group">
                 <label>Start Date *</label>
                 <input
@@ -953,6 +862,9 @@ function Plantrip() {
                   <span className="error-message">⚠️ {validationErrors.startDate}</span>
                 )}
               </div>
+            </div>
+
+            <div className="grid-2 trip-basics-grid">
 
               <div className="form-group">
                 <label>Duration (Days) *</label>
@@ -1000,72 +912,52 @@ function Plantrip() {
         {step === 2 && (
           <div className="card">
             <h2>Your Preferences</h2>
-            <p className="card-subtitle">Customize the itinerary style and comfort level</p>
+            <p className="card-subtitle">Choose the themes and experiences you want the itinerary to focus on</p>
 
             <div className="form-group">
-              <label>Travel Style</label>
-              <div className="chip-group">
+              <label>Travel Style *</label>
+              <div className={`chip-group chip-grid ${validationErrors.travelStyle ? "chip-group-error" : ""}`}>
                 {TRAVEL_STYLES.map((s) => (
                   <button
                     key={s.id}
                     type="button"
                     className={`chip ${formData.travelStyle === s.id ? "selected" : ""}`}
-                    onClick={() => setFormData({ ...formData, travelStyle: s.id })}
+                    onClick={() => {
+                      setFormData({ ...formData, travelStyle: s.id });
+                      setValidationErrors((prev) => ({ ...prev, travelStyle: undefined }));
+                    }}
                   >
                     <span className="chip-icon">{s.icon}</span>
-                    <span>{s.label}</span>
+                    <span className="chip-label">{s.label}</span>
                   </button>
                 ))}
               </div>
+              {validationErrors.travelStyle && (
+                <span className="error-message">⚠️ {validationErrors.travelStyle}</span>
+              )}
             </div>
 
             <div className="form-group">
-              <label>Interests</label>
-              <div className="chip-group">
+              <label>Interests *</label>
+              <div className={`chip-group chip-grid ${validationErrors.interests ? "chip-group-error" : ""}`}>
                 {INTERESTS.map((i) => (
                   <button
                     key={i.id}
                     type="button"
                     className={`chip ${formData.interests.includes(i.id) ? "selected" : ""}`}
-                    onClick={() => toggleInterest(i.id)}
+                    onClick={() => {
+                      toggleInterest(i.id);
+                      setValidationErrors((prev) => ({ ...prev, interests: undefined }));
+                    }}
                   >
                     <span className="chip-icon">{i.icon}</span>
-                    <span>{i.label}</span>
+                    <span className="chip-label">{i.label}</span>
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div className="grid-2">
-              <div className="form-group">
-                <label>Travel Pace</label>
-                <select
-                  value={formData.pace}
-                  onChange={(e) => setFormData({ ...formData, pace: e.target.value })}
-                >
-                  {PACES.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Hotel Level</label>
-                <select
-                  value={formData.hotelLevel}
-                  onChange={(e) =>
-                    setFormData({ ...formData, hotelLevel: e.target.value })
-                  }
-                >
-                  {HOTEL_LEVELS.map((h) => (
-                    <option key={h.id} value={h.id}>
-                      {h.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {validationErrors.interests && (
+                <span className="error-message">⚠️ {validationErrors.interests}</span>
+              )}
             </div>
 
             <div className="form-group">
@@ -1091,7 +983,7 @@ function Plantrip() {
               <button type="button" className="secondary" onClick={() => setStep(1)}>
                 ← Back
               </button>
-              <button type="button" className="primary" onClick={() => setStep(3)}>
+              <button type="button" className="primary" onClick={handleContinueStep2}>
                 Review Details →
               </button>
             </div>
@@ -1107,10 +999,8 @@ function Plantrip() {
               <div className="summary-item">
                 <span className="summary-icon">📍</span>
                 <div>
-                  <div className="summary-label">Start / Dest</div>
-                  <div className="summary-value">
-                    {formData.startingPlace} → {formData.destination}
-                  </div>
+                  <div className="summary-label">Destination</div>
+                  <div className="summary-value">{formData.destination}</div>
                 </div>
               </div>
 
@@ -1160,22 +1050,6 @@ function Plantrip() {
                 </div>
               </div>
 
-              <div className="summary-item">
-                <span className="summary-icon">⚡</span>
-                <div>
-                  <div className="summary-label">Pace</div>
-                  <div className="summary-value">{selectedPaceLabel}</div>
-                </div>
-              </div>
-
-              <div className="summary-item">
-                <span className="summary-icon">🏨</span>
-                <div>
-                  <div className="summary-label">Hotel Level</div>
-                  <div className="summary-value">{selectedHotelLabel}</div>
-                </div>
-              </div>
-
               {selectedInterestsText && (
                 <div className="summary-item full-width">
                   <span className="summary-icon">❤️</span>
@@ -1190,6 +1064,26 @@ function Plantrip() {
             {generationError && (
               <div className="generation-error">
                 <span>⚠️</span> {generationError}
+              </div>
+            )}
+            {destinationSuggestions.length > 0 && (
+              <div className="suggestions-box">
+                <span className="suggestions-title">Try one of these supported destinations:</span>
+                <div className="suggestions-list">
+                  {destinationSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      className="suggestion-chip"
+                      onClick={() => {
+                        applySuggestedDestination(suggestion);
+                        setStep(1);
+                      }}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -1256,7 +1150,7 @@ function Plantrip() {
               <div className="results-badge">🇳🇵 AI-Generated Itinerary</div>
               <h2>Your {itinerary.destination} Adventure</h2>
               <div className="results-meta">
-                <span>🗺️ {itinerary.starting_place} → {itinerary.destination}</span>
+                <span>🗺️ {itinerary.destination}</span>
                 <span>📅 {itinerary.days} Days</span>
                 <span>💰 NPR {Number(itinerary.budget).toLocaleString()}</span>
               </div>
@@ -1446,7 +1340,7 @@ function Plantrip() {
               <div className="find-guide-section slide-up mt-12 mb-12">
                 <div className="text-center mb-8">
                   <span className="lp-section-badge">Local Experts</span>
-                  <h2 className="lp-section-title" style={{ fontSize: "2rem" }}>
+                  <h2 className="lp-section-title guide-section-title">
                     Match with a Guide
                   </h2>
                   <p className="lp-section-sub mx-auto">
@@ -1460,86 +1354,52 @@ function Plantrip() {
                       <div className="guide-card-header">
                         <div className="guide-avatar-large">
                           {guide.profile_image ? (
-                            <img src={`http://localhost:8000${guide.profile_image}`} alt={guide.full_name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                            <img src={`http://localhost:8000${guide.profile_image}`} alt={guide.full_name} className="guide-avatar-image" />
                           ) : "👤"}
                         </div>
-                        <div>
-                          <h3
-                            style={{
-                              margin: 0,
-                              fontSize: "1.2rem",
-                              color: "var(--navy)"
-                            }}
-                          >
-                            {guide.full_name}
-                          </h3>
-                          <span
-                            style={{
-                              fontSize: "13px",
-                              color: "var(--teal)",
-                              fontWeight: 600
-                            }}
-                          >
+                        <div className="guide-card-copy">
+                          <div className={`guide-availability-pill ${guide.availability_badge === "Available" ? "available" : "unavailable"}`}>
+                            {guide.availability_badge}
+                          </div>
+                          <h3 className="guide-card-name">{guide.full_name}</h3>
+                          <span className="guide-card-specialization">
                             {guide.specialization || "Local Guide"}
                           </span>
                         </div>
                       </div>
 
-                      <div
-                        className="guide-card-stats grid-2"
-                        style={{
-                          gap: "10px",
-                          marginTop: "16px",
-                          marginBottom: "16px"
-                        }}
-                      >
-                        <div
-                          style={{
-                            background: "var(--bg-light)",
-                            padding: "10px",
-                            borderRadius: "8px",
-                            textAlign: "center"
-                          }}
-                        >
-                          <div style={{ fontSize: "12px", color: "var(--text-gray)" }}>
+                      <div className="guide-card-stats grid-2">
+                        <div className="guide-stat-card">
+                          <div className="guide-stat-label">
                             Experience
                           </div>
-                          <strong style={{ color: "var(--navy)" }}>{guide.experience_years} Years</strong>
+                          <strong className="guide-stat-value">{guide.experience_years} Years</strong>
                         </div>
 
-                        <div
-                          style={{
-                            background: "var(--bg-light)",
-                            padding: "10px",
-                            borderRadius: "8px",
-                            textAlign: "center"
-                          }}
-                        >
-                          <div style={{ fontSize: "12px", color: "var(--text-gray)" }}>
+                        <div className="guide-stat-card">
+                          <div className="guide-stat-label">
                             Rating
                           </div>
-                          <strong style={{ color: "var(--gold)" }}>⭐ {guide.rating}</strong>{" "}
-                          <span style={{ fontSize: "11px", color: "var(--text-gray)" }}>
+                          <strong className="guide-stat-rating">⭐ {guide.rating}</strong>{" "}
+                          <span className="guide-stat-meta">
                             ({guide.tours_completed} tours)
                           </span>
                         </div>
                       </div>
 
-                      <div
-                        style={{
-                          fontSize: "13px",
-                          color: "var(--text-gray)",
-                          marginBottom: "20px"
-                        }}
-                      >
+                      <div className="guide-destination-meta">
                         <strong>Covers:</strong> {(guide.destinations || []).join(" • ")}
                       </div>
 
                       <button
                         type="button"
-                        className={bookedGuideIds.includes(guide.id) ? "lp-btn-outline-dark" : "lp-btn-primary"}
-                        style={{ width: "100%", justifyContent: "center", backgroundColor: bookedGuideIds.includes(guide.id) ? "#e2e8f0" : undefined, color: bookedGuideIds.includes(guide.id) ? "#64748b" : undefined, borderColor: bookedGuideIds.includes(guide.id) ? "#cbd5e1" : undefined }}
-                        disabled={bookedGuideIds.includes(guide.id)}
+                        className={`guide-request-btn ${bookedGuideIds.includes(guide.id)
+                          ? "requested"
+                          : guide.availability_badge === "Available"
+                            ? "lp-btn-primary"
+                            : "lp-btn-outline-dark unavailable"
+                          }`}
+                        disabled={bookedGuideIds.includes(guide.id) || guide.availability_badge !== "Available"}
                         onClick={() => {
                           if (!savedItineraryId) {
                             alert("Please click 'Save Itinerary' below the itinerary first before booking a guide!");
@@ -1555,7 +1415,11 @@ function Plantrip() {
                           });
                         }}
                       >
-                        {bookedGuideIds.includes(guide.id) ? "✓ Request Sent" : "Request Guide"}
+                        {bookedGuideIds.includes(guide.id)
+                          ? "✓ Request Sent"
+                          : guide.availability_badge === "Available"
+                            ? "Request Guide"
+                            : "Unavailable for These Dates"}
                       </button>
                     </div>
                   ))}
@@ -1571,35 +1435,35 @@ function Plantrip() {
 
       {bookingModal.isOpen && bookingModal.guide && (
         <div className="modal-overlay">
-          <div className="modal-content auth-modal" style={{ maxWidth: "500px", padding: "30px" }}>
+          <div className="modal-content auth-modal planner-guide-modal">
             <button className="close-btn" onClick={() => setBookingModal({ ...bookingModal, isOpen: false })}>×</button>
-            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-              <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>Request {bookingModal.guide.full_name}</h2>
-              <p style={{ color: 'var(--text-gray)', fontSize: '0.9rem' }}>Send a booking inquiry along with your proposed itinerary.</p>
+            <div className="planner-guide-modal-header">
+              <h2>Request {bookingModal.guide.full_name}</h2>
+              <p>Send a booking inquiry along with your proposed itinerary.</p>
             </div>
 
-            {bookingModal.error && <p className="error-message" style={{ marginBottom: '15px' }}>{bookingModal.error}</p>}
-            {bookingModal.success && <div className="success-banner pop-in" style={{ padding: '15px', marginBottom: '15px' }}>
-              <span className="success-icon" style={{ fontSize: '1.2rem', marginRight: '10px' }}>✅</span> {bookingModal.success}
+            {bookingModal.error && <p className="error-message planner-guide-modal-error">{bookingModal.error}</p>}
+            {bookingModal.success && <div className="success-banner pop-in planner-guide-modal-success">
+              <span className="success-icon planner-guide-modal-success-icon">✅</span> {bookingModal.success}
             </div>}
 
             {!bookingModal.success && (
               <div className="auth-form">
-                <div className="form-group" style={{ marginBottom: '15px' }}>
+                <div className="form-group planner-guide-modal-group">
                   <label>Attached Plan</label>
-                  <div style={{ padding: '10px', background: '#f8fafc', borderRadius: '8px', fontSize: '0.9rem', color: 'var(--navy)', border: '1px solid #e2e8f0' }}>
+                  <div className="planner-guide-modal-summary">
                     <strong>{itinerary.destination}</strong> ({formData.days} Days)<br />
-                    <span style={{ color: 'var(--text-gray)', fontSize: '0.85rem' }}>{formatDateDisplay(formData.startDate)} – {formatDateDisplay(calculatedEndDate)}</span>
+                    <span className="planner-guide-modal-summary-dates">{formatDateDisplay(formData.startDate)} – {formatDateDisplay(calculatedEndDate)}</span>
                   </div>
                 </div>
 
-                <div className="form-group" style={{ marginBottom: '20px' }}>
+                <div className="form-group planner-guide-modal-group planner-guide-modal-group-lg">
                   <label>Message to Guide</label>
                   <textarea
                     value={bookingModal.notes}
                     onChange={(e) => setBookingModal({ ...bookingModal, notes: e.target.value })}
                     rows={5}
-                    style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', resize: 'vertical' }}
+                    className="planner-guide-modal-textarea"
                   />
                 </div>
 

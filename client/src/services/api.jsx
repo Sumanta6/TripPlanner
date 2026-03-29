@@ -97,9 +97,22 @@ export async function getMyGuideRequests() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const generateItinerary = (data) => api.post('/api/itinerary/generate/', data).then(res => res.data);
-export const saveItinerary = (data) => api.post('/api/itinerary/save/', data).then(res => res.data);
-export const getMyItineraries = () => api.get('/api/itinerary/my/').then(res => res.data);
-export const getItineraryDetail = (id) => api.get(`/api/itinerary/${id}/`).then(res => res.data);
-export const deleteItinerary = (id) => api.delete(`/api/itinerary/${id}/delete/`).then(res => res.data);
+export const saveItinerary     = (data) => api.post('/api/itinerary/save/', data).then(res => res.data);
+export const getMyItineraries  = ()     => api.get('/api/itinerary/my/').then(res => res.data);
+export const getItineraryDetail= (id)   => api.get(`/api/itinerary/${id}/`).then(res => res.data);
+export const deleteItinerary   = (id)   => api.delete(`/api/itinerary/${id}/delete/`).then(res => res.data);
+export const getPlannerDestinations = () =>
+  api.get('/api/itinerary/planner-destinations/').then(res => res.data);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DESTINATIONS  (served from local GeoNames DB — no third-party dependency)
+// ─────────────────────────────────────────────────────────────────────────────
+/** GET /api/itinerary/destinations/ with optional params: search, province, category, page, page_size */
+export const getDestinations = (params = {}, config = {}) =>
+  api.get("/api/itinerary/destinations/", { params, ...config }).then((res) => res.data);
+
+/** GET /api/itinerary/destinations/<geoname_id>/ */
+export const getDestinationDetail = (geonameId) =>
+  api.get(`/api/itinerary/destinations/${geonameId}/`).then(res => res.data);
 
 export default api;

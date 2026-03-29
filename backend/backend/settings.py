@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "contacts",
     "itinerary",
     "guides",
+    "destinations",
 ]
 
 MIDDLEWARE = [

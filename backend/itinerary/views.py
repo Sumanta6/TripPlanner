@@ -17,7 +17,15 @@ def get_destinations(request):
     """
     try:
         data = engine.list_destinations()
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "success": True,
+                "results": data,
+                "count": len(data),
+                "message": "Supported planner destinations fetched successfully.",
+            },
+            status=status.HTTP_200_OK,
+        )
     except Exception as e:
         return Response(
             {
@@ -79,14 +87,14 @@ def generate_itinerary(request):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        resolved_destination_name = engine._resolve_destination_name(destination_name)
-        destination = engine.dest_by_name.get(resolved_destination_name.lower())
+        resolved_destination_name, destination = engine.resolve_destination(destination_name)
 
         if not destination:
             return Response(
                 {
                     "success": False,
-                    "message": f"Destination '{destination_name}' is not currently supported in the planner dataset.",
+                    "message": f"'{destination_name}' is not currently supported by the planner.",
+                    "suggestions": engine.suggest_destinations(destination_name),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
