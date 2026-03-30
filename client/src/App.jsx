@@ -10,6 +10,7 @@ import ResetPassword from "./pages/ResetPassword";
 import ContactUs from "./pages/ContactUs";
 import Blog from "./pages/Blog";
 import HowItWorks from "./pages/HowItWorks";
+import FAQ from "./pages/FAQ";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import DestinationDetails from "./pages/DestinationDetails";
@@ -84,6 +85,7 @@ function App() {
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
+          <Route path="/faq" element={<FAQ />} />
           <Route path="/profile" element={<Profile setIsLoggedIn={setIsLoggedIn} />} />
           <Route path="/settings" element={<Settings setIsLoggedIn={setIsLoggedIn} />} />
         </Route>

@@ -46,7 +46,8 @@ class TravelerProfileSerializer(serializers.ModelSerializer):
             "address",
             "bio",
             "preferred_destinations",
-            "travel_style"
+            "travel_style",
+            "recent_interests",
         ]
 
 

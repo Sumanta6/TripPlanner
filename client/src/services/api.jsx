@@ -70,6 +70,12 @@ export async function updateMyProfile(updates) {
     return data;
 }
 
+export async function changeMyPassword(payload) {
+    await initCsrf();
+    const { data } = await api.post("/accounts/change-password/", payload);
+    return data;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GUIDES & BOOKINGS
 // ─────────────────────────────────────────────────────────────────────────────

@@ -144,6 +144,8 @@ def generate_itinerary(request):
             "transport_notes": result.get("transport_notes", ""),
             "recommended_stay": result.get("recommended_stay", []),
             "itinerary": result.get("itinerary", []),
+            "latitude": destination.get("latitude", ItineraryEngine.DEFAULT_MAP_CENTER["lat"]),
+            "longitude": destination.get("longitude", ItineraryEngine.DEFAULT_MAP_CENTER["lng"]),
         }
 
         if adjusted_days is not None:

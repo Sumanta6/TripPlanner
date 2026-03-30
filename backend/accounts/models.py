@@ -22,6 +22,7 @@ class TravelerProfile(models.Model):
     bio = models.TextField(blank=True)
     preferred_destinations = models.JSONField(default=list, blank=True)
     travel_style = models.CharField(max_length=100, blank=True)
+    recent_interests = models.JSONField(default=list, blank=True)
 
     def __str__(self):
         return self.full_name or self.user.username

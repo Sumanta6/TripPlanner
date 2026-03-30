@@ -1,104 +1,187 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Calendar, MapPin, User, CheckCircle2, AlertCircle, Clock, XCircle, ArrowRight, Eye, Bell } from "lucide-react";
+import {
+  Calendar,
+  MapPin,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  XCircle,
+  ArrowRight,
+  Eye,
+  Bell
+} from "lucide-react";
 import { getMyBookedTrips } from "../services/api";
 import "./MyTrips.css";
+
+const TAB_LABELS = ["Upcoming / Active", "Completed", "Declined"];
+
+function formatDate(dateString) {
+  if (!dateString) return "TBD";
+  return new Date(dateString).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
+}
+
+function getStatusDisplay(status) {
+  switch (status) {
+    case "pending":
+      return { label: "Pending Response", icon: <Clock size={14} />, className: "pending" };
+    case "accepted":
+      return { label: "Guide Accepted", icon: <CheckCircle2 size={14} />, className: "active" };
+    case "active":
+      return { label: "Trip in Progress", icon: <CheckCircle2 size={14} />, className: "active" };
+    case "rejected":
+      return { label: "Declined", icon: <XCircle size={14} />, className: "declined" };
+    case "auto_rejected":
+      return { label: "System Declined", icon: <XCircle size={14} />, className: "declined" };
+    case "completed":
+      return { label: "Completed", icon: <CheckCircle2 size={14} />, className: "completed" };
+    case "cancelled":
+      return { label: "Cancelled", icon: <XCircle size={14} />, className: "declined" };
+    default:
+      return { label: status, icon: <AlertCircle size={14} />, className: "pending" };
+  }
+}
 
 export default function MyTrips() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState("Upcoming / Active");
+  const [expandedNotes, setExpandedNotes] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
     let alive = true;
+
     async function fetchBookings() {
       try {
         const data = await getMyBookedTrips();
         if (alive) {
           setBookings(Array.isArray(data) ? data : data.results || []);
         }
-      } catch (err) {
+      } catch {
         if (alive) {
-          setError("Failed to load your bookings. Please try again later.");
+          setError("Failed to load your trips. Please try again later.");
         }
       } finally {
         if (alive) setLoading(false);
       }
     }
+
     fetchBookings();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  const recentUpdates = React.useMemo(() => {
+  const recentUpdates = useMemo(() => {
     const now = new Date();
-    return bookings.filter(b => {
-      if (b.status !== 'active' && b.status !== 'rejected') return false;
-      const updated = new Date(b.updated_at);
-      const hoursDiff = (now - updated) / (1000 * 60 * 60);
-      return hoursDiff < 72; // updated within 3 days
-    }).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)).slice(0, 3);
+    return bookings
+      .filter((booking) => {
+        if (booking.status !== "active" && booking.status !== "accepted" && booking.status !== "rejected") {
+          return false;
+        }
+        const updated = new Date(booking.updated_at);
+        const hoursDiff = (now - updated) / (1000 * 60 * 60);
+        return hoursDiff < 72;
+      })
+      .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+      .slice(0, 3);
   }, [bookings]);
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "TBD";
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short", day: "numeric", year: "numeric"
-    });
-  };
+  const groupedTrips = useMemo(() => {
+    const upcomingActive = bookings.filter((booking) =>
+      ["pending", "accepted", "active"].includes(booking.status)
+    );
+    const completed = bookings.filter((booking) => booking.status === "completed");
+    const declined = bookings.filter((booking) =>
+      ["rejected", "auto_rejected", "cancelled"].includes(booking.status)
+    );
 
-  const getStatusDisplay = (status) => {
-    switch (status) {
-      case 'pending':
-        return { label: 'Pending Response', icon: <Clock size={14}/>, class: 'pending' };
-      case 'accepted':
-        return { label: 'Guide Accepted', icon: <CheckCircle2 size={14}/>, class: 'active' };
-      case 'active':
-        return { label: 'Trip in Progress', icon: <CheckCircle2 size={14}/>, class: 'active' };
-      case 'rejected':
-        return { label: 'Declined', icon: <XCircle size={14}/>, class: 'rejected' };
-      case 'auto_rejected':
-        return { label: 'System Declined', icon: <XCircle size={14}/>, class: 'rejected' };
-      case 'completed':
-        return { label: 'Trip Completed', icon: <CheckCircle2 size={14}/>, class: 'completed' };
-      case 'cancelled':
-        return { label: 'Cancelled', icon: <XCircle size={14}/>, class: 'rejected' };
-      default:
-        return { label: status, icon: <AlertCircle size={14}/>, class: 'pending' };
-    }
+    return {
+      "Upcoming / Active": upcomingActive,
+      Completed: completed,
+      Declined: declined
+    };
+  }, [bookings]);
+
+  const summary = useMemo(() => ({
+    total: bookings.length,
+    active: groupedTrips["Upcoming / Active"].length,
+    completed: groupedTrips.Completed.length
+  }), [bookings.length, groupedTrips]);
+
+  const visibleTrips = groupedTrips[activeTab] || [];
+
+  const toggleNote = (bookingId) => {
+    setExpandedNotes((prev) => ({
+      ...prev,
+      [bookingId]: !prev[bookingId]
+    }));
   };
 
   const renderSkeletons = () => (
-    <div className="mt-list">
-      {[1, 2].map(n => (
-        <div key={n} className="mt-skeleton mt-animate-pulse">
-           <div className="skeleton-line medium"></div>
-           <div className="skeleton-line short"></div>
-           <div className="skeleton-box"></div>
+    <div className="mt-cards">
+      {[1, 2, 3].map((item) => (
+        <div key={item} className="mt-skeleton mt-animate-pulse">
+          <div className="skeleton-line medium"></div>
+          <div className="skeleton-line short"></div>
+          <div className="skeleton-box"></div>
         </div>
       ))}
     </div>
   );
 
+  const openGuidesForTrip = (booking) => {
+    navigate("/guides", {
+      state: {
+        destination: booking.destination,
+        trip_start: booking.trip_start,
+        trip_end: booking.trip_end,
+        itineraryId: booking.itinerary?.id || null
+      }
+    });
+  };
+
   return (
     <div className="my-trips-page">
-      <div className="mt-max-w">
-        <div className="mt-header">
+      <div className="mt-shell">
+        <header className="mt-header">
           <div className="mt-title">
-            <h1>My Bookings</h1>
-            <p>Track your guide requests and upcoming active trips.</p>
+            <span className="mt-eyebrow">Travel Dashboard</span>
+            <h1>My Trips</h1>
+            <p>Track upcoming journeys, revisit completed experiences, and manage guide bookings in one clean workspace.</p>
           </div>
-          <Link to="/saved-trips" className="mt-btn-outline" style={{ backgroundColor: 'white' }}>
-             View Saved Itineraries <ArrowRight size={16}/>
+          <Link to="/saved-trips" className="mt-btn-outline mt-header-action">
+            View Saved Itineraries <ArrowRight size={16} />
           </Link>
-        </div>
+        </header>
+
+        <section className="mt-summary-strip">
+          <div className="mt-summary-card">
+            <span className="mt-summary-label">Total Trips</span>
+            <strong>{summary.total}</strong>
+          </div>
+          <div className="mt-summary-card">
+            <span className="mt-summary-label">Active Trips</span>
+            <strong>{summary.active}</strong>
+          </div>
+          <div className="mt-summary-card">
+            <span className="mt-summary-label">Completed Trips</span>
+            <strong>{summary.completed}</strong>
+          </div>
+        </section>
 
         {loading ? renderSkeletons() : error ? (
           <div className="mt-empty-state">
-            <div className="mt-empty-icon" style={{ backgroundColor: '#fef2f2', color: '#ef4444' }}>
+            <div className="mt-empty-icon mt-empty-error">
               <AlertCircle size={40} />
             </div>
-            <h2>Unable to load bookings</h2>
+            <h2>Unable to load trips</h2>
             <p>{error}</p>
             <button onClick={() => window.location.reload()} className="mt-btn-outline">Try Again</button>
           </div>
@@ -107,124 +190,184 @@ export default function MyTrips() {
             <div className="mt-empty-icon">
               <MapPin size={40} />
             </div>
-            <h2>No guide requests yet</h2>
-            <p>
-              You haven't requested any guides for your trips. Head over to our guides directory or your saved itineraries to find the perfect local expert.
-            </p>
-            <Link to="/guides" className="mt-btn-primary">
-              Browse Guides
-            </Link>
-          </div>
-        ) : (
-          <div className="mt-list">
-            {recentUpdates.length > 0 && (
-                <div className="mt-notifications-panel">
-                    <div className="mt-notifications-header">
-                        <Bell size={18} className="mt-bell-icon" />
-                        <h3>Recent Updates</h3>
-                    </div>
-                    <div className="mt-notifications-list">
-                        {recentUpdates.map(update => (
-                            <div key={`update-${update.id}`} className={`mt-notification-item ${update.status === 'accepted' || update.status === 'active' ? 'active' : 'rejected'}`}>
-                                {update.status === 'accepted' || update.status === 'active' ? (
-                                    <p>🎉 Your guide request for <strong>{update.destination}</strong> was <strong>accepted</strong> by {update.guide_name || 'your guide'}!</p>
-                                ) : (
-                                    <p>😞 Your guide request for <strong>{update.destination}</strong> was <strong>declined</strong> for {update.destination}.</p>
-                                )}
-                                <span className="mt-notif-time">{formatDate(update.updated_at)}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            <div className="mt-tabs-section">
-              {['Processing', 'Upcoming & Active', 'History'].map(tab => {
-                let list = [];
-                if (tab === 'Processing') list = bookings.filter(b => b.status === 'pending');
-                if (tab === 'Upcoming & Active') list = bookings.filter(b => b.status === 'accepted' || b.status === 'active');
-                if (tab === 'History') list = bookings.filter(b => b.status === 'completed' || b.status === 'rejected' || b.status === 'auto_rejected' || b.status === 'cancelled');
-
-                if (list.length === 0) return null;
-
-                return (
-                  <div key={tab} className="mt-section-group">
-                    <h2 className="mt-section-title">{tab}</h2>
-                    <div className="mt-list">
-                      {list.map(booking => {
-                        const status = getStatusDisplay(booking.status);
-                        return (
-                          <div key={booking.id} className="mt-card">
-                            <div className="mt-card-header">
-                               <div className="mt-dest-wrap">
-                                  <div className="mt-dest-icon">
-                                     <MapPin size={20} />
-                                  </div>
-                                  <div className="mt-dest-info">
-                                     <h3>{booking.destination}</h3>
-                                     <p>Booked on {formatDate(booking.created_at)}</p>
-                                  </div>
-                               </div>
-                               <div className={`mt-status ${status.class}`}>
-                                 {status.icon} {status.label}
-                               </div>
-                            </div>
-                            
-                            <div className="mt-card-body">
-                               <div className="mt-details-col">
-                                  <div className="mt-detail-row">
-                                     <Calendar size={18} className="mt-detail-icon" />
-                                     <div className="mt-detail-text">
-                                        <h4>Trip Dates</h4>
-                                        <p>{formatDate(booking.trip_start)} — {formatDate(booking.trip_end)}</p>
-                                     </div>
-                                  </div>
-                                  
-                                  {booking.notes && (
-                                    <div className="mt-detail-row">
-                                       <AlertCircle size={18} className="mt-detail-icon" />
-                                       <div className="mt-detail-text">
-                                          <h4>Notes & Reason</h4>
-                                          <p style={{ fontSize: '0.875rem', color: '#64748b', fontStyle: 'italic' }}>{booking.notes}</p>
-                                       </div>
-                                    </div>
-                                  )}
-                               </div>
-                               
-                               <div className="mt-guide-col">
-                                  <div className="mt-guide-header">Guide Information</div>
-                                  <div className="mt-guide-profile">
-                                     <div className="mt-guide-avatar">
-                                        {booking.guide_name ? booking.guide_name.charAt(0) : 'G'}
-                                     </div>
-                                     <div className="mt-guide-info">
-                                        <h5>{booking.guide_name || 'Local Guide'}</h5>
-                                        <p>Guide Profile ID: #{booking.guide}</p>
-                                     </div>
-                                  </div>
-                               </div>
-                            </div>
-
-                            <div className="mt-card-footer">
-                               <span>Reference: BOOK-{booking.id.toString().padStart(4, '0')}</span>
-                               {booking.itinerary && (
-                                 <button 
-                                    onClick={() => navigate(`/trips/${booking.itinerary.id}`)}
-                                    className="mt-btn-outline"
-                                 >
-                                   <Eye size={16}/> View Linked Itinerary
-                                 </button>
-                               )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
+            <h2>No trips yet</h2>
+            <p>You haven’t booked a guide yet. Start with a saved itinerary or browse available local experts to plan your next journey.</p>
+            <div className="mt-empty-actions">
+              <Link to="/guides" className="mt-btn-primary">Browse Guides</Link>
+              <Link to="/saved-trips" className="mt-btn-outline">View Saved Itineraries</Link>
             </div>
           </div>
+        ) : (
+          <>
+            {recentUpdates.length > 0 && (
+              <section className="mt-updates-panel">
+                <div className="mt-updates-header">
+                  <div className="mt-updates-title">
+                    <Bell size={18} className="mt-bell-icon" />
+                    <h3>Recent Updates</h3>
+                  </div>
+                  <span className="mt-updates-caption">Last 72 hours</span>
+                </div>
+                <div className="mt-updates-list">
+                  {recentUpdates.map((update) => (
+                    <div
+                      key={`update-${update.id}`}
+                      className={`mt-update-item ${update.status === "accepted" || update.status === "active" ? "active" : "declined"}`}
+                    >
+                      <p>
+                        {update.status === "accepted" || update.status === "active"
+                          ? <>Your guide request for <strong>{update.destination}</strong> was accepted by <strong>{update.guide_name || "your guide"}</strong>.</>
+                          : <>Your request for <strong>{update.destination}</strong> was declined. You can rebook with another guide anytime.</>}
+                      </p>
+                      <span>{formatDate(update.updated_at)}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section className="mt-tabs-shell">
+              <div className="mt-tabs">
+                {TAB_LABELS.map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    className={`mt-tab ${activeTab === tab ? "is-active" : ""}`}
+                    onClick={() => setActiveTab(tab)}
+                  >
+                    {tab}
+                    <span className="mt-tab-count">{groupedTrips[tab].length}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="mt-section">
+              <div className="mt-section-header">
+                <div>
+                  <h2>{activeTab}</h2>
+                  <p>
+                    {activeTab === "Upcoming / Active" && "Stay on top of accepted guides, pending requests, and trips that are currently underway."}
+                    {activeTab === "Completed" && "Review past guided trips and reopen the same travel direction when you are ready to plan again."}
+                    {activeTab === "Declined" && "Requests that were declined or cancelled are kept here so you can quickly try again with another guide."}
+                  </p>
+                </div>
+              </div>
+
+              {visibleTrips.length === 0 ? (
+                <div className="mt-inline-empty">
+                  <h3>No trips in this section</h3>
+                  <p>This tab is clear right now. Browse guides or saved itineraries to start a new request.</p>
+                </div>
+              ) : (
+                <div className="mt-cards">
+                  {visibleTrips.map((booking) => {
+                    const status = getStatusDisplay(booking.status);
+                    const noteExpanded = Boolean(expandedNotes[booking.id]);
+                    const hasLongNote = Boolean(booking.notes && booking.notes.length > 140);
+
+                    return (
+                      <article key={booking.id} className="mt-trip-card">
+                        <div className="mt-trip-main">
+                          <div className="mt-trip-overview">
+                            <div className="mt-trip-title-row">
+                              <div>
+                                <div className="mt-destination-row">
+                                  <MapPin size={16} />
+                                  <h3>{booking.destination}</h3>
+                                </div>
+                                <p className="mt-trip-booked">Booked on {formatDate(booking.created_at)}</p>
+                              </div>
+                              <span className={`mt-status ${status.className}`}>
+                                {status.icon}
+                                {status.label}
+                              </span>
+                            </div>
+
+                            <div className="mt-trip-detail-grid">
+                              <div className="mt-detail-chip">
+                                <Calendar size={16} />
+                                <div>
+                                  <span>Dates</span>
+                                  <strong>{formatDate(booking.trip_start)} to {formatDate(booking.trip_end)}</strong>
+                                </div>
+                              </div>
+
+                              <div className="mt-detail-chip">
+                                <Clock size={16} />
+                                <div>
+                                  <span>Reference</span>
+                                  <strong>BOOK-{booking.id.toString().padStart(4, "0")}</strong>
+                                </div>
+                              </div>
+                            </div>
+
+                            {booking.notes && (
+                              <div className="mt-note-block">
+                                <span className="mt-note-label">Trip Notes</span>
+                                <p className={noteExpanded ? "is-expanded" : ""}>{booking.notes}</p>
+                                {hasLongNote && (
+                                  <button type="button" className="mt-note-toggle" onClick={() => toggleNote(booking.id)}>
+                                    {noteExpanded ? "View less" : "View more"}
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="mt-guide-panel">
+                            <span className="mt-guide-kicker">Guide</span>
+                            <div className="mt-guide-row">
+                              <div className="mt-guide-avatar">
+                                {booking.guide_name ? booking.guide_name.charAt(0) : "G"}
+                              </div>
+                              <div className="mt-guide-copy">
+                                <h4>{booking.guide_name || "Local Guide"}</h4>
+                                <button type="button" className="mt-guide-link" onClick={() => navigate("/guides")}>
+                                  View Profile
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-trip-actions">
+                          {booking.itinerary && (
+                            <button
+                              type="button"
+                              className="mt-btn-outline"
+                              onClick={() => navigate(`/trips/${booking.itinerary.id}`)}
+                            >
+                              <Eye size={16} />
+                              View Itinerary
+                            </button>
+                          )}
+
+                          {booking.status === "completed" && (
+                            <button type="button" className="mt-btn-primary" onClick={() => openGuidesForTrip(booking)}>
+                              Rebook
+                            </button>
+                          )}
+
+                          {["rejected", "auto_rejected", "cancelled"].includes(booking.status) && (
+                            <button type="button" className="mt-btn-primary" onClick={() => openGuidesForTrip(booking)}>
+                              Find Another Guide
+                            </button>
+                          )}
+
+                          {["pending", "accepted", "active"].includes(booking.status) && (
+                            <button type="button" className="mt-btn-outline" onClick={() => navigate("/guides")}>
+                              Browse Guides
+                            </button>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </>
         )}
       </div>
     </div>

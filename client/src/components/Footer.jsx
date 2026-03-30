@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+import TripPlannerBrand from "./TripPlannerBrand";
 import "./Footer.css";
 
 function Footer() {
@@ -8,7 +10,7 @@ function Footer() {
         {/* BRAND */}
         <div className="footer-brand">
           <div className="footer-logo">
-            ✈️ <span>Trip<span className="accent">Planner</span></span>
+            <TripPlannerBrand />
           </div>
           <p className="footer-desc">
             AI-powered travel planning system focused exclusively on Nepal.
@@ -59,7 +61,7 @@ function Footer() {
         <div className="footer-policy">
           <span>Terms</span>
           <span>Privacy</span>
-          <span>FAQ</span>
+          <Link to="/faq">FAQ</Link>
         </div>
       </div>
     </footer>

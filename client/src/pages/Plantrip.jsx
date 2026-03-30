@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./Plantrip.css";
-import { generateItinerary, getGuides, getPlannerDestinations, saveItinerary, requestGuideWithItinerary } from '../services/api';
+import MapView from "../components/MapView";
+import AppPopupModal from "../components/AppPopupModal";
+import { generateItinerary, getGuides, getPlannerDestinations, saveItinerary, requestGuideWithItinerary, updateMyProfile } from '../services/api';
 import { useNavigate } from "react-router-dom";
 
 const TRAVEL_STYLES = [
@@ -55,6 +57,35 @@ const DEFAULT_FORM_DATA = {
   travelStyle: "",
   interests: []
 };
+
+const DEFAULT_MAP_LOCATION = {
+  lat: 27.7172,
+  lng: 85.324,
+  zoom: 11,
+  label: "Kathmandu, Nepal"
+};
+
+function findDestinationEntry(destinations, destinationName) {
+  if (!destinationName || !destinations?.length) return null;
+  const target = destinationName.trim().toLowerCase();
+  return destinations.find(
+    (item) => String(item.name || "").trim().toLowerCase() === target
+  );
+}
+
+function buildMapLocation(destinations, destinationName) {
+  const entry = findDestinationEntry(destinations, destinationName);
+  if (entry && entry.latitude != null && entry.longitude != null) {
+    return {
+      lat: Number(entry.latitude),
+      lng: Number(entry.longitude),
+      zoom: Number(entry.zoom || 11),
+      label: entry.name
+    };
+  }
+
+  return DEFAULT_MAP_LOCATION;
+}
 
 function safeJSONParse(value, fallback) {
   try {
@@ -204,6 +235,55 @@ function getActivityIcon(text) {
   return "✨";
 }
 
+function buildPlannerSignature(formData) {
+  return JSON.stringify({
+    destination: normalizeDestinationInput(formData.destination),
+    startDate: formData.startDate,
+    days: Number(formData.days) || 0,
+    travelers: String(formData.travelers || ""),
+    budget: Number(formData.budget) || 0,
+    travelStyle: formData.travelStyle || "",
+    interests: [...(formData.interests || [])].sort()
+  });
+}
+
+function createEmptyPopupState() {
+  return {
+    isOpen: false,
+    type: "info",
+    title: "",
+    message: "",
+    primaryAction: null,
+    secondaryAction: null,
+    closeOnOverlay: true
+  };
+}
+
+function classifyTravelTip(tip) {
+  const text = String(tip || "").toLowerCase();
+
+  if (text.includes("season") || text.includes("weather") || text.includes("monsoon")) {
+    return "Best Season";
+  }
+  if (text.includes("book") || text.includes("permit") || text.includes("reserve") || text.includes("ticket")) {
+    return "Booking Advice";
+  }
+  if (text.includes("early") || text.includes("timing") || text.includes("sunrise") || text.includes("crowd")) {
+    return "Travel Timing";
+  }
+  if (text.includes("cash") || text.includes("budget") || text.includes("cost")) {
+    return "Money Tip";
+  }
+  if (text.includes("pack") || text.includes("layer") || text.includes("shoe") || text.includes("clothes")) {
+    return "Packing";
+  }
+  if (text.includes("transport") || text.includes("drive") || text.includes("flight") || text.includes("road")) {
+    return "Getting Around";
+  }
+
+  return "Local Insight";
+}
+
 function normalizeBackendResponse(data, formData, duration) {
   if (!data) return null;
 
@@ -299,6 +379,12 @@ function normalizeBackendResponse(data, formData, duration) {
   };
 }
 
+function mapInterestIdsToLabels(selectedIds) {
+  return selectedIds
+    .map((id) => INTERESTS.find((item) => item.id === id)?.label || id)
+    .filter(Boolean);
+}
+
 function Plantrip() {
   const navigate = useNavigate();
   const [step, setStep] = useState(() => {
@@ -317,6 +403,7 @@ function Plantrip() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showGuides, setShowGuides] = useState(false);
   const [generationError, setGenerationError] = useState(null);
+  const [popupModal, setPopupModal] = useState(createEmptyPopupState);
 
   // Real guides state
   const [guides, setGuides] = useState([]);
@@ -335,6 +422,9 @@ function Plantrip() {
 
   const [itinerary, setItinerary] = useState(() =>
     safeJSONParse(localStorage.getItem("plantrip_itinerary"), null)
+  );
+  const [generatedPlanSignature, setGeneratedPlanSignature] = useState(
+    () => localStorage.getItem("plantrip_generated_signature") || ""
   );
 
   const [expandedDays, setExpandedDays] = useState({});
@@ -362,6 +452,14 @@ function Plantrip() {
       formData.interests.length
     );
   }, [formData, itinerary]);
+  const mapLocation = useMemo(
+    () => buildMapLocation(destinations, formData.destination),
+    [destinations, formData.destination]
+  );
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
+  const currentPlannerSignature = useMemo(() => buildPlannerSignature(formData), [formData]);
+  const hasGeneratedItinerary = Boolean(itinerary?.itinerary?.days?.length);
+  const hasConfirmedPlan = hasGeneratedItinerary && generatedPlanSignature === currentPlannerSignature;
 
   useEffect(() => {
     let cancelled = false;
@@ -446,6 +544,40 @@ function Plantrip() {
     }
   }, [itinerary]);
 
+  useEffect(() => {
+    if (generatedPlanSignature) {
+      localStorage.setItem("plantrip_generated_signature", generatedPlanSignature);
+      return;
+    }
+
+    localStorage.removeItem("plantrip_generated_signature");
+  }, [generatedPlanSignature]);
+
+  useEffect(() => {
+    if (!isMapModalOpen) return undefined;
+
+    const originalOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setIsMapModalOpen(false);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMapModalOpen]);
+
+  useEffect(() => {
+    if (!generatedPlanSignature || generatedPlanSignature === currentPlannerSignature) return;
+
+    setShowSuccess(false);
+  }, [currentPlannerSignature, generatedPlanSignature]);
+
   const selectedDestinationData = useMemo(() => {
     return destinations.find(d => d.name === formData.destination);
   }, [formData.destination, destinations]);
@@ -519,8 +651,14 @@ function Plantrip() {
           b._matchScore - a._matchScore ||
           (b.rating || 0) - (a.rating || 0)
       )
-      .slice(0, 3);
+      .slice(0, 6);
   }, [formData.destination, itinerary, guides]);
+
+  const availableMatchedGuides = useMemo(() => {
+    return matchedGuides
+      .filter((guide) => guide._isAvailableForTrip && !bookedGuideIds.includes(guide.id))
+      .slice(0, 3);
+  }, [bookedGuideIds, matchedGuides]);
 
   const selectedTravelStyleLabel = useMemo(() => {
     return TRAVEL_STYLES.find((s) => s.id === formData.travelStyle)?.label || "Not selected";
@@ -532,6 +670,25 @@ function Plantrip() {
       .filter(Boolean)
       .join(", ");
   }, [formData.interests]);
+
+  const readinessScore = useMemo(() => {
+    const checks = [
+      Boolean(formData.destination && isSupportedDestination),
+      Boolean(formData.startDate),
+      Boolean(formData.days && Number(formData.days) > 0),
+      Boolean(formData.travelers),
+      Boolean(formData.budget),
+      Boolean(formData.travelStyle),
+      Boolean(formData.interests.length),
+    ];
+    return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+  }, [formData, isSupportedDestination]);
+
+  const readinessMessage = useMemo(() => {
+    if (readinessScore >= 85) return "Your trip looks good";
+    if (readinessScore >= 55) return "A few details will sharpen the plan";
+    return "Add the core trip details to get started";
+  }, [readinessScore]);
 
   const toggleInterest = (id) => {
     setFormData((prev) => ({
@@ -595,6 +752,8 @@ function Plantrip() {
     setValidationErrors((prev) => ({ ...prev, ...errors }));
 
     if (Object.keys(errors).length === 0) {
+      const recentInterests = mapInterestIdsToLabels(formData.interests);
+      updateMyProfile({ recent_interests: recentInterests }).catch(() => {});
       setStep(3);
       setValidationErrors((prev) => ({
         ...prev,
@@ -636,6 +795,7 @@ function Plantrip() {
         people: Number(formData.travelers)
       };
 
+      updateMyProfile({ recent_interests: mapInterestIdsToLabels(formData.interests) }).catch(() => {});
       const data = await generateItinerary(payload);
 
       const normalized = normalizeBackendResponse(data, formData, formData.days);
@@ -646,6 +806,7 @@ function Plantrip() {
       }
 
       setItinerary(normalized);
+      setGeneratedPlanSignature(currentPlannerSignature);
       // Auto-save removed: we keep the generated itinerary in state until the user clicks save.
       setShowSuccess(true);
 
@@ -709,9 +870,47 @@ function Plantrip() {
 
   const [isSaving, setIsSaving] = useState(false);
 
+  const closePopupModal = () => {
+    setPopupModal(createEmptyPopupState());
+  };
+
+  const openPopupModal = ({
+    type,
+    title,
+    message,
+    primaryAction,
+    secondaryAction,
+    closeOnOverlay = true
+  }) => {
+    setPopupModal({
+      isOpen: true,
+      type,
+      title,
+      message,
+      primaryAction,
+      secondaryAction,
+      closeOnOverlay
+    });
+  };
+
   const handleSaveItinerary = async () => {
     if (savedItineraryId) {
-      alert("Itinerary is already saved!");
+      openPopupModal({
+        type: "info",
+        title: "Itinerary already saved",
+        message: "This itinerary is already in My Trips. You can open it anytime from your saved trip list.",
+        primaryAction: {
+          label: "Go to My Trips",
+          onClick: () => {
+            closePopupModal();
+            navigate(`/trips/${savedItineraryId}`);
+          }
+        },
+        secondaryAction: {
+          label: "Continue",
+          onClick: closePopupModal
+        }
+      });
       return;
     }
     if (!itinerary) return;
@@ -728,10 +927,33 @@ function Plantrip() {
         itinerary_data: itinerary
       });
       setSavedItineraryId(saveRes.id);
-      alert("Itinerary saved successfully! You can find it in 'My Trips'.");
+      openPopupModal({
+        type: "success",
+        title: "Itinerary saved successfully",
+        message: "Your trip has been added to My Trips and is ready for guide matching or later review.",
+        primaryAction: {
+          label: "Go to My Trips",
+          onClick: () => {
+            closePopupModal();
+            navigate(`/trips/${saveRes.id}`);
+          }
+        },
+        secondaryAction: {
+          label: "Continue",
+          onClick: closePopupModal
+        }
+      });
     } catch (err) {
       console.error("Save failed:", err);
-      alert("Failed to save the itinerary. Please try again.");
+      openPopupModal({
+        type: "error",
+        title: "Could not save itinerary",
+        message: "TripPlanner could not save this itinerary right now. Please try again in a moment.",
+        primaryAction: {
+          label: "OK",
+          onClick: closePopupModal
+        }
+      });
     } finally {
       setIsSaving(false);
     }
@@ -746,10 +968,13 @@ function Plantrip() {
     setExpandedDays({});
     setShowSuccess(false);
     setShowGuides(false);
+    setGeneratedPlanSignature("");
+    setIsMapModalOpen(false);
 
     localStorage.removeItem("plantrip_step");
     localStorage.removeItem("plantrip_formData");
     localStorage.removeItem("plantrip_itinerary");
+    localStorage.removeItem("plantrip_generated_signature");
   };
 
   return (
@@ -757,31 +982,96 @@ function Plantrip() {
       <section className="planner-top-shell">
         <div className="planner-top-card">
           <div className="planner-top-scenic-accent" aria-hidden="true"></div>
-          <div className="planner-top-header">
-            <div className="planner-top-copy">
-              <p className="planner-top-eyebrow">Plan your next journey</p>
-              <h1>AI Trip Planner</h1>
-              <p className="planner-top-subtitle">
-                Build a smarter Nepal itinerary with a clear, guided flow and destination-aware recommendations.
-              </p>
-            </div>
-            {hasPlannerProgress && (
-              <button type="button" className="restart-btn planner-reset-btn" onClick={clearForm}>
-                Start Over
-              </button>
-            )}
-          </div>
-
-          <div className="plantrip-steps">
-            {["Basics", "Preferences", "Confirm"].map((label, index) => (
-              <div
-                key={label}
-                className={`step ${step === index + 1 ? "active" : ""} ${step > index + 1 ? "completed" : ""} ${step === 3 && index === 2 ? "success-active" : ""}`}
-              >
-                <div className="step-circle">{step > index + 1 || (step === 3 && index === 2) ? "✓" : index + 1}</div>
-                <div className="step-label">{label}</div>
+          <div className="planner-top-grid">
+            <div className="planner-top-main">
+              <div className="planner-top-header">
+                <div className="planner-top-copy">
+                  <p className="planner-top-eyebrow">Plan your next journey</p>
+                  <h1>AI Trip Planner</h1>
+                  <p className="planner-top-subtitle">
+                    Build a smarter Nepal itinerary with a clear, guided flow and destination-aware recommendations.
+                  </p>
+                </div>
+                {hasPlannerProgress && (
+                  <button type="button" className="restart-btn planner-reset-btn" onClick={clearForm}>
+                    Start Over
+                  </button>
+                )}
               </div>
-            ))}
+
+              <div className="planner-top-badges">
+                <span className="planner-badge">AI itinerary engine</span>
+                <span className="planner-badge">
+                  {step === 3
+                    ? hasConfirmedPlan
+                      ? "Itinerary generated"
+                      : "Awaiting confirmation"
+                    : `Step ${step} of 3`}
+                </span>
+                <span className="planner-badge planner-badge-success">{readinessScore}% readiness</span>
+              </div>
+
+              <div className="plantrip-steps">
+                {["Basics", "Preferences", "Confirm"].map((label, index) => {
+                  const isActive = step === index + 1;
+                  const isCompleted = step > index + 1 || (index === 2 && hasConfirmedPlan);
+                  const isSuccessActive = index === 2 && isActive && hasConfirmedPlan;
+
+                  return (
+                  <div
+                    key={label}
+                    className={`step ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""} ${isSuccessActive ? "success-active" : ""}`}
+                  >
+                    <div className="step-circle">{isCompleted ? "✓" : index + 1}</div>
+                    <div className="step-label">{label}</div>
+                  </div>
+                  );
+                })}
+              </div>
+
+              <div className="planner-snapshot-strip">
+                <div className="planner-snapshot-item">
+                  <span className="planner-snapshot-label">Destination</span>
+                  <strong>{formData.destination || "Choose a place"}</strong>
+                </div>
+                <div className="planner-snapshot-item">
+                  <span className="planner-snapshot-label">Dates</span>
+                  <strong>{formData.startDate ? `${formatDateDisplay(formData.startDate)}${calculatedEndDate ? ` • ${formatDateDisplay(calculatedEndDate)}` : ""}` : "Pick travel dates"}</strong>
+                </div>
+                <div className="planner-snapshot-item">
+                  <span className="planner-snapshot-label">Travelers</span>
+                  <strong>{formData.travelers || "0"} traveler{Number(formData.travelers || 0) > 1 ? "s" : ""}</strong>
+                </div>
+                <div className="planner-snapshot-item">
+                  <span className="planner-snapshot-label">Budget</span>
+                  <strong>NPR {Number(formData.budget || 0).toLocaleString()}</strong>
+                </div>
+                <div className="planner-snapshot-item">
+                  <span className="planner-snapshot-label">Style</span>
+                  <strong>{selectedTravelStyleLabel}</strong>
+                </div>
+              </div>
+            </div>
+
+            <aside className="planner-top-side">
+              <div className="planner-readiness-card">
+                <div className="planner-readiness-head">
+                  <span className="planner-readiness-kicker">Trip readiness</span>
+                  <span className="planner-readiness-score">{readinessScore}%</span>
+                </div>
+                <strong className="planner-readiness-title">{readinessMessage}</strong>
+                <p className="planner-readiness-copy">
+                  TripPlanner has enough context to shape a cleaner route, match the right pace, and recommend a more realistic day-by-day flow.
+                </p>
+                <div className="planner-readiness-bar">
+                  <span style={{ width: `${readinessScore}%` }}></span>
+                </div>
+                <div className="planner-mini-tip">
+                  <span>💡</span>
+                  <p>{step === 3 ? "Review the summary, then generate the itinerary when everything feels right." : "Complete the next step to unlock a more confident travel brief."}</p>
+                </div>
+              </div>
+            </aside>
           </div>
         </div>
       </section>
@@ -991,64 +1281,79 @@ function Plantrip() {
         )}
 
         {step === 3 && (
-          <div className="card">
-            <h2>Review Your Trip</h2>
-            <p className="card-subtitle">Check your inputs before generating the itinerary</p>
-
-            <div className="summary-grid">
-              <div className="summary-item">
-                <span className="summary-icon">📍</span>
+          <div className="review-shell">
+            <div className="card review-main-card">
+              <div className="review-header">
                 <div>
-                  <div className="summary-label">Destination</div>
-                  <div className="summary-value">{formData.destination}</div>
+                  <h2>Review Your Trip</h2>
+                  <p className="card-subtitle">A clean summary of your current plan before TripPlanner builds the itinerary.</p>
+                </div>
+                <div className={`review-status-pill ${hasConfirmedPlan ? "is-success" : "is-pending"}`}>
+                  <span>{hasConfirmedPlan ? "✅" : "●"}</span>
+                  <strong>{hasConfirmedPlan ? "Itinerary generated" : "Awaiting final confirmation"}</strong>
                 </div>
               </div>
 
-              <div className="summary-item">
-                <span className="summary-icon">📅</span>
-                <div>
-                  <div className="summary-label">Travel Dates</div>
-                  <div className="summary-value">
-                    {formatDateDisplay(formData.startDate)} → {formatDateDisplay(calculatedEndDate)}
+              <div className="review-highlight-strip">
+                <span className="review-chip">Smart route logic</span>
+                <span className="review-chip">Local travel context</span>
+                <span className="review-chip">Budget-aware planning</span>
+              </div>
+
+              <div className="summary-grid review-summary-grid">
+                <div className="summary-item">
+                  <span className="summary-icon">📍</span>
+                  <div>
+                    <div className="summary-label">Destination</div>
+                    <div className="summary-value">{formData.destination}</div>
                   </div>
                 </div>
-              </div>
 
-              <div className="summary-item">
-                <span className="summary-icon">⏱️</span>
-                <div>
-                  <div className="summary-label">Duration</div>
-                  <div className="summary-value">
-                    {formData.days} day{formData.days > 1 ? "s" : ""}
+                <div className="summary-item">
+                  <span className="summary-icon">📅</span>
+                  <div>
+                    <div className="summary-label">Travel Dates</div>
+                    <div className="summary-value">
+                      {formatDateDisplay(formData.startDate)} → {formatDateDisplay(calculatedEndDate)}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="summary-item">
-                <span className="summary-icon">👥</span>
-                <div>
-                  <div className="summary-label">Travelers</div>
-                  <div className="summary-value">{formData.travelers}</div>
-                </div>
-              </div>
-
-              <div className="summary-item">
-                <span className="summary-icon">💰</span>
-                <div>
-                  <div className="summary-label">Budget</div>
-                  <div className="summary-value">
-                    NPR {Number(formData.budget).toLocaleString()} · {budgetLabel(formData.budget)}
+                <div className="summary-item">
+                  <span className="summary-icon">⏱️</span>
+                  <div>
+                    <div className="summary-label">Duration</div>
+                    <div className="summary-value">
+                      {formData.days} day{formData.days > 1 ? "s" : ""}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="summary-item">
-                <span className="summary-icon">✈️</span>
-                <div>
-                  <div className="summary-label">Travel Style</div>
-                  <div className="summary-value">{selectedTravelStyleLabel}</div>
+                <div className="summary-item">
+                  <span className="summary-icon">👥</span>
+                  <div>
+                    <div className="summary-label">Travelers</div>
+                    <div className="summary-value">{formData.travelers}</div>
+                  </div>
                 </div>
-              </div>
+
+                <div className="summary-item">
+                  <span className="summary-icon">💰</span>
+                  <div>
+                    <div className="summary-label">Budget</div>
+                    <div className="summary-value">
+                      NPR {Number(formData.budget).toLocaleString()} · {budgetLabel(formData.budget)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="summary-item">
+                  <span className="summary-icon">✈️</span>
+                  <div>
+                    <div className="summary-label">Travel Style</div>
+                    <div className="summary-value">{selectedTravelStyleLabel}</div>
+                  </div>
+                </div>
 
               {selectedInterestsText && (
                 <div className="summary-item full-width">
@@ -1061,56 +1366,160 @@ function Plantrip() {
               )}
             </div>
 
-            {generationError && (
-              <div className="generation-error">
-                <span>⚠️</span> {generationError}
-              </div>
-            )}
-            {destinationSuggestions.length > 0 && (
-              <div className="suggestions-box">
-                <span className="suggestions-title">Try one of these supported destinations:</span>
-                <div className="suggestions-list">
-                  {destinationSuggestions.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      className="suggestion-chip"
-                      onClick={() => {
-                        applySuggestedDestination(suggestion);
-                        setStep(1);
-                      }}
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
+              {generationError && (
+                <div className="generation-error">
+                  <span>⚠️</span> {generationError}
                 </div>
-              </div>
-            )}
-
-            <div className="btn-row">
-              <button type="button" className="secondary" onClick={() => setStep(2)}>
-                ← Back
-              </button>
-              <button
-                type="button"
-                className="primary generate-btn"
-                onClick={handleGenerateItinerary}
-                disabled={isGenerating}
-              >
-                {isGenerating ? (
-                  <>
-                    <span className="spinner"></span>
-                    Generating itinerary...
-                  </>
-                ) : (
-                  "🎯 Generate My Itinerary"
-                )}
-              </button>
+              )}
+              {destinationSuggestions.length > 0 && (
+                <div className="suggestions-box">
+                  <span className="suggestions-title">Try one of these supported destinations:</span>
+                  <div className="suggestions-list">
+                    {destinationSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        className="suggestion-chip"
+                        onClick={() => {
+                          applySuggestedDestination(suggestion);
+                          setStep(1);
+                        }}
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {isGenerating && (
-              <div className="generating-hint">
-                <p>🤖 TripPlanner is organizing a day-wise route, highlights, stay suggestions, and travel notes...</p>
+            <aside className="review-sidebar">
+              <div className="card review-sidebar-card">
+                <div className="review-sidebar-top">
+                  <div>
+                    <span className="review-sidebar-kicker">Map preview</span>
+                    <p className="review-sidebar-copy">
+                      Keep this panel compact for orientation, then open the large map for real route exploration.
+                    </p>
+                  </div>
+                  <strong className="review-sidebar-score">{readinessScore}% ready</strong>
+                </div>
+
+                <div className="review-map-panel">
+                  <div className="review-map-wrapper">
+                    <MapView
+                      lat={mapLocation.lat}
+                      lng={mapLocation.lng}
+                      zoom={mapLocation.zoom}
+                      title={mapLocation.label}
+                      className="review-map-embed"
+                      dragging={false}
+                      touchZoom={false}
+                      zoomControl={false}
+                    />
+                    <div className="review-map-overlay">
+                      <div>
+                        <span className="review-map-label">Destination preview</span>
+                        <strong className="review-map-title">{formData.destination || "Nepal"}</strong>
+                      </div>
+                      <button type="button" className="map-expand-button" onClick={() => setIsMapModalOpen(true)}>
+                        View larger map
+                      </button>
+                    </div>
+                  </div>
+                  <div className="review-map-chips">
+                    <span className="review-side-chip">{formData.destination || "Nepal"}</span>
+                    <span className="review-side-chip">
+                      {formData.startDate
+                        ? `${formatDateDisplay(formData.startDate)}${calculatedEndDate ? ` • ${formatDateDisplay(calculatedEndDate)}` : ""}`
+                        : "Dates TBD"}
+                    </span>
+                    <span className="review-side-chip">{selectedTravelStyleLabel || "Style not set"}</span>
+                  </div>
+                </div>
+
+                <div className="review-map-status-line">
+                  <p>
+                    {hasConfirmedPlan
+                      ? "Itinerary created. Reopen the map anytime to inspect the destination in detail."
+                      : "Preview loaded. Use the larger map before generating if you want a fuller spatial check."}
+                  </p>
+                </div>
+
+                <div className="review-action-bar">
+                  <button type="button" className="secondary review-action-btn" onClick={() => setStep(1)}>
+                    Edit Basics
+                  </button>
+                  <button type="button" className="secondary review-action-btn" onClick={() => setStep(2)}>
+                    Back to Preferences
+                  </button>
+                  <button
+                    type="button"
+                    className="primary generate-btn review-generate-btn"
+                    onClick={handleGenerateItinerary}
+                    disabled={isGenerating}
+                  >
+                    {isGenerating ? (
+                      <>
+                        <span className="spinner"></span>
+                        Generating itinerary...
+                      </>
+                    ) : (
+                      "Generate Itinerary"
+                    )}
+                  </button>
+                </div>
+
+                {isGenerating && (
+                  <div className="generating-hint">
+                    <p>🤖 TripPlanner is organizing a day-wise route, highlights, stay suggestions, and travel notes...</p>
+                  </div>
+                )}
+              </div>
+            </aside>
+            {isMapModalOpen && (
+              <div
+                className="map-modal-overlay"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Expanded map preview"
+                onClick={() => setIsMapModalOpen(false)}
+              >
+                <div className="map-modal-card" onClick={(event) => event.stopPropagation()}>
+                  <div className="map-modal-header">
+                    <div>
+                      <strong>Explore destination map</strong>
+                      <p>{hasConfirmedPlan ? "Use the larger canvas to inspect the area around your generated trip." : "Review the destination context before you generate the itinerary."}</p>
+                    </div>
+                    <button type="button" className="map-modal-close" onClick={() => setIsMapModalOpen(false)}>
+                      ×
+                    </button>
+                  </div>
+                  <div className="map-modal-meta">
+                    <span className="map-modal-chip">{formData.destination || "Nepal overview"}</span>
+                    <span className="map-modal-chip">
+                      {formData.startDate
+                        ? `${formatDateDisplay(formData.startDate)}${calculatedEndDate ? ` • ${formatDateDisplay(calculatedEndDate)}` : ""}`
+                        : "Dates TBD"}
+                    </span>
+                    <span className="map-modal-chip">{selectedTravelStyleLabel}</span>
+                  </div>
+                  <MapView
+                    lat={mapLocation.lat}
+                    lng={mapLocation.lng}
+                    zoom={mapLocation.zoom}
+                    title={mapLocation.label}
+                    className="map-modal-map"
+                    scrollWheelZoom={true}
+                    doubleClickZoom={true}
+                    dragging={true}
+                    touchZoom={true}
+                    zoomControl={true}
+                  />
+                  <div className="map-modal-footer">
+                    <p>Zoom, drag, and open the marker to inspect the destination more closely.</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1294,10 +1703,19 @@ function Plantrip() {
 
               {itinerary.itinerary.travel_tips?.length > 0 && (
                 <div className="footer-card tips-card">
-                  <h3>🎒 Essential Tips</h3>
+                  <div className="tips-card-header">
+                    <h3>Essential Tips</h3>
+                    <span className="tips-card-kicker">Travel insights</span>
+                  </div>
                   <ul className="tips-list">
                     {itinerary.itinerary.travel_tips.map((tip, idx) => (
-                      <li key={idx}>✓ {tip}</li>
+                      <li key={idx}>
+                        <span className="tips-list-icon">✓</span>
+                        <div className="tips-list-copy">
+                          <span className="tips-list-category">{classifyTravelTip(tip)}</span>
+                          <p>{tip}</p>
+                        </div>
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -1344,89 +1762,116 @@ function Plantrip() {
                     Match with a Guide
                   </h2>
                   <p className="lp-section-sub mx-auto">
-                    Add a verified local expert to make your {itinerary.destination} trip smoother.
+                    Review a focused shortlist of guides who are available for your selected trip dates.
                   </p>
                 </div>
 
-                <div className="guide-match-grid">
-                  {matchedGuides.map((guide) => (
-                    <div key={guide.id} className="lp-dest-card guide-match-card">
-                      <div className="guide-card-header">
-                        <div className="guide-avatar-large">
-                          {guide.profile_image ? (
-                            <img src={`http://localhost:8000${guide.profile_image}`} alt={guide.full_name} className="guide-avatar-image" />
-                          ) : "👤"}
-                        </div>
-                        <div className="guide-card-copy">
-                          <div className={`guide-availability-pill ${guide.availability_badge === "Available" ? "available" : "unavailable"}`}>
-                            {guide.availability_badge}
+                {availableMatchedGuides.length > 0 ? (
+                  <>
+                    <div className="guide-match-grid">
+                      {availableMatchedGuides.map((guide) => (
+                        <div key={guide.id} className="lp-dest-card guide-match-card">
+                          <div className="guide-card-header">
+                            <div className="guide-avatar-large">
+                              {guide.profile_image ? (
+                                <img src={`http://localhost:8000${guide.profile_image}`} alt={guide.full_name} className="guide-avatar-image" />
+                              ) : "👤"}
+                            </div>
+                            <div className="guide-card-copy">
+                              <div className="guide-availability-pill available">
+                                Available for your trip
+                              </div>
+                              <h3 className="guide-card-name">{guide.full_name}</h3>
+                              <span className="guide-card-specialization">
+                                {guide.specialization || "Local Guide"}
+                              </span>
+                            </div>
                           </div>
-                          <h3 className="guide-card-name">{guide.full_name}</h3>
-                          <span className="guide-card-specialization">
-                            {guide.specialization || "Local Guide"}
-                          </span>
-                        </div>
-                      </div>
 
-                      <div className="guide-card-stats grid-2">
-                        <div className="guide-stat-card">
-                          <div className="guide-stat-label">
-                            Experience
+                          <div className="guide-card-stats grid-2">
+                            <div className="guide-stat-card">
+                              <div className="guide-stat-label">
+                                Experience
+                              </div>
+                              <strong className="guide-stat-value">{guide.experience_years} Years</strong>
+                            </div>
+
+                            <div className="guide-stat-card">
+                              <div className="guide-stat-label">
+                                Rating
+                              </div>
+                              <strong className="guide-stat-rating">⭐ {guide.rating}</strong>{" "}
+                              <span className="guide-stat-meta">
+                                ({guide.tours_completed} tours)
+                              </span>
+                            </div>
                           </div>
-                          <strong className="guide-stat-value">{guide.experience_years} Years</strong>
-                        </div>
 
-                        <div className="guide-stat-card">
-                          <div className="guide-stat-label">
-                            Rating
+                          <div className="guide-destination-meta">
+                            <strong>Covers:</strong> {(guide.destinations || []).join(" • ")}
                           </div>
-                          <strong className="guide-stat-rating">⭐ {guide.rating}</strong>{" "}
-                          <span className="guide-stat-meta">
-                            ({guide.tours_completed} tours)
-                          </span>
+
+                          <button
+                            type="button"
+                            className="guide-request-btn lp-btn-primary"
+                            onClick={() => {
+                              if (!savedItineraryId) {
+                                openPopupModal({
+                                  type: "warning",
+                                  title: "Save itinerary first",
+                                  message: "Save this itinerary before requesting a guide so TripPlanner can attach your trip details to the booking inquiry.",
+                                  primaryAction: {
+                                    label: "Save Itinerary First",
+                                    onClick: closePopupModal
+                                  },
+                                  secondaryAction: {
+                                    label: "Continue Browsing",
+                                    onClick: closePopupModal
+                                  }
+                                });
+                                return;
+                              }
+                              setBookingModal({
+                                isOpen: true,
+                                guide: guide,
+                                notes: `Hi ${guide.full_name.split(' ')[0]},\n\nI'm planning a ${formData.days}-day trip to ${itinerary.destination} starting ${formData.startDate}. I have generated an AI itinerary and would like you to guide me for this trip. Please check my plan and let me know if you are available.`,
+                                isSubmitting: false,
+                                error: null,
+                                success: null
+                              });
+                            }}
+                          >
+                            Request Guide
+                          </button>
                         </div>
-                      </div>
-
-                      <div className="guide-destination-meta">
-                        <strong>Covers:</strong> {(guide.destinations || []).join(" • ")}
-                      </div>
-
+                      ))}
+                    </div>
+                    <div className="guide-shortlist-footer">
                       <button
                         type="button"
-                        className={`guide-request-btn ${bookedGuideIds.includes(guide.id)
-                          ? "requested"
-                          : guide.availability_badge === "Available"
-                            ? "lp-btn-primary"
-                            : "lp-btn-outline-dark unavailable"
-                          }`}
-                        disabled={bookedGuideIds.includes(guide.id) || guide.availability_badge !== "Available"}
-                        onClick={() => {
-                          if (!savedItineraryId) {
-                            alert("Please click 'Save Itinerary' below the itinerary first before booking a guide!");
-                            return;
-                          }
-                          setBookingModal({
-                            isOpen: true,
-                            guide: guide,
-                            notes: `Hi ${guide.full_name.split(' ')[0]},\n\nI'm planning a ${formData.days}-day trip to ${itinerary.destination} starting ${formData.startDate}. I have generated an AI itinerary and would like you to guide me for this trip. Please check my plan and let me know if you are available.`,
-                            isSubmitting: false,
-                            error: null,
-                            success: null
-                          });
-                        }}
+                        className="lp-btn-outline-dark guide-browse-btn"
+                        onClick={() => navigate("/guides")}
                       >
-                        {bookedGuideIds.includes(guide.id)
-                          ? "✓ Request Sent"
-                          : guide.availability_badge === "Available"
-                            ? "Request Guide"
-                            : "Unavailable for These Dates"}
+                        Explore More Guides
                       </button>
                     </div>
-                  ))}
-                  {matchedGuides.length === 0 && (
-                    <div className="info-box"><span className="info-icon">🔍</span><span>No guides found matching this destination yet. Try clearing the destination filter.</span></div>
-                  )}
-                </div>
+                  </>
+                ) : (
+                  <div className="guide-empty-state">
+                    <div className="guide-empty-icon">🧭</div>
+                    <h3>No guides are available for your selected dates right now</h3>
+                    <p>
+                      Browse the full guide directory to explore more experts, alternate dates, or a wider destination list.
+                    </p>
+                    <button
+                      type="button"
+                      className="lp-btn-outline-dark guide-browse-btn"
+                      onClick={() => navigate("/guides")}
+                    >
+                      Explore More Guides
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1480,6 +1925,17 @@ function Plantrip() {
           </div>
         </div>
       )}
+
+      <AppPopupModal
+        isOpen={popupModal.isOpen}
+        type={popupModal.type}
+        title={popupModal.title}
+        message={popupModal.message}
+        primaryAction={popupModal.primaryAction}
+        secondaryAction={popupModal.secondaryAction}
+        onClose={closePopupModal}
+        closeOnOverlay={popupModal.closeOnOverlay}
+      />
     </>
   );
 }

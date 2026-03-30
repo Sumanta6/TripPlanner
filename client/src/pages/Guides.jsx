@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { getGuides, requestGuideWithItinerary, initCsrf } from "../services/api";
-import { Star, MapPin, Languages, CheckCircle, X } from "lucide-react";
+import { Star, MapPin, Languages, CheckCircle, X, Search, Filter } from "lucide-react";
 import toast from "react-hot-toast";
 import { useNavigate, useLocation } from "react-router-dom";
 import "./Guides.css";
@@ -24,6 +24,9 @@ export default function Guides() {
     const [submitting, setSubmitting] = useState(false);
     const [successMessage, setSuccessMessage] = useState("");
     const [modalError, setModalError] = useState("");
+    const [searchTerm, setSearchTerm] = useState("");
+    const [availabilityFilter, setAvailabilityFilter] = useState("all");
+    const [languageFilter, setLanguageFilter] = useState("all");
 
     useEffect(() => {
         let alive = true;
@@ -101,6 +104,26 @@ export default function Guides() {
 
     const conflictWarning = checkConflict();
 
+    const availableLanguages = Array.from(
+        new Set(
+            guides.flatMap((guide) => Array.isArray(guide.languages) ? guide.languages : [])
+        )
+    ).sort((a, b) => a.localeCompare(b));
+
+    const filteredGuides = guides.filter((guide) => {
+        const name = String(guide.full_name || "").toLowerCase();
+        const specialization = String(guide.specialization || "").toLowerCase();
+        const destinations = (guide.destinations || []).join(" ").toLowerCase();
+        const languages = (guide.languages || []).join(" ").toLowerCase();
+        const search = searchTerm.trim().toLowerCase();
+
+        const matchesSearch = !search || [name, specialization, destinations, languages].some((value) => value.includes(search));
+        const matchesAvailability = availabilityFilter === "all" || guide.availability_badge === availabilityFilter;
+        const matchesLanguage = languageFilter === "all" || (guide.languages || []).includes(languageFilter);
+
+        return matchesSearch && matchesAvailability && matchesLanguage;
+    });
+
     const handleSubmitBooking = async (e) => {
         e.preventDefault();
 
@@ -161,57 +184,107 @@ export default function Guides() {
         <div className="guides-page">
             <div className="guides-container setup-animation">
                 <div className="guides-header text-center mb-6">
+                    <span className="guides-header-badge">Verified Local Experts</span>
                     <h1>Find Your Perfect Guide</h1>
-                    <p className="text-muted">Browse our verified local experts and plan your next big adventure.</p>
+                    <p className="text-muted">Browse trusted local experts, compare availability, and send a polished booking request with confidence.</p>
                 </div>
 
-                {guides.length === 0 ? (
+                <div className="guides-filters">
+                    <div className="guides-filter-search">
+                        <Search size={18} />
+                        <input
+                            type="text"
+                            placeholder="Search by guide, destination, or specialty"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                    <div className="guides-filter-select">
+                        <Filter size={16} />
+                        <select value={availabilityFilter} onChange={(e) => setAvailabilityFilter(e.target.value)}>
+                            <option value="all">All availability</option>
+                            <option value="Available">Available</option>
+                            <option value="Booked">Booked</option>
+                            <option value="Unavailable">Unavailable</option>
+                        </select>
+                    </div>
+                    <div className="guides-filter-select">
+                        <Languages size={16} />
+                        <select value={languageFilter} onChange={(e) => setLanguageFilter(e.target.value)}>
+                            <option value="all">All languages</option>
+                            {availableLanguages.map((language) => (
+                                <option key={language} value={language}>{language}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
+                {filteredGuides.length === 0 ? (
                     <div className="empty-state-card mx-auto mt-6">
                         <MapPin size={48} className="empty-icon text-muted mx-auto" />
                         <h2 className="text-center">No Guides Found</h2>
-                        <p className="text-center">Check back later for new local experts.</p>
+                        <p className="text-center">Try adjusting your filters or search terms to explore more local experts.</p>
                     </div>
                 ) : (
                     <div className="guides-grid">
-                        {guides.map(guide => (
+                        {filteredGuides.map(guide => (
                             <div key={guide.id} className="guide-card card">
-                                <div className="guide-avatar-wrap">
-                                    {guide.profile_image ? (
-                                        <img src={guide.profile_image} alt={guide.full_name} className="guide-avatar-img" />
-                                    ) : (
-                                        <div className="guide-avatar-placeholder">
-                                            {(guide.full_name || "G").substring(0, 2).toUpperCase()}
+                                <div className="guide-card-top">
+                                    <div className="guide-avatar-wrap">
+                                        <div className="guide-avatar-frame">
+                                            {guide.profile_image ? (
+                                                <img src={guide.profile_image} alt={guide.full_name} className="guide-avatar-img" />
+                                            ) : (
+                                                <div className="guide-avatar-placeholder">
+                                                    {(guide.full_name || "G").substring(0, 2).toUpperCase()}
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-                                    <div className={`status-dot ${guide.availability_badge === 'Available' ? 'active' : 'busy'}`}></div>
+                                        <div className={`status-dot ${guide.availability_badge === 'Available' ? 'active' : 'busy'}`}></div>
+                                    </div>
+                                    <div className="guide-card-heading">
+                                        <div className={`availability-banner mb-2 ${guide.availability_badge === 'Available' ? 'available' : 'booked'}`}>
+                                            {guide.availability_badge}
+                                        </div>
+                                        <h3 className="guide-name">{guide.full_name}</h3>
+                                        <p className="guide-specialty text-teal">{guide.specialization || "General Guide"}</p>
+                                    </div>
                                 </div>
-                                <div className="guide-info text-center mt-3">
-                                    <div className={`availability-banner mb-2 ${guide.availability_badge === 'Available' ? 'available' : 'booked'}`}>
-                                        {guide.availability_badge}
-                                    </div>
-                                    <h3 className="guide-name">{guide.full_name}</h3>
-                                    <p className="guide-specialty text-teal">{guide.specialization || "General Guide"}</p>
-
-                                    <div className="guide-stats flex justify-center gap-4 mt-2">
-                                        <span className="flex items-center gap-1 text-sm"><Star size={14} className="text-gold" /> {guide.rating}</span>
-                                        <span className="flex items-center gap-1 text-sm"><CheckCircle size={14} className="text-green" /> {guide.tours_completed} tours</span>
+                                <div className="guide-info">
+                                    <div className="guide-stats">
+                                        <span className="guide-stat-pill"><Star size={14} className="text-gold" /> {guide.rating || "New"}</span>
+                                        <span className="guide-stat-pill"><CheckCircle size={14} className="text-green" /> {guide.tours_completed} tours</span>
                                     </div>
 
-                                    <div className="guide-meta mt-4">
-                                        <div className="meta-row"><MapPin size={16} /> <span>{guide.destinations.join(", ") || "Flexible locations"}</span></div>
-                                        <div className="meta-row mt-2"><Languages size={16} /> <span>{guide.languages.join(", ") || "English"}</span></div>
+                                    <div className="guide-meta">
+                                        <div className="meta-row">
+                                            <MapPin size={16} />
+                                            <div>
+                                                <span className="meta-label">Destinations</span>
+                                                <span>{(guide.destinations || []).length ? guide.destinations.join(", ") : "Flexible locations"}</span>
+                                            </div>
+                                        </div>
+                                        <div className="meta-row">
+                                            <Languages size={16} />
+                                            <div>
+                                                <span className="meta-label">Languages</span>
+                                                <span>{(guide.languages || []).length ? guide.languages.join(", ") : "English"}</span>
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <p className="guide-bio mt-4 text-sm text-muted line-clamp-3">
-                                        {guide.bio || "No bio provided."}
-                                    </p>
+                                    {guide.bio && (
+                                        <p className="guide-bio text-sm text-muted line-clamp-3">
+                                            {guide.bio}
+                                        </p>
+                                    )}
 
                                     <button
-                                        className={`btn-primary w-full mt-6 ${guide.availability_badge !== "Available" ? "btn-disabled" : ""}`}
+                                        className={`btn-primary guide-cta ${guide.availability_badge !== "Available" ? "btn-disabled" : ""}`}
                                         disabled={guide.availability_badge !== "Available"}
                                         onClick={() => handleOpenModal(guide)}
                                     >
-                                        {guide.availability_badge === "Available" ? "Request Guide" : "Unavailable"}
+                                        {guide.availability_badge === "Available" ? "Request Guide" : "Currently Unavailable"}
                                     </button>
                                 </div>
                             </div>

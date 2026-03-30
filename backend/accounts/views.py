@@ -13,6 +13,8 @@ from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes
 from django.core.mail import send_mail
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 
 from .models import Trip, TravelerProfile
 from .serializers import TripSerializer, RegisterSerializer, TravelerProfileSerializer
@@ -229,17 +231,35 @@ def csrf_cookie(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def change_password(request):
-    old_password = request.data.get("old_password")
+    old_password = request.data.get("old_password") or request.data.get("current_password")
     new_password = request.data.get("new_password")
+    confirm_password = request.data.get("confirm_password")
 
-    if not old_password or not new_password:
-        return Response({"error": "Both old and new passwords are required."}, status=400)
+    errors = {}
+
+    if not old_password:
+        errors["current_password"] = ["Current password is required."]
+    if not new_password:
+        errors["new_password"] = ["New password is required."]
+    if confirm_password is None or confirm_password == "":
+        errors["confirm_password"] = ["Please confirm your new password."]
+
+    if errors:
+        return Response({"errors": errors}, status=400)
 
     if not request.user.check_password(old_password):
-        return Response({"error": "Current password is incorrect."}, status=400)
+        return Response({"errors": {"current_password": ["Current password is incorrect."]}}, status=400)
+
+    if new_password != confirm_password:
+        return Response({"errors": {"confirm_password": ["New passwords do not match."]}}, status=400)
 
     if len(new_password) < 8:
-        return Response({"error": "New password must be at least 8 characters."}, status=400)
+        return Response({"errors": {"new_password": ["New password must be at least 8 characters."]}}, status=400)
+
+    try:
+        validate_password(new_password, request.user)
+    except ValidationError as exc:
+        return Response({"errors": {"new_password": list(exc.messages)}}, status=400)
 
     request.user.set_password(new_password)
     request.user.save()

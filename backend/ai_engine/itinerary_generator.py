@@ -4,6 +4,12 @@ from pathlib import Path
 from collections import defaultdict
 from copy import deepcopy
 from difflib import get_close_matches
+from typing import Dict
+
+try:
+    from destinations.models import GeoNameDestination
+except ImportError:
+    GeoNameDestination = None
 
 
 class ItineraryEngine:
@@ -23,6 +29,8 @@ class ItineraryEngine:
         "lower settlement",
         "gateway town",
     }
+
+    DEFAULT_MAP_CENTER = {"lat": 27.7172, "lng": 85.324}
 
     def __init__(self):
         base_dir = Path(__file__).resolve().parent
@@ -69,6 +77,9 @@ class ItineraryEngine:
             for key, value in alias_source.items()
             if value.lower() in self.dest_by_name
         }
+        self.destination_coords = self._load_destination_coordinates()
+        for dest in self.supported_destinations:
+            self._ensure_destination_coordinates(dest)
 
     def list_destinations(self):
         out = []
@@ -93,6 +104,9 @@ class ItineraryEngine:
                         if value == name
                     )
                 })
+                out[-1]["latitude"] = d.get("latitude", self.DEFAULT_MAP_CENTER["lat"])
+                out[-1]["longitude"] = d.get("longitude", self.DEFAULT_MAP_CENTER["lng"])
+                out[-1]["zoom"] = d.get("default_zoom", 11)
         return sorted(out, key=lambda item: item["name"].lower())
 
     def generate_itinerary(self, payload):
@@ -108,6 +122,7 @@ class ItineraryEngine:
         season = (payload.get("season") or "").strip().lower()
 
         destination_name, destination = self.resolve_destination(destination_input)
+        self._ensure_destination_coordinates(destination)
         start_name = self._resolve_destination_name(starting_place)
 
         if not destination:
@@ -164,6 +179,8 @@ class ItineraryEngine:
             "travel_tips": destination.get("travel_tips", []),
             "transport_notes": destination.get("transport_notes", ""),
             "recommended_stay": destination.get("accommodation_options", {}).get(hotel_level, []),
+            "latitude": destination.get("latitude", self.DEFAULT_MAP_CENTER["lat"]),
+            "longitude": destination.get("longitude", self.DEFAULT_MAP_CENTER["lng"]),
             "itinerary": itinerary
         }
 
@@ -178,6 +195,43 @@ class ItineraryEngine:
         normalized = re.sub(r"[^a-z0-9]+", " ", str(value or "").strip().lower())
         return " ".join(normalized.split())
 
+    def _load_destination_coordinates(self) -> Dict[str, Dict[str, float]]:
+        coords = {}
+        if GeoNameDestination is None:
+            return coords
+
+        try:
+            queryset = GeoNameDestination.objects.all().values("name", "latitude", "longitude")
+            for row in queryset:
+                name = row.get("name")
+                lat = row.get("latitude")
+                lng = row.get("longitude")
+                if not name or lat is None or lng is None:
+                    continue
+                norm = self._normalize_name(name)
+                if norm:
+                    coords[norm] = {"lat": float(lat), "lng": float(lng)}
+        except Exception:
+            pass
+
+        return coords
+
+    def _ensure_destination_coordinates(self, destination):
+        if not destination:
+            return
+        lat = destination.get("latitude")
+        lng = destination.get("longitude")
+        if lat is not None and lng is not None:
+            return
+        norm = self._normalize_name(destination.get("name", ""))
+        coords = self.destination_coords.get(norm)
+        if coords:
+            destination["latitude"] = coords["lat"]
+            destination["longitude"] = coords["lng"]
+            return
+        destination["latitude"] = destination.get("latitude", self.DEFAULT_MAP_CENTER["lat"])
+        destination["longitude"] = destination.get("longitude", self.DEFAULT_MAP_CENTER["lng"])
+
     def _resolve_destination_name(self, name):
         resolved_name, _ = self.resolve_destination(name)
         return resolved_name or name
@@ -191,10 +245,12 @@ class ItineraryEngine:
         if alias_match:
             destination = self.dest_by_name.get(alias_match.lower())
             if destination:
+                self._ensure_destination_coordinates(destination)
                 return destination.get("name", alias_match), destination
 
         destination = self.dest_by_normalized_name.get(key)
         if destination:
+            self._ensure_destination_coordinates(destination)
             return destination.get("name", name), destination
 
         return name, None

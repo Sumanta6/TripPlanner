@@ -1,0 +1,52 @@
+.tp-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tp-brand-mark {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tp-brand-mark-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.tp-brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tp-brand-name {
+  color: currentColor;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.tp-brand-subtitle {
+  color: var(--color-text-muted);
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tp-brand-compact .tp-brand-mark {
+  width: 40px;
+  height: 40px;
+}
+
+.tp-brand-compact .tp-brand-name {
+  font-size: 0.98rem;
+}
