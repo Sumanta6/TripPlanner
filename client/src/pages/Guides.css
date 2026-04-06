@@ -3,6 +3,7 @@
     padding: 3.5rem 1.5rem 5.5rem;
     background:
         radial-gradient(circle at top right, rgba(47, 127, 143, 0.08), transparent 28%),
+        radial-gradient(circle at top left, rgba(15, 23, 42, 0.04), transparent 22%),
         linear-gradient(180deg, var(--bg-light) 0%, #f5f8fb 100%);
     color: var(--text-dark);
     font-family: inherit;
@@ -14,7 +15,7 @@
 }
 
 .guides-header {
-    max-width: 760px;
+    max-width: 780px;
     margin: 0 auto 2rem;
 }
 
@@ -111,10 +112,19 @@
     height: 100%;
 }
 
+.guide-card-interactive {
+    cursor: pointer;
+}
+
 .guide-card:hover {
     transform: translateY(-6px);
     box-shadow: 0 26px 54px rgba(15, 23, 42, 0.14);
     border-color: rgba(47, 127, 143, 0.16);
+}
+
+.guide-card:focus-visible {
+    outline: 3px solid rgba(47, 127, 143, 0.24);
+    outline-offset: 4px;
 }
 
 .guide-card-top {
@@ -195,7 +205,8 @@
     border: 1px solid rgba(16, 185, 129, 0.14);
 }
 
-.availability-banner.booked {
+.availability-banner.booked,
+.availability-banner.limited {
     background: rgba(245, 158, 11, 0.12);
     color: #b86d09;
     border: 1px solid rgba(245, 158, 11, 0.14);
@@ -302,22 +313,13 @@
     border-radius: 14px;
     font-weight: 800;
     box-shadow: 0 14px 28px rgba(59, 130, 246, 0.16);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
 }
 
 .guide-cta:hover {
     transform: translateY(-2px);
-}
-
-.btn-disabled {
-    background: rgba(148, 163, 184, 0.12) !important;
-    color: rgba(100, 116, 139, 0.9) !important;
-    cursor: not-allowed !important;
-    border: 1px solid rgba(148, 163, 184, 0.16) !important;
-    box-shadow: none !important;
-}
-
-.btn-disabled:hover {
-    transform: none !important;
 }
 
 .empty-state-card {
@@ -345,41 +347,505 @@
     backdrop-filter: blur(10px);
 }
 
-.booking-modal {
-    width: 100%;
-    max-width: 560px;
+.guide-profile-modal {
+    width: min(1320px, 100%);
     position: relative;
-    max-height: 90vh;
-    overflow-y: auto;
-    border-radius: 26px;
-    padding: 2rem;
+    max-height: 92vh;
+    overflow: auto;
+    border-radius: 30px;
+    padding: 1.5rem;
+    background:
+        radial-gradient(circle at top right, rgba(47, 127, 143, 0.12), transparent 26%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(246, 249, 253, 0.98));
 }
 
-.modal-header h2 {
-    margin: 0 0 0.4rem;
-    font-size: 1.5rem;
-    letter-spacing: -0.03em;
+.guide-profile-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.8fr);
+    gap: 1.4rem;
+    align-items: start;
+}
+
+.guide-profile-main {
+    display: grid;
+    gap: 1rem;
+}
+
+.guide-profile-aside {
+    position: relative;
+}
+
+.guide-profile-loading {
+    min-height: 360px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .close-btn {
-    position: absolute;
-    top: 1.2rem;
-    right: 1.2rem;
-    width: 40px;
-    height: 40px;
+    position: sticky;
+    top: 0.5rem;
+    margin-left: auto;
+    right: 0;
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
     border: none;
-    background: rgba(15, 23, 42, 0.05);
+    background: rgba(15, 23, 42, 0.06);
     color: var(--text-gray);
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    z-index: 3;
 }
 
 .close-btn:hover {
     color: var(--text-dark);
-    background: rgba(15, 23, 42, 0.08);
+    background: rgba(15, 23, 42, 0.1);
+}
+
+.profile-alert {
+    margin-bottom: 1rem;
+}
+
+.guide-profile-hero,
+.guide-section,
+.booking-sticky-card {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 18px 38px rgba(15, 23, 42, 0.06);
+}
+
+.guide-profile-hero {
+    padding: 1.5rem;
+}
+
+.guide-profile-hero-top {
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: center;
+}
+
+.guide-profile-avatar-frame {
+    width: 140px;
+    height: 140px;
+    padding: 4px;
+    border-radius: 34px;
+    background: linear-gradient(135deg, rgba(47, 127, 143, 0.96), rgba(99, 102, 241, 0.36));
+    box-shadow: 0 20px 40px rgba(47, 127, 143, 0.22);
+}
+
+.guide-profile-avatar {
+    width: 100%;
+    height: 100%;
+    border-radius: 30px;
+    object-fit: cover;
+}
+
+.guide-profile-avatar-fallback {
+    background: linear-gradient(135deg, #1f6877, #2f7f8f);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: 800;
+}
+
+.guide-profile-hero-copy h2 {
+    margin: 0 0 0.4rem;
+    font-size: clamp(1.9rem, 4vw, 2.7rem);
+    line-height: 1.02;
+    letter-spacing: -0.04em;
+    color: var(--navy);
+}
+
+.guide-profile-subtitle {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+    color: var(--text-gray);
+    line-height: 1.65;
+}
+
+.guide-profile-hero-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.guide-profile-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.55rem 0.85rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.04);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.guide-confidence-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.9rem;
+    margin-top: 1.25rem;
+}
+
+.guide-confidence-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+    border-radius: 18px;
+    background: rgba(248, 250, 252, 0.9);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.guide-confidence-card strong,
+.guide-fact-card strong,
+.booking-summary-row strong,
+.review-tile strong {
+    color: var(--navy);
+}
+
+.guide-confidence-card p,
+.guide-section-head p,
+.guide-section-body,
+.guide-fact-card span,
+.booking-sticky-head p,
+.booking-login-hint,
+.review-tile p,
+.review-tile span {
+    margin: 0;
+    color: var(--text-gray);
+    line-height: 1.6;
+}
+
+.guide-confidence-icon,
+.guide-fact-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--teal);
+    background: rgba(47, 127, 143, 0.08);
+    flex-shrink: 0;
+}
+
+.guide-section {
+    padding: 1.35rem;
+}
+
+.guide-section-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.guide-section-head h3 {
+    margin: 0 0 0.2rem;
+    color: var(--navy);
+    font-size: 1.08rem;
+    letter-spacing: -0.02em;
+}
+
+.guide-section-body {
+    font-size: 0.97rem;
+}
+
+.guide-facts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+}
+
+.guide-fact-card {
+    display: grid;
+    gap: 0.35rem;
+    padding: 1rem;
+    border-radius: 18px;
+    background: rgba(248, 250, 252, 0.88);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.guide-fact-label {
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.guide-profile-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.guide-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+}
+
+.guide-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0.55rem 0.85rem;
+    border-radius: 999px;
+    background: rgba(47, 127, 143, 0.08);
+    border: 1px solid rgba(47, 127, 143, 0.12);
+    color: var(--navy);
+    font-weight: 700;
+    font-size: 0.88rem;
+}
+
+.availability-snapshot {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.availability-snapshot-card {
+    display: grid;
+    gap: 0.35rem;
+    padding: 1rem 1.1rem;
+    border-radius: 18px;
+    border: 1px solid transparent;
+}
+
+.availability-snapshot-card.available {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.14);
+    color: #0f8f61;
+}
+
+.availability-snapshot-card.booked,
+.availability-snapshot-card.limited {
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.14);
+    color: #b86d09;
+}
+
+.availability-snapshot-note {
+    font-size: 0.9rem;
+    color: var(--text-gray);
+}
+
+.premium-reviews {
+    background:
+        radial-gradient(circle at top right, rgba(99, 102, 241, 0.08), transparent 26%),
+        rgba(255, 255, 255, 0.8);
+}
+
+.reviews-overview {
+    display: grid;
+    grid-template-columns: minmax(250px, 0.8fr) minmax(0, 1.2fr);
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.reviews-score-card,
+.reviews-breakdown-card,
+.review-tile {
+    padding: 1.15rem;
+    border-radius: 20px;
+    background: rgba(248, 250, 252, 0.9);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.reviews-score-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.65rem;
+}
+
+.reviews-score-top strong {
+    font-size: 2.4rem;
+    line-height: 1;
+    color: var(--navy);
+}
+
+.reviews-stars {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: #f5b301;
+}
+
+.reviews-score-card p {
+    color: var(--text-gray);
+    margin: 0 0 0.9rem;
+    line-height: 1.65;
+}
+
+.reviews-score-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+}
+
+.reviews-score-meta span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 0.4rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.04);
+    color: var(--text-dark);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.reviews-breakdown-card {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.reviews-breakdown-row {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) 44px;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-dark);
+    font-size: 0.9rem;
+}
+
+.reviews-bar-track {
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.22);
+    overflow: hidden;
+}
+
+.reviews-bar-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #1f6877 0%, #2f7f8f 60%, #4f46e5 100%);
+}
+
+.review-tiles {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.review-tile {
+    transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease;
+}
+
+.review-tile:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+    border-color: rgba(47, 127, 143, 0.12);
+}
+
+.review-tile-head {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 0.8rem;
+}
+
+.review-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    color: white;
+    background: linear-gradient(135deg, #1f6877, #6366f1);
+    overflow: hidden;
+}
+
+.review-avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.review-date {
+    font-size: 0.78rem;
+    color: var(--text-gray);
+    font-weight: 700;
+}
+
+.review-verified-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 30px;
+    margin-bottom: 0.75rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    background: rgba(47, 127, 143, 0.08);
+    color: var(--teal);
+    border: 1px solid rgba(47, 127, 143, 0.12);
+    font-size: 0.76rem;
+    font-weight: 800;
+}
+
+.review-tile-empty {
+    grid-column: 1 / -1;
+}
+
+.booking-sticky-card {
+    position: sticky;
+    top: 1rem;
+    padding: 1.3rem;
+}
+
+.booking-sticky-head h3 {
+    margin: 0 0 0.35rem;
+    color: var(--navy);
+    font-size: 1.3rem;
+    letter-spacing: -0.03em;
+}
+
+.booking-itinerary-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0.95rem 0 1rem;
+    padding: 0.5rem 0.85rem;
+    border-radius: 999px;
+    background: rgba(47, 127, 143, 0.08);
+    color: var(--teal);
+    border: 1px solid rgba(47, 127, 143, 0.12);
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.booking-form {
+    display: grid;
+    gap: 0.95rem;
+}
+
+.booking-summary-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    font-size: 0.92rem;
+    color: var(--text-gray);
+}
+
+.booking-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
 }
 
 .form-group label {
@@ -399,17 +865,93 @@
     font-weight: 500;
 }
 
-@media (max-width: 1024px) {
+.alert-warning {
+    background: rgba(245, 158, 11, 0.12);
+    color: #b86d09;
+    padding: 0.875rem;
+    border-radius: 12px;
+    border: 1px solid rgba(245, 158, 11, 0.16);
+    font-size: 0.875rem;
+    font-weight: 600;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+}
+
+.guide-profile-submit {
+    min-height: 52px;
+    justify-content: center;
+    border-radius: 14px;
+    font-weight: 800;
+    box-shadow: 0 14px 28px rgba(59, 130, 246, 0.16);
+}
+
+.booking-login-hint {
+    font-size: 0.84rem;
+    text-align: center;
+}
+
+.booking-success-panel {
+    min-height: 220px;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    gap: 0.55rem;
+    color: #0f8f61;
+}
+
+.booking-success-panel h4 {
+    margin: 0;
+    color: var(--navy);
+}
+
+.btn-disabled {
+    background: rgba(148, 163, 184, 0.12) !important;
+    color: rgba(100, 116, 139, 0.9) !important;
+    cursor: not-allowed !important;
+    border: 1px solid rgba(148, 163, 184, 0.16) !important;
+    box-shadow: none !important;
+}
+
+.btn-disabled:hover {
+    transform: none !important;
+}
+
+@media (max-width: 1180px) {
     .guides-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .guide-profile-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .guide-profile-aside {
+        order: -1;
+    }
+
+    .booking-sticky-card {
+        position: static;
+    }
+
+    .review-tiles {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 1024px) {
     .guides-filters {
         grid-template-columns: 1fr 1fr;
     }
 
     .guides-filter-search {
         grid-column: 1 / -1;
+    }
+
+    .guide-confidence-grid,
+    .guide-profile-detail-grid,
+    .reviews-overview {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -419,7 +961,9 @@
     }
 
     .guides-grid,
-    .guides-filters {
+    .guides-filters,
+    .guide-facts-grid,
+    .booking-form-grid {
         grid-template-columns: 1fr;
     }
 
@@ -427,12 +971,37 @@
         padding: 1.25rem;
     }
 
+    .guide-card-top,
+    .guide-profile-hero-top {
+        grid-template-columns: 1fr;
+    }
+
     .guide-card-top {
         align-items: center;
     }
 
-    .booking-modal {
-        padding: 1.5rem;
+    .guide-profile-modal {
+        padding: 1rem;
+        border-radius: 24px;
+    }
+
+    .guide-profile-hero,
+    .guide-section,
+    .booking-sticky-card {
+        border-radius: 20px;
+    }
+
+    .guide-profile-avatar-frame {
+        width: 108px;
+        height: 108px;
+    }
+
+    .review-tile-head {
+        grid-template-columns: auto 1fr;
+    }
+
+    .review-date {
+        grid-column: 2;
     }
 }
 
@@ -449,8 +1018,13 @@
     .meta-row,
     .guides-filter-search input,
     .guides-filter-select select,
-    .modal-header h2,
-    .form-group label {
+    .guide-profile-hero-copy h2,
+    .guide-section-head h3,
+    .booking-sticky-head h3,
+    .form-group label,
+    .reviews-breakdown-row,
+    .reviews-score-meta span,
+    .guide-profile-stat {
         color: #edf3fb;
     }
 
@@ -459,14 +1033,29 @@
     .guide-bio,
     .meta-label,
     .close-btn,
-    .text-muted {
+    .text-muted,
+    .guide-section-head p,
+    .guide-section-body,
+    .guide-confidence-card p,
+    .guide-fact-card span,
+    .availability-snapshot-note,
+    .booking-sticky-head p,
+    .booking-summary-row,
+    .booking-login-hint,
+    .reviews-score-card p,
+    .review-tile p,
+    .review-tile span,
+    .review-date {
         color: rgba(214, 226, 240, 0.72) !important;
     }
 
     .guides-filters,
     .guide-card,
     .empty-state-card,
-    .booking-modal {
+    .guide-profile-modal,
+    .guide-profile-hero,
+    .guide-section,
+    .booking-sticky-card {
         background:
             radial-gradient(circle at top right, rgba(89, 182, 196, 0.08), transparent 28%),
             linear-gradient(180deg, rgba(20, 31, 47, 0.96) 0%, rgba(15, 24, 36, 0.99) 100%);
@@ -480,19 +1069,27 @@
     .guides-filter-select,
     .guide-meta,
     .guide-stat-pill,
-    .close-btn {
+    .close-btn,
+    .guide-confidence-card,
+    .guide-fact-card,
+    .reviews-score-card,
+    .reviews-breakdown-card,
+    .review-tile,
+    .guide-profile-stat {
         background: rgba(18, 29, 44, 0.92);
         border-color: rgba(155, 180, 208, 0.12);
     }
 
-    .guide-card:hover {
+    .guide-card:hover,
+    .review-tile:hover {
         border-color: rgba(89, 182, 196, 0.2);
         box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.03),
             0 28px 58px rgba(0, 0, 0, 0.42);
     }
 
-    .guide-avatar-frame {
+    .guide-avatar-frame,
+    .guide-profile-avatar-frame {
         background: linear-gradient(135deg, rgba(89, 182, 196, 0.94), rgba(88, 97, 255, 0.38));
     }
 
@@ -500,18 +1097,41 @@
         border-color: #132132;
     }
 
-    .guide-stat-pill,
-    .meta-row {
-        color: #edf3fb;
-    }
-
-    .availability-banner.available {
+    .availability-banner.available,
+    .availability-snapshot-card.available {
         background: rgba(16, 185, 129, 0.14);
         color: #9cf0d3;
         border-color: rgba(16, 185, 129, 0.18);
     }
 
-    .availability-banner.booked {
+    .availability-banner.booked,
+    .availability-banner.limited,
+    .availability-snapshot-card.booked,
+    .availability-snapshot-card.limited {
+        background: rgba(245, 158, 11, 0.14);
+        color: #ffd089;
+        border-color: rgba(245, 158, 11, 0.18);
+    }
+
+    .guide-chip,
+    .booking-itinerary-pill,
+    .review-verified-badge {
+        background: rgba(89, 182, 196, 0.12);
+        color: #d9f5f8;
+        border-color: rgba(89, 182, 196, 0.18);
+    }
+
+    .guide-confidence-icon,
+    .guide-fact-icon {
+        background: rgba(89, 182, 196, 0.12);
+        color: #8de2ec;
+    }
+
+    .reviews-bar-track {
+        background: rgba(71, 85, 105, 0.5);
+    }
+
+    .alert-warning {
         background: rgba(245, 158, 11, 0.14);
         color: #ffd089;
         border-color: rgba(245, 158, 11, 0.18);

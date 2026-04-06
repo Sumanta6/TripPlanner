@@ -1,4 +1,5 @@
 import json
+import math
 import re
 from pathlib import Path
 from collections import defaultdict
@@ -159,6 +160,9 @@ class ItineraryEngine:
                 planning_mode=planning_mode
             )
 
+        route_stops = self._build_route_stops(itinerary, destination, starting_place)
+        route_summary = self._build_route_summary(route_stops)
+
         return {
             "success": True,
             "message": f"Itinerary generated for {destination.get('name')}.",
@@ -181,7 +185,9 @@ class ItineraryEngine:
             "recommended_stay": destination.get("accommodation_options", {}).get(hotel_level, []),
             "latitude": destination.get("latitude", self.DEFAULT_MAP_CENTER["lat"]),
             "longitude": destination.get("longitude", self.DEFAULT_MAP_CENTER["lng"]),
-            "itinerary": itinerary
+            "itinerary": itinerary,
+            "route_stops": route_stops,
+            "route_summary": route_summary,
         }
 
     def _normalize_list(self, value):
@@ -235,6 +241,194 @@ class ItineraryEngine:
     def _resolve_destination_name(self, name):
         resolved_name, _ = self.resolve_destination(name)
         return resolved_name or name
+
+    def _extract_route_target(self, value):
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        cleaned = re.sub(r"^route\s*(from)?\s*:?", "", text, flags=re.IGNORECASE).strip()
+        if " to " in cleaned.lower():
+            parts = re.split(r"\bto\b", cleaned, flags=re.IGNORECASE)
+            return parts[-1].strip() or cleaned
+        return cleaned
+
+    def _candidate_location_labels(self, schedule_item):
+        labels = []
+        for source in (
+            schedule_item.get("place"),
+            schedule_item.get("route"),
+            schedule_item.get("title"),
+            schedule_item.get("details"),
+        ):
+            if not source:
+                continue
+            labels.append(str(source).strip())
+            labels.append(self._extract_route_target(source))
+        deduped = []
+        seen = set()
+        for label in labels:
+            normalized = self._normalize_name(label)
+            if label and normalized and normalized not in seen:
+                deduped.append(label)
+                seen.add(normalized)
+        return deduped
+
+    def _find_coords_for_label(self, label):
+        if not label:
+            return None
+
+        route_target = self._extract_route_target(label)
+        candidates = [label]
+        if route_target and route_target != label:
+            candidates.insert(0, route_target)
+
+        for candidate in candidates:
+            resolved_name, destination = self.resolve_destination(candidate)
+            if destination and destination.get("latitude") is not None and destination.get("longitude") is not None:
+                return {
+                    "name": destination.get("name", resolved_name or candidate),
+                    "lat": float(destination["latitude"]),
+                    "lng": float(destination["longitude"]),
+                }
+
+            normalized = self._normalize_name(candidate)
+            if normalized in self.destination_coords:
+                coords = self.destination_coords[normalized]
+                return {
+                    "name": candidate,
+                    "lat": float(coords["lat"]),
+                    "lng": float(coords["lng"]),
+                }
+
+            close_matches = get_close_matches(normalized, list(self.destination_coords.keys()), n=1, cutoff=0.84)
+            if close_matches:
+                coords = self.destination_coords[close_matches[0]]
+                return {
+                    "name": candidate,
+                    "lat": float(coords["lat"]),
+                    "lng": float(coords["lng"]),
+                }
+
+        return None
+
+    def _infer_stop_type(self, schedule_item):
+        category = self._normalize_name(schedule_item.get("category", ""))
+        text = " ".join(
+            str(schedule_item.get(key, "")).lower()
+            for key in ("place", "title", "details", "route")
+        )
+
+        if "hotel" in text or "overnight" in text or category == "overnight":
+            return "hotel"
+        if "trailhead" in text:
+            return "trailhead"
+        if "temple" in text or "stupa" in text or "monastery" in text:
+            return "temple"
+        if "restaurant" in text or "dinner" in text or "cafe" in text or "food" in text:
+            return "restaurant"
+        if "view" in text or "viewpoint" in text or "sunrise" in text or "sunset" in text:
+            return "viewpoint"
+        if category in {"travel", "route", "departure", "flight"}:
+            return "transfer"
+        return "activity"
+
+    def _build_route_stops(self, itinerary, destination, starting_place):
+        route_stops = []
+        last_key = None
+        destination_coords = {
+            "lat": float(destination.get("latitude", self.DEFAULT_MAP_CENTER["lat"])),
+            "lng": float(destination.get("longitude", self.DEFAULT_MAP_CENTER["lng"])),
+        }
+
+        order = 1
+        for day in itinerary:
+            day_number = day.get("day")
+            for schedule_item in day.get("schedule", []):
+                coords = None
+                resolved_name = ""
+                for label in self._candidate_location_labels(schedule_item):
+                    coords = self._find_coords_for_label(label)
+                    if coords:
+                        resolved_name = coords["name"]
+                        break
+
+                if not coords:
+                    if not route_stops:
+                        coords = {
+                            "name": starting_place or destination.get("name", "Start"),
+                            "lat": destination_coords["lat"],
+                            "lng": destination_coords["lng"],
+                        }
+                    else:
+                        continue
+
+                key = (round(coords["lat"], 5), round(coords["lng"], 5), self._normalize_name(resolved_name or schedule_item.get("place")))
+                if key == last_key:
+                    continue
+
+                route_stops.append({
+                    "order": order,
+                    "day": day_number,
+                    "name": resolved_name or schedule_item.get("place") or schedule_item.get("title") or destination.get("name", "Stop"),
+                    "latitude": coords["lat"],
+                    "longitude": coords["lng"],
+                    "stop_type": self._infer_stop_type(schedule_item),
+                    "time_of_day": schedule_item.get("time", "Flexible"),
+                    "note": schedule_item.get("details", ""),
+                })
+                order += 1
+                last_key = key
+
+        if not route_stops:
+            route_stops.append({
+                "order": 1,
+                "day": 1,
+                "name": destination.get("name", "Destination"),
+                "latitude": destination_coords["lat"],
+                "longitude": destination_coords["lng"],
+                "stop_type": "destination",
+                "time_of_day": "Flexible",
+                "note": f"Destination overview for {destination.get('name', 'the trip')}.",
+            })
+
+        return route_stops
+
+    def _haversine_km(self, lat1, lng1, lat2, lng2):
+        radius_km = 6371.0
+        d_lat = math.radians(lat2 - lat1)
+        d_lng = math.radians(lng2 - lng1)
+        a = (
+            math.sin(d_lat / 2) ** 2
+            + math.cos(math.radians(lat1))
+            * math.cos(math.radians(lat2))
+            * math.sin(d_lng / 2) ** 2
+        )
+        return radius_km * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    def _build_route_summary(self, route_stops):
+        if not route_stops:
+            return {
+                "stop_count": 0,
+                "route_mode": "destination_preview",
+                "distance_km": 0,
+                "has_connected_path": False,
+            }
+
+        distance_km = 0.0
+        for current, nxt in zip(route_stops, route_stops[1:]):
+            distance_km += self._haversine_km(
+                current["latitude"],
+                current["longitude"],
+                nxt["latitude"],
+                nxt["longitude"],
+            )
+
+        return {
+            "stop_count": len(route_stops),
+            "route_mode": "stop_preview" if len(route_stops) > 1 else "destination_preview",
+            "distance_km": round(distance_km, 1),
+            "has_connected_path": len(route_stops) > 1,
+        }
 
     def resolve_destination(self, name):
         key = self._normalize_name(name)

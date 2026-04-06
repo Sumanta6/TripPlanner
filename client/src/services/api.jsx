@@ -86,9 +86,27 @@ export async function getGuides(params = {}) {
     return data;
 }
 
+/** GET /api/guides/:id/ – fetch public detail for one guide */
+export async function getGuideById(guideId, params = {}) {
+    const { data } = await api.get(`/api/guides/${guideId}/`, { params });
+    return data;
+}
+
+/** GET /api/guides/:id/reviews/ – fetch verified guide reviews */
+export async function getGuideReviews(guideId) {
+    const { data } = await api.get(`/api/guides/${guideId}/reviews/`);
+    return data;
+}
+
 /** POST /api/guides/:id/request/ – request to book a guide */
 export async function requestGuideWithItinerary(guideId, bookingData) {
     const { data } = await api.post(`/api/guides/${guideId}/request/`, bookingData);
+    return data;
+}
+
+/** POST /api/guides/reviews/ – create verified review */
+export async function createGuideReview(payload) {
+    const { data } = await api.post("/api/guides/reviews/", payload);
     return data;
 }
 

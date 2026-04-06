@@ -3,264 +3,1481 @@
 
 <head>
   <meta charset="UTF-8" />
-  <title>TripPlanner · Choose Your Portal</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TripPlanner · Smart Travel Platform</title>
+  <meta
+    name="description"
+    content="TripPlanner is the premium entry point for travelers planning smarter trips and guides running professional travel operations."
+  />
   <style>
-    *,
-    *::before,
-    *::after {
+    :root {
+      color-scheme: dark;
+      --bg: #07111c;
+      --bg-soft: #0c1725;
+      --panel: rgba(11, 22, 36, 0.76);
+      --panel-strong: rgba(8, 17, 29, 0.92);
+      --panel-light: rgba(255, 255, 255, 0.05);
+      --line: rgba(174, 200, 226, 0.14);
+      --line-strong: rgba(174, 200, 226, 0.24);
+      --text: #f4f8fc;
+      --muted: #9bafc5;
+      --brand: #69d1df;
+      --brand-strong: #4e7bff;
+      --accent: #f3a365;
+      --accent-soft: #ffd7b4;
+      --success: #92dfbd;
+      --shadow: 0 28px 70px rgba(0, 0, 0, 0.28);
+      --shadow-soft: 0 16px 34px rgba(0, 0, 0, 0.2);
+      --radius-xl: 34px;
+      --radius-lg: 26px;
+      --radius-md: 18px;
+      --radius-sm: 14px;
+      --max: 1240px;
+    }
+
+    * {
       box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
     }
 
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-        sans-serif;
-      background: radial-gradient(circle at top, #0f172a 0, #020617 55%);
-      color: #f9fafb;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px 16px;
+      font-family: Manrope, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(78, 123, 255, 0.16), transparent 24%),
+        radial-gradient(circle at 88% 8%, rgba(243, 163, 101, 0.12), transparent 18%),
+        radial-gradient(circle at 15% 85%, rgba(105, 209, 223, 0.14), transparent 26%),
+        linear-gradient(180deg, #06111c 0%, #09131f 42%, #08111b 100%);
+      overflow-x: hidden;
     }
 
-    .shell {
-      width: 100%;
-      max-width: 960px;
+    a {
+      color: inherit;
+      text-decoration: none;
     }
 
-    .header {
+    img {
+      display: block;
+      max-width: 100%;
+    }
+
+    .page {
+      position: relative;
+      isolation: isolate;
+    }
+
+    .page::before,
+    .page::after {
+      content: "";
+      position: fixed;
+      inset: auto;
+      width: 360px;
+      height: 360px;
+      border-radius: 999px;
+      filter: blur(28px);
+      z-index: -1;
+      pointer-events: none;
+      opacity: 0.48;
+    }
+
+    .page::before {
+      top: 120px;
+      left: -120px;
+      background: rgba(105, 209, 223, 0.24);
+    }
+
+    .page::after {
+      right: -120px;
+      bottom: 140px;
+      background: rgba(243, 163, 101, 0.16);
+    }
+
+    .container {
+      width: min(var(--max), calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .navbar-shell {
+      position: sticky;
+      top: 0;
+      z-index: 24;
+      padding: 18px 0 0;
+      backdrop-filter: blur(10px);
+    }
+
+    .navbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 32px;
+      gap: 18px;
+      padding: 14px 18px 14px 20px;
+      border-radius: 999px;
+      background: rgba(8, 17, 29, 0.72);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-soft);
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 12px;
+      min-width: 0;
     }
 
-    .brand-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 999px;
-      background: #22c55e;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
+    .brand-mark {
+      width: 46px;
+      height: 46px;
+      border-radius: 16px;
+      background:
+        linear-gradient(145deg, #4e7bff 0%, #69d1df 56%, #f3a365 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.32),
+        0 14px 28px rgba(78, 123, 255, 0.26);
+      display: grid;
+      place-items: center;
+      color: #06111b;
+      font-size: 20px;
+      font-weight: 900;
     }
 
-    .brand-title {
-      font-weight: 600;
-      font-size: 18px;
+    .brand-copy strong {
+      display: block;
+      font-size: 17px;
+      letter-spacing: -0.03em;
     }
 
-    .brand-subtitle {
-      font-size: 13px;
-      color: #9ca3af;
+    .brand-copy span {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
     }
 
-    .header-right {
-      font-size: 12px;
-      color: #9ca3af;
-    }
-
-    .hero {
-      text-align: left;
-      margin-bottom: 24px;
-    }
-
-    .hero h1 {
-      margin: 0 0 8px;
-      font-size: 30px;
-    }
-
-    .hero p {
-      margin: 0;
-      font-size: 14px;
-      color: #cbd5f5;
-      max-width: 520px;
-    }
-
-    .cards {
-      display: flex;
-      gap: 20px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    .card {
-      flex: 1 1 280px;
-      max-width: 420px;
-      background: rgba(15, 23, 42, 0.96);
-      border-radius: 18px;
-      border: 1px solid rgba(148, 163, 184, 0.5);
-      padding: 18px 18px 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .card-header {
+    .nav-links,
+    .nav-actions,
+    .hero-actions,
+    .hero-proof,
+    .dual-actions,
+    .final-actions,
+    .visual-footer,
+    .stat-row {
       display: flex;
       align-items: center;
       gap: 10px;
-    }
-
-    .card-icon {
-      width: 40px;
-      height: 40px;
-      border-radius: 999px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(30, 64, 175, 0.35);
-      font-size: 20px;
-    }
-
-    .card h2 {
-      margin: 0;
-      font-size: 20px;
-    }
-
-    .card p {
-      margin: 2px 0 10px;
-      font-size: 14px;
-      color: #e5e7eb;
-    }
-
-    .card-actions {
-      display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+    }
+
+    .nav-links {
+      justify-content: center;
+    }
+
+    .nav-links a {
+      padding: 10px 14px;
+      border-radius: 999px;
+      color: #d9e7f4;
+      font-size: 14px;
+      font-weight: 700;
+      transition: background 0.22s ease, color 0.22s ease, transform 0.22s ease;
+    }
+
+    .nav-links a:hover,
+    .nav-links a:focus-visible {
+      background: rgba(255, 255, 255, 0.06);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    .nav-actions {
+      justify-content: flex-end;
     }
 
     .btn {
-      border-radius: 999px;
-      padding: 8px 16px;
-      font-size: 14px;
-      cursor: pointer;
-      border: none;
-      text-decoration: none;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 10px;
+      min-height: 48px;
+      padding: 0 18px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease, border-color 0.22s ease;
+      white-space: nowrap;
     }
 
-    .btn-primary {
-      background: #22c55e;
-      color: #022c22;
+    .btn:hover,
+    .btn:focus-visible {
+      transform: translateY(-2px);
     }
 
     .btn-secondary {
-      background: transparent;
-      color: #e5e7eb;
-      border: 1px solid rgba(148, 163, 184, 0.7);
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--line);
+      color: #eff6fc;
     }
 
-    .hint {
-      margin-top: 18px;
+    .btn-primary {
+      color: #07111b;
+      background: linear-gradient(135deg, #f5fbff 0%, #69d1df 100%);
+      box-shadow: 0 16px 34px rgba(105, 209, 223, 0.22);
+    }
+
+    .btn-traveler {
+      color: #07111b;
+      background: linear-gradient(135deg, #6ad2df 0%, #b7f4ff 100%);
+      box-shadow: 0 16px 34px rgba(105, 209, 223, 0.22);
+    }
+
+    .btn-guide {
+      color: #2f1702;
+      background: linear-gradient(135deg, #f3a365 0%, #ffd4b0 100%);
+      box-shadow: 0 16px 34px rgba(243, 163, 101, 0.2);
+    }
+
+    .hero {
+      padding: 70px 0 46px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.02fr) minmax(440px, 0.98fr);
+      gap: 34px;
+      align-items: center;
+    }
+
+    .eyebrow,
+    .micro-pill,
+    .path-eyebrow,
+    .metric-tag,
+    .review-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 14px;
+      border-radius: 999px;
       font-size: 12px;
-      color: #64748b;
-      text-align: left;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border: 1px solid rgba(174, 200, 226, 0.14);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .eyebrow {
+      color: #abedf5;
+      background: rgba(105, 209, 223, 0.08);
+      border-color: rgba(105, 209, 223, 0.14);
+    }
+
+    .hero-copy h1 {
+      margin: 18px 0 16px;
+      max-width: 720px;
+      font-size: clamp(3rem, 6vw, 5.25rem);
+      line-height: 0.96;
+      letter-spacing: -0.065em;
+    }
+
+    .hero-copy p {
+      margin: 0;
+      max-width: 640px;
+      color: #bccbdb;
+      font-size: 18px;
+      line-height: 1.8;
+    }
+
+    .hero-actions {
+      margin-top: 30px;
+    }
+
+    .hero-proof {
+      margin-top: 24px;
+    }
+
+    .micro-pill {
+      color: #e8f4ff;
+      letter-spacing: 0;
+      text-transform: none;
+      font-size: 13px;
+      font-weight: 700;
+      min-height: 40px;
+    }
+
+    .visual-panel,
+    .surface-card,
+    .highlight-card,
+    .path-card,
+    .step-card,
+    .trust-card,
+    .final-card {
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--line);
+      background:
+        radial-gradient(circle at top right, rgba(105, 209, 223, 0.08), transparent 24%),
+        var(--panel);
+      box-shadow: var(--shadow-soft);
+      backdrop-filter: blur(14px);
+    }
+
+    .visual-panel {
+      position: relative;
+      overflow: hidden;
+      padding: 24px;
+      min-height: 620px;
+      background:
+        radial-gradient(circle at 100% 0%, rgba(243, 163, 101, 0.14), transparent 22%),
+        radial-gradient(circle at 0% 24%, rgba(78, 123, 255, 0.18), transparent 26%),
+        linear-gradient(180deg, rgba(8, 16, 28, 0.96), rgba(8, 17, 29, 0.94));
+      box-shadow: var(--shadow);
+    }
+
+    .visual-panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 42%),
+        radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.12), transparent 18%);
+      pointer-events: none;
+    }
+
+    .visual-shell {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 18px;
+    }
+
+    .visual-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(174, 200, 226, 0.1);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .window-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .window-dots span {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.32);
+    }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #dff8ff;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .live-badge::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--success);
+      box-shadow: 0 0 0 6px rgba(146, 223, 189, 0.16);
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: minmax(0, 1.16fr) minmax(240px, 0.84fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .surface-card {
+      padding: 22px;
+    }
+
+    .planner-card {
+      display: grid;
+      gap: 18px;
+    }
+
+    .planner-head,
+    .trust-head,
+    .path-head,
+    .step-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .planner-head strong,
+    .path-head strong {
+      display: block;
+      font-size: 1.35rem;
+      letter-spacing: -0.035em;
+    }
+
+    .planner-head span,
+    .path-head span,
+    .trust-card p,
+    .step-card p,
+    .highlight-card p,
+    .section-intro p,
+    .review-card p,
+    .metric-row span,
+    .mini-card p {
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .metric-tag {
+      color: #b6f1f7;
+      background: rgba(105, 209, 223, 0.1);
+      border-color: rgba(105, 209, 223, 0.14);
+    }
+
+    .planner-grid,
+    .highlight-grid,
+    .steps-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .planner-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .mini-card {
+      padding: 16px;
+      border-radius: 20px;
+      border: 1px solid rgba(174, 200, 226, 0.08);
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .mini-card span {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .mini-card strong {
+      display: block;
+      font-size: 1rem;
+      line-height: 1.45;
+    }
+
+    .sequence-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .sequence-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      padding: 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(174, 200, 226, 0.08);
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .sequence-index {
+      width: 36px;
+      height: 36px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(145deg, #69d1df 0%, #4e7bff 100%);
+      color: #06111b;
+      font-size: 12px;
+      font-weight: 900;
+      box-shadow: 0 12px 22px rgba(78, 123, 255, 0.22);
+    }
+
+    .sequence-copy strong {
+      display: block;
+      font-size: 15px;
+      line-height: 1.3;
+    }
+
+    .sequence-copy span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .side-stack {
+      display: grid;
+      gap: 18px;
+    }
+
+    .showcase-card {
+      position: relative;
+      min-height: 250px;
+      overflow: hidden;
+      padding: 18px;
+      border-radius: 24px;
+      border: 1px solid rgba(174, 200, 226, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .showcase-card img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0.94;
+    }
+
+    .showcase-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(8, 17, 29, 0.08), rgba(8, 17, 29, 0.88)),
+        radial-gradient(circle at 26% 26%, rgba(255, 255, 255, 0.14), transparent 18%);
+    }
+
+    .showcase-copy {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 18px;
+      z-index: 1;
+      padding: 16px;
+      border-radius: 20px;
+      background: rgba(8, 17, 29, 0.74);
+      border: 1px solid rgba(174, 200, 226, 0.12);
+      backdrop-filter: blur(12px);
+    }
+
+    .showcase-copy span {
+      display: block;
+      color: #afedf4;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .showcase-copy strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 1.08rem;
+      letter-spacing: -0.03em;
+    }
+
+    .showcase-copy p {
+      margin: 8px 0 0;
+      font-size: 13px;
+      color: #d5e3ef;
+      line-height: 1.65;
+    }
+
+    .guide-stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .guide-row,
+    .review-card,
+    .metric-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(174, 200, 226, 0.08);
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .guide-row-main,
+    .review-main {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .avatar,
+    .review-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      color: #06111b;
+      font-size: 14px;
+      font-weight: 900;
+      background: linear-gradient(145deg, #69d1df 0%, #f3a365 100%);
+      box-shadow: 0 12px 22px rgba(105, 209, 223, 0.18);
+      flex-shrink: 0;
+    }
+
+    .guide-copy strong,
+    .review-copy strong {
+      display: block;
+      font-size: 14px;
+      line-height: 1.25;
+    }
+
+    .guide-copy span,
+    .review-copy span {
+      display: block;
+      margin-top: 5px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .score-pill,
+    .review-pill {
+      flex-shrink: 0;
+    }
+
+    .score-pill {
+      min-height: 36px;
+      padding: 0 12px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(174, 200, 226, 0.08);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .section {
+      padding: 48px 0;
+    }
+
+    .section-intro {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .section-intro h2,
+    .final-card h2 {
+      margin: 0 0 10px;
+      font-size: clamp(2.15rem, 4vw, 3rem);
+      line-height: 1.02;
+      letter-spacing: -0.055em;
+    }
+
+    .section-intro p,
+    .final-card p {
+      margin: 0;
+      max-width: 650px;
+      font-size: 16px;
+    }
+
+    .highlight-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .highlight-card,
+    .step-card,
+    .trust-card,
+    .path-card {
+      padding: 24px;
+      transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+    }
+
+    .highlight-card:hover,
+    .path-card:hover,
+    .step-card:hover,
+    .trust-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--line-strong);
+      box-shadow: var(--shadow);
+    }
+
+    .highlight-icon,
+    .step-index {
+      width: 48px;
+      height: 48px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      background: rgba(105, 209, 223, 0.1);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    }
+
+    .highlight-card h3,
+    .path-card h3,
+    .step-card h3,
+    .trust-card h3 {
+      margin: 18px 0 10px;
+      font-size: 1.16rem;
+      letter-spacing: -0.03em;
+    }
+
+    .dual-grid,
+    .trust-grid {
+      display: grid;
+      gap: 22px;
+    }
+
+    .dual-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .path-card {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .path-card::before {
+      content: "";
+      position: absolute;
+      right: -28px;
+      bottom: -62px;
+      width: 200px;
+      height: 200px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      pointer-events: none;
+    }
+
+    .path-card[data-path="traveler"] {
+      background:
+        radial-gradient(circle at top right, rgba(105, 209, 223, 0.12), transparent 26%),
+        linear-gradient(180deg, rgba(9, 20, 33, 0.92), rgba(8, 16, 27, 0.96));
+    }
+
+    .path-card[data-path="guide"] {
+      background:
+        radial-gradient(circle at top right, rgba(243, 163, 101, 0.14), transparent 24%),
+        linear-gradient(180deg, rgba(18, 21, 32, 0.94), rgba(10, 14, 22, 0.98));
+    }
+
+    .path-eyebrow {
+      color: #f1f7ff;
+    }
+
+    .path-benefits {
+      display: grid;
+      gap: 12px;
+      margin: 22px 0 26px;
+    }
+
+    .path-benefit {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 14px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(174, 200, 226, 0.08);
+      color: #eef7ff;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .path-benefit span {
+      font-size: 17px;
+      flex-shrink: 0;
+    }
+
+    .steps-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .step-index {
+      color: #07111b;
+      font-size: 13px;
+      font-weight: 900;
+      background: linear-gradient(145deg, #69d1df 0%, #4e7bff 100%);
+      box-shadow: 0 12px 22px rgba(78, 123, 255, 0.22);
+    }
+
+    .trust-grid {
+      grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
+      align-items: stretch;
+    }
+
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    .gallery-tile {
+      position: relative;
+      overflow: hidden;
+      min-height: 190px;
+      border-radius: 24px;
+      border: 1px solid rgba(174, 200, 226, 0.1);
+      box-shadow: var(--shadow-soft);
+      background-size: cover;
+      background-position: center;
+    }
+
+    .gallery-tile::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(8, 17, 29, 0.06), rgba(8, 17, 29, 0.88));
+    }
+
+    .gallery-copy {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 18px;
+      z-index: 1;
+    }
+
+    .gallery-copy strong {
+      display: block;
+      font-size: 1rem;
+      letter-spacing: -0.03em;
+    }
+
+    .gallery-copy span {
+      display: block;
+      margin-top: 6px;
+      font-size: 13px;
+      color: #d8e5f1;
+      line-height: 1.6;
+    }
+
+    .metric-stack {
+      display: grid;
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .metric-row strong {
+      display: block;
+      font-size: 1.3rem;
+      letter-spacing: -0.03em;
+    }
+
+    .review-pill {
+      color: var(--success);
+      background: rgba(146, 223, 189, 0.1);
+      border-color: rgba(146, 223, 189, 0.14);
+      letter-spacing: 0.04em;
+    }
+
+    .review-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .review-card {
+      align-items: flex-start;
+    }
+
+    .review-card p {
+      margin: 8px 0 0;
+      font-size: 13px;
+    }
+
+    .final-card {
+      padding: 34px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 24px;
+      align-items: center;
+      background:
+        radial-gradient(circle at top right, rgba(105, 209, 223, 0.14), transparent 24%),
+        radial-gradient(circle at bottom left, rgba(243, 163, 101, 0.14), transparent 20%),
+        linear-gradient(180deg, rgba(10, 19, 31, 0.92), rgba(8, 15, 26, 0.98));
+    }
+
+    .footer {
+      padding: 24px 0 42px;
+    }
+
+    .footer-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(174, 200, 226, 0.1);
+    }
+
+    .footer-bar p,
+    .footer-bar span {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      animation: revealUp 0.85s ease forwards;
+    }
+
+    .delay-1 {
+      animation-delay: 0.08s;
+    }
+
+    .delay-2 {
+      animation-delay: 0.16s;
+    }
+
+    .delay-3 {
+      animation-delay: 0.24s;
+    }
+
+    .delay-4 {
+      animation-delay: 0.32s;
+    }
+
+    @keyframes revealUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 1120px) {
+      .hero-grid,
+      .dashboard,
+      .trust-grid,
+      .final-card {
+        grid-template-columns: 1fr;
+      }
+
+      .visual-panel {
+        min-height: unset;
+      }
+
+      .highlight-grid,
+      .steps-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .dual-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .final-actions {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 880px) {
+      .navbar,
+      .section-intro,
+      .footer-bar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .nav-links,
+      .nav-actions {
+        justify-content: flex-start;
+      }
+
+      .hero {
+        padding-top: 44px;
+      }
     }
 
     @media (max-width: 720px) {
-      .header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
+      .container {
+        width: min(var(--max), calc(100% - 24px));
       }
 
-      .hero h1 {
-        font-size: 24px;
+      .navbar {
+        border-radius: 28px;
+      }
+
+      .hero-copy h1 {
+        font-size: clamp(2.45rem, 11vw, 3.4rem);
+      }
+
+      .hero-copy p,
+      .section-intro p,
+      .final-card p {
+        font-size: 15px;
+      }
+
+      .planner-grid,
+      .highlight-grid,
+      .steps-grid,
+      .gallery-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .visual-panel,
+      .surface-card,
+      .highlight-card,
+      .path-card,
+      .step-card,
+      .trust-card,
+      .final-card {
+        border-radius: 24px;
+      }
+
+      .visual-panel,
+      .final-card,
+      .trust-card {
+        padding: 22px;
       }
     }
   </style>
 </head>
 
 <body>
-  <div class="shell">
-    <header class="header">
-      <div class="brand">
-        <div class="brand-icon">✈️</div>
-        <div>
-          <div class="brand-title">TripPlanner</div>
-          <div class="brand-subtitle">
-            Choose how you want to use the platform
+  <div class="page">
+    <div class="navbar-shell">
+      <div class="container">
+        <header class="navbar reveal">
+          <a class="brand" href="#top" aria-label="TripPlanner home">
+            <div class="brand-mark">TP</div>
+            <div class="brand-copy">
+              <strong>TripPlanner</strong>
+              <span>Smart Travel Platform</span>
+            </div>
+          </a>
+
+          <nav class="nav-links" aria-label="Primary navigation">
+            <a href="#platform">Platform</a>
+            <a href="#paths">Traveler & Guide</a>
+            <a href="#flow">How It Works</a>
+            <a href="#trust">Trust</a>
+          </nav>
+
+          <div class="nav-actions">
+            <a class="btn btn-secondary" href="client/?mode=login">Traveler Login</a>
+            <a class="btn btn-primary" href="http://localhost:3001/login">Guide Portal</a>
           </div>
+        </header>
+      </div>
+    </div>
+
+    <main id="top">
+      <section class="hero">
+        <div class="container">
+          <div class="hero-grid">
+            <div class="hero-copy reveal delay-1">
+              <div class="eyebrow">Travel Planning Meets Trusted Local Expertise</div>
+              <h1>A premium entry point for smarter trips and better guide operations.</h1>
+              <p>
+                TripPlanner brings AI itinerary planning, destination discovery, guide matching, and trip operations into
+                one polished ecosystem. Choose the traveler experience to plan your next journey, or continue as a guide
+                to manage bookings and deliver trips professionally.
+              </p>
+
+              <div class="hero-actions">
+                <a class="btn btn-traveler" href="client/">Continue as Traveler</a>
+                <a class="btn btn-guide" href="http://localhost:3001/">Continue as Guide</a>
+                <a class="btn btn-secondary" href="#paths">Compare Both Paths</a>
+              </div>
+
+              <div class="hero-proof">
+                <div class="micro-pill">AI itinerary intelligence</div>
+                <div class="micro-pill">Verified local guides</div>
+                <div class="micro-pill">Professional trip management</div>
+              </div>
+            </div>
+
+            <div class="visual-panel reveal delay-2" aria-hidden="true">
+              <div class="visual-shell">
+                <div class="visual-topbar">
+                  <div class="window-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                  <div class="live-badge">Platform live preview</div>
+                </div>
+
+                <div class="dashboard">
+                  <div class="surface-card planner-card">
+                    <div class="planner-head">
+                      <div>
+                        <strong>Plan a route with confidence, then move straight into booking.</strong>
+                        <span>TripPlanner combines itinerary structure, place context, guide fit, and review credibility in one travel workflow.</span>
+                      </div>
+                      <div class="metric-tag">Traveler system</div>
+                    </div>
+
+                    <div class="planner-grid">
+                      <div class="mini-card">
+                        <span>Trip window</span>
+                        <strong>Mar 31 → Apr 6 · Nepal</strong>
+                        <p>Balanced around trekking pace, local movement, and destination context.</p>
+                      </div>
+                      <div class="mini-card">
+                        <span>Guide matching</span>
+                        <strong>3 verified local fits</strong>
+                        <p>Availability-aware profiles with completed-trip trust signals.</p>
+                      </div>
+                      <div class="mini-card">
+                        <span>Travel logic</span>
+                        <strong>AI itinerary + route preview</strong>
+                        <p>Structured plans designed around budget, dates, travelers, and style.</p>
+                      </div>
+                      <div class="mini-card">
+                        <span>Operations</span>
+                        <strong>Request, manage, review</strong>
+                        <p>Move cleanly from planning to guide request to final trip feedback.</p>
+                      </div>
+                    </div>
+
+                    <div class="sequence-list">
+                      <div class="sequence-row">
+                        <div class="sequence-index">01</div>
+                        <div class="sequence-copy">
+                          <strong>Choose a destination and generate a structured trip plan</strong>
+                          <span>Build around real travel constraints instead of generic placeholder itineraries.</span>
+                        </div>
+                      </div>
+                      <div class="sequence-row">
+                        <div class="sequence-index">02</div>
+                        <div class="sequence-copy">
+                          <strong>Review premium guide profiles before sending a request</strong>
+                          <span>See availability, expertise, language fit, destinations, and verified reviews.</span>
+                        </div>
+                      </div>
+                      <div class="sequence-row">
+                        <div class="sequence-index">03</div>
+                        <div class="sequence-copy">
+                          <strong>Track trip progress through a clean booking lifecycle</strong>
+                          <span>Protected communication, final review integrity, and stronger traveler trust.</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="side-stack">
+                    <div class="showcase-card">
+                      <img src="client/public/images/hero-nepal-premium.png" alt="TripPlanner destination preview" />
+                      <div class="showcase-copy">
+                        <span>Destination intelligence</span>
+                        <strong>Premium route-aware previews with place context built in</strong>
+                        <p>Destination visuals, planning signals, and next-step actions feel like one coherent product.</p>
+                      </div>
+                    </div>
+
+                    <div class="surface-card">
+                      <div class="planner-head">
+                        <div>
+                          <strong>Guide trust signals are part of the product, not an afterthought.</strong>
+                          <span>TripPlanner keeps credibility visible through verified review logic, booking state, and professional guide workflows.</span>
+                        </div>
+                        <div class="metric-tag">Guide system</div>
+                      </div>
+
+                      <div class="guide-stack">
+                        <div class="guide-row">
+                          <div class="guide-row-main">
+                            <div class="avatar">AK</div>
+                            <div class="guide-copy">
+                              <strong>Adhikari Kriti</strong>
+                              <span>Cultural routes · 4.9 verified rating · Kathmandu</span>
+                            </div>
+                          </div>
+                          <div class="score-pill">128 reviews</div>
+                        </div>
+
+                        <div class="guide-row">
+                          <div class="guide-row-main">
+                            <div class="avatar">SG</div>
+                            <div class="guide-copy">
+                              <strong>Suman Gurung</strong>
+                              <span>Trekking operations · Annapurna and Everest coverage</span>
+                            </div>
+                          </div>
+                          <div class="score-pill">Available</div>
+                        </div>
+
+                        <div class="guide-row">
+                          <div class="guide-row-main">
+                            <div class="avatar">RM</div>
+                            <div class="guide-copy">
+                              <strong>Rita Magar</strong>
+                              <span>Private journeys · Premium traveler communication flow</span>
+                            </div>
+                          </div>
+                          <div class="score-pill">Trusted</div>
+                        </div>
+                      </div>
+
+                      <div class="visual-footer">
+                        <div class="micro-pill">Verified one-time trip reviews</div>
+                        <div class="micro-pill">Status-based communication access</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="platform">
+        <div class="container">
+          <div class="section-intro reveal">
+            <div>
+              <h2>Built for real travel execution, not just browsing</h2>
+              <p>TripPlanner is designed as a working platform from the first click, with premium planning, clean routing into the right product flow, and stronger trust throughout the trip lifecycle.</p>
+            </div>
+          </div>
+
+          <div class="highlight-grid">
+            <article class="highlight-card reveal delay-1">
+              <div class="highlight-icon">🧠</div>
+              <h3>Smart itinerary planning</h3>
+              <p>Generate structured plans around destination, dates, travelers, budget, and travel style with a cleaner travel workflow.</p>
+            </article>
+
+            <article class="highlight-card reveal delay-2">
+              <div class="highlight-icon">🗺️</div>
+              <h3>Destination discovery</h3>
+              <p>Explore destinations with better visual storytelling, practical context, and stronger travel decision support.</p>
+            </article>
+
+            <article class="highlight-card reveal delay-3">
+              <div class="highlight-icon">🛡️</div>
+              <h3>Verified local guides</h3>
+              <p>Review live guide profiles backed by availability logic, completed-trip ratings, and professional booking workflows.</p>
+            </article>
+
+            <article class="highlight-card reveal delay-4">
+              <div class="highlight-icon">📂</div>
+              <h3>Seamless trip management</h3>
+              <p>Move from planning to request handling, booking progress, and final verified reviews without losing clarity.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="paths">
+        <div class="container">
+          <div class="section-intro reveal">
+            <div>
+              <h2>Two focused systems, one premium platform</h2>
+              <p>TripPlanner intentionally separates traveler and guide experiences so each side gets the right tools, language, and confidence signals from the start.</p>
+            </div>
+          </div>
+
+          <div class="dual-grid">
+            <article class="path-card reveal delay-1" data-path="traveler">
+              <div class="path-head">
+                <div>
+                  <div class="path-eyebrow">Traveler platform</div>
+                  <h3>Plan and book with more clarity before the trip even starts.</h3>
+                  <p>Use TripPlanner to create AI-supported itineraries, compare destinations, review guide profiles, and manage upcoming trips in one clean traveler experience.</p>
+                </div>
+              </div>
+
+              <div class="path-benefits">
+                <div class="path-benefit"><span>✦</span> Build route-aware itineraries around real trip constraints</div>
+                <div class="path-benefit"><span>✦</span> Discover destinations with stronger visual and planning context</div>
+                <div class="path-benefit"><span>✦</span> Request verified local guides with confidence</div>
+              </div>
+
+              <div class="dual-actions">
+                <a class="btn btn-traveler" href="client/">Continue as Traveler</a>
+                <a class="btn btn-secondary" href="client/?mode=login">Traveler Login</a>
+              </div>
+            </article>
+
+            <article class="path-card reveal delay-2" data-path="guide">
+              <div class="path-head">
+                <div>
+                  <div class="path-eyebrow">Guide platform</div>
+                  <h3>Run trips professionally with cleaner booking and traveler workflows.</h3>
+                  <p>Guide Portal is built for reviewing requests, managing availability, handling bookings, and building credibility through verified completed-trip reviews.</p>
+                </div>
+              </div>
+
+              <div class="path-benefits">
+                <div class="path-benefit"><span>✦</span> Manage traveler requests with clear booking state transitions</div>
+                <div class="path-benefit"><span>✦</span> Review trip context before accepting bookings</div>
+                <div class="path-benefit"><span>✦</span> Build trust through verified completed-trip feedback</div>
+              </div>
+
+              <div class="dual-actions">
+                <a class="btn btn-guide" href="http://localhost:3001/">Continue as Guide</a>
+                <a class="btn btn-secondary" href="http://localhost:3001/login">Guide Login</a>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="flow">
+        <div class="container">
+          <div class="section-intro reveal">
+            <div>
+              <h2>How TripPlanner works</h2>
+              <p>The flow is straightforward for users, while the platform handles the structure behind planning, guide matching, booking progression, and review trust.</p>
+            </div>
+          </div>
+
+          <div class="steps-grid">
+            <article class="step-card reveal delay-1">
+              <div class="step-index">01</div>
+              <h3>Enter the correct portal</h3>
+              <p>Start inside the traveler flow for planning and bookings, or the guide flow for trip operations and traveler management.</p>
+            </article>
+
+            <article class="step-card reveal delay-2">
+              <div class="step-index">02</div>
+              <h3>Build or review the trip</h3>
+              <p>Travelers generate structured itineraries while guides review travel details, dates, and request fit before accepting.</p>
+            </article>
+
+            <article class="step-card reveal delay-3">
+              <div class="step-index">03</div>
+              <h3>Move through verified workflows</h3>
+              <p>Booking status, communication access, and review eligibility are all controlled by real completed-trip logic.</p>
+            </article>
+
+            <article class="step-card reveal delay-4">
+              <div class="step-index">04</div>
+              <h3>Finish with stronger trust</h3>
+              <p>Completed trips create final one-time verified feedback that improves guide credibility for future travelers.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="trust">
+        <div class="container">
+          <div class="section-intro reveal">
+            <div>
+              <h2>Designed to feel credible from the first interaction</h2>
+              <p>TripPlanner is structured like a real travel product: premium visuals, operational clarity, guide trust signals, and a cleaner path from inspiration to execution.</p>
+            </div>
+          </div>
+
+          <div class="trust-grid">
+            <article class="trust-card reveal delay-1">
+              <h3>Travel showcase with product-level polish</h3>
+              <p>Destination imagery, itinerary structure, and guide credibility work together so the platform feels intentional, not improvised.</p>
+
+              <div class="gallery-grid">
+                <div class="gallery-tile" style="background-image:url('client/public/images/hero-pokhara.jpg')">
+                  <div class="gallery-copy">
+                    <strong>Destination-led planning</strong>
+                    <span>Move from visual inspiration to a practical route and booking flow without losing momentum.</span>
+                  </div>
+                </div>
+
+                <div class="gallery-tile" style="background-image:url('client/public/images/hero-stupa.jpg')">
+                  <div class="gallery-copy">
+                    <strong>Guide-backed confidence</strong>
+                    <span>See signals that help travelers trust the person behind the trip, not just the destination.</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="review-list">
+                <div class="review-card">
+                  <div class="review-main">
+                    <div class="review-avatar">SJ</div>
+                    <div class="review-copy">
+                      <strong>Verified completed trip review</strong>
+                      <span>Traveler feedback remains tied to real bookings, which keeps trust signals cleaner and harder to game.</span>
+                    </div>
+                  </div>
+                  <div class="review-pill">Verified</div>
+                </div>
+              </div>
+            </article>
+
+            <article class="trust-card reveal delay-2">
+              <h3>Signals that actually matter</h3>
+              <p>TripPlanner emphasizes practical trust and operational clarity instead of generic marketing claims.</p>
+
+              <div class="metric-stack">
+                <div class="metric-row">
+                  <div>
+                    <strong>Verified reviews only</strong>
+                    <span>Only travelers with completed bookings can submit final guide feedback.</span>
+                  </div>
+                  <div class="metric-tag">Authentic</div>
+                </div>
+
+                <div class="metric-row">
+                  <div>
+                    <strong>Protected communication flow</strong>
+                    <span>Traveler contact details unlock only when the booking state permits it.</span>
+                  </div>
+                  <div class="metric-tag">Controlled</div>
+                </div>
+
+                <div class="metric-row">
+                  <div>
+                    <strong>Split traveler and guide systems</strong>
+                    <span>Each side gets a focused, more professional workspace instead of one overloaded interface.</span>
+                  </div>
+                  <div class="metric-tag">Focused</div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="final-card reveal">
+            <div>
+              <h2>Start in the TripPlanner experience built for your role</h2>
+              <p>Choose the traveler platform to plan with confidence, or continue as a guide to manage trips with cleaner operational control and stronger trust signals.</p>
+            </div>
+
+            <div class="final-actions">
+              <a class="btn btn-traveler" href="client/">Continue as Traveler</a>
+              <a class="btn btn-guide" href="http://localhost:3001/">Continue as Guide</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-bar">
+          <p>© 2026 TripPlanner. Premium entry point for travelers and guides.</p>
+          <span>Traveler app: <code>/client</code> · Guide app: <code>localhost:3001</code></span>
         </div>
       </div>
-      <div class="header-right">
-        Travelers and guides share the same ecosystem.
-      </div>
-    </header>
-
-    <section class="hero">
-      <h1>Welcome to TripPlanner</h1>
-      <p>
-        Plan unforgettable trips as a traveler or manage journeys as a
-        professional guide — all from one platform.
-      </p>
-    </section>
-
-    <section class="cards">
-      <!-- Traveler card -->
-      <article class="card">
-        <div class="card-header">
-          <div class="card-icon">🧳</div>
-          <div>
-            <h2>Travel as User</h2>
-          </div>
-        </div>
-        <p>
-          Plan trips, generate AI-powered itineraries, and explore curated
-          destinations tailored to your time, budget, and interests.
-        </p>
-        <div class="card-actions">
-          <!-- Assumes the traveler app is served under /client -->
-          <a class="btn btn-primary" href="client/?mode=login">
-            Login as Traveler
-          </a>
-          <a class="btn btn-secondary" href="client/?mode=register">
-            Register as Traveler
-          </a>
-        </div>
-      </article>
-
-      <!-- Guide card -->
-      <article class="card">
-        <div class="card-header">
-          <div class="card-icon">🧭</div>
-          <div>
-            <h2>Work as Guide</h2>
-          </div>
-        </div>
-        <p>
-          Manage travelers, review itineraries, and support trips with your
-          local expertise using the dedicated guide workspace.
-        </p>
-        <div class="card-actions">
-          <!-- Guide app runs on port 3001 in development -->
-          <a class="btn btn-primary" href="http://localhost:3001/login">
-            Login as Guide
-          </a>
-          <a class="btn btn-secondary" href="http://localhost:3001/register">
-            Register as Guide
-          </a>
-        </div>
-      </article>
-    </section>
-
-    <p class="hint">
-      Development: Traveler app → <code>npm start</code> in <code>/client</code> (port 3000) ·
-      Guide app → <code>npm start</code> in <code>/guide</code> (port 3001)
-    </p>
+    </footer>
   </div>
 </body>
 

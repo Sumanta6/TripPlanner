@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-    FaSearch, FaFilter, FaPhone, FaEnvelope,
+    FaSearch, FaFilter, FaPhone, FaEnvelope, FaLock,
     FaStickyNote, FaMapMarkerAlt, FaCalendarAlt,
     FaChevronDown, FaChevronUp
 } from 'react-icons/fa';
@@ -21,6 +21,7 @@ const STATUS_MAP = {
 };
 
 const STATUS_KEYS = ['pending', 'accepted', 'active', 'completed', 'rejected', 'auto_rejected'];
+const COMMUNICATION_ENABLED_STATUSES = new Set(['accepted', 'active']);
 
 /* ── Date formatter ──────────────────────────────────────────────────────────── */
 function fmtDate(dateStr) {
@@ -210,6 +211,7 @@ export default function Travelers() {
                     {filtered.map(t => {
                         const cfg = STATUS_MAP[t.status] || STATUS_MAP.pending;
                         const initials = (t.traveler_name || '?').charAt(0).toUpperCase();
+                        const canCommunicate = COMMUNICATION_ENABLED_STATUSES.has(t.status);
 
                         return (
                             <div className="tv-card" key={t.id}>
@@ -238,18 +240,24 @@ export default function Travelers() {
                                         <span className="tv-info-label">Dates</span>
                                         <span className="tv-info-value">{fmtDate(t.trip_start)} – {fmtDate(t.trip_end)}</span>
                                     </div>
-                                    {t.traveler_phone && (
+                                    {canCommunicate && t.traveler_phone && (
                                         <div className="tv-info-row">
                                             <div className="tv-info-icon phone"><FaPhone /></div>
                                             <span className="tv-info-label">Phone</span>
                                             <span className="tv-info-value">{t.traveler_phone}</span>
                                         </div>
                                     )}
-                                    {t.traveler_email && (
+                                    {canCommunicate && t.traveler_email && (
                                         <div className="tv-info-row">
                                             <div className="tv-info-icon email"><FaEnvelope /></div>
                                             <span className="tv-info-label">Email</span>
                                             <span className="tv-info-value">{t.traveler_email}</span>
+                                        </div>
+                                    )}
+                                    {!canCommunicate && (
+                                        <div className="tv-communication-locked" aria-live="polite">
+                                            <span className="tv-communication-locked-icon"><FaLock /></span>
+                                            <span>Communication available after acceptance</span>
                                         </div>
                                     )}
                                 </div>
@@ -292,7 +300,7 @@ export default function Travelers() {
                                                 {processing[t.id] ? '...' : '✕ Reject'}
                                             </button>
                                         </>
-                                    ) : (
+                                    ) : canCommunicate ? (
                                         <>
                                             {t.traveler_phone && (
                                                 <a href={`tel:${t.traveler_phone}`} className="tv-action-btn tv-btn-call">
@@ -304,6 +312,25 @@ export default function Travelers() {
                                                     <FaEnvelope /> Email
                                                 </a>
                                             )}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button
+                                                type="button"
+                                                className="tv-action-btn tv-btn-disabled"
+                                                disabled
+                                                aria-disabled="true"
+                                            >
+                                                <FaPhone /> Call locked
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="tv-action-btn tv-btn-disabled"
+                                                disabled
+                                                aria-disabled="true"
+                                            >
+                                                <FaEnvelope /> Email locked
+                                            </button>
                                         </>
                                     )}
                                 </div>

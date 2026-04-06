@@ -362,6 +362,26 @@ function normalizeBackendResponse(data, formData, duration) {
     }, planned for ${formData.travelers} traveler${Number(formData.travelers) > 1 ? "s" : ""
     } with a ${budgetLabel(formData.budget).toLowerCase()} budget.`;
 
+  const routeStops = Array.isArray(data.route_stops)
+    ? data.route_stops.map((stop, index) => ({
+      order: stop.order || index + 1,
+      day: stop.day || 1,
+      name: stop.name || `Stop ${index + 1}`,
+      latitude: Number(stop.latitude),
+      longitude: Number(stop.longitude),
+      stop_type: stop.stop_type || "activity",
+      time_of_day: stop.time_of_day || "Flexible",
+      note: stop.note || ""
+    })).filter((stop) => !Number.isNaN(stop.latitude) && !Number.isNaN(stop.longitude))
+    : [];
+
+  const routeSummary = data.route_summary || {
+    stop_count: routeStops.length,
+    route_mode: routeStops.length > 1 ? "stop_preview" : "destination_preview",
+    distance_km: 0,
+    has_connected_path: routeStops.length > 1
+  };
+
   return {
     destination: summary.destination || data.destination || formData.destination,
     budget: Number(summary.budget || data.budget || formData.budget || 0),
@@ -375,7 +395,9 @@ function normalizeBackendResponse(data, formData, duration) {
       travel_tips: travelTips,
       budget_breakdown: budgetBreakdown,
       days: normalizedDays
-    }
+    },
+    route_stops: routeStops,
+    route_summary: routeSummary
   };
 }
 
@@ -383,6 +405,21 @@ function mapInterestIdsToLabels(selectedIds) {
   return selectedIds
     .map((id) => INTERESTS.find((item) => item.id === id)?.label || id)
     .filter(Boolean);
+}
+
+function buildGoogleMapsDirectionsUrl(stops) {
+  if (!Array.isArray(stops) || stops.length === 0) return "";
+
+  const toCoord = (stop) => `${stop.latitude},${stop.longitude}`;
+  if (stops.length === 1) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(toCoord(stops[0]))}`;
+  }
+
+  const origin = toCoord(stops[0]);
+  const destination = toCoord(stops[stops.length - 1]);
+  const waypoints = stops.slice(1, -1).map(toCoord).join("|");
+  const base = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving`;
+  return waypoints ? `${base}&waypoints=${encodeURIComponent(waypoints)}` : base;
 }
 
 function Plantrip() {
@@ -460,6 +497,28 @@ function Plantrip() {
   const currentPlannerSignature = useMemo(() => buildPlannerSignature(formData), [formData]);
   const hasGeneratedItinerary = Boolean(itinerary?.itinerary?.days?.length);
   const hasConfirmedPlan = hasGeneratedItinerary && generatedPlanSignature === currentPlannerSignature;
+  const routeStops = useMemo(() => {
+    if (Array.isArray(itinerary?.route_stops) && itinerary.route_stops.length) {
+      return itinerary.route_stops;
+    }
+    return [{
+      order: 1,
+      day: 1,
+      name: mapLocation.label,
+      latitude: mapLocation.lat,
+      longitude: mapLocation.lng,
+      stop_type: "destination",
+      time_of_day: "Flexible",
+      note: `Destination preview for ${formData.destination || mapLocation.label}.`
+    }];
+  }, [itinerary?.route_stops, mapLocation, formData.destination]);
+  const routeSummary = itinerary?.route_summary || {
+    stop_count: routeStops.length,
+    route_mode: routeStops.length > 1 ? "stop_preview" : "destination_preview",
+    distance_km: 0,
+    has_connected_path: routeStops.length > 1
+  };
+  const googleMapsDirectionsUrl = useMemo(() => buildGoogleMapsDirectionsUrl(routeStops), [routeStops]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1395,55 +1454,143 @@ function Plantrip() {
 
             <aside className="review-sidebar">
               <div className="card review-sidebar-card">
-                <div className="review-sidebar-top">
-                  <div>
-                    <span className="review-sidebar-kicker">Map preview</span>
-                    <p className="review-sidebar-copy">
-                      Keep this panel compact for orientation, then open the large map for real route exploration.
-                    </p>
-                  </div>
-                  <strong className="review-sidebar-score">{readinessScore}% ready</strong>
-                </div>
-
                 <div className="review-map-panel">
-                  <div className="review-map-wrapper">
+                  <div className="review-map-header">
+                    <div className="review-map-heading">
+                      <span className="review-map-heading-label">
+                        {routeSummary.has_connected_path ? "Route Preview" : "Destination Map"}
+                      </span>
+                      <strong className="review-map-heading-title">{formData.destination || "Nepal"}</strong>
+                      <p className="review-map-heading-copy">
+                        {routeSummary.has_connected_path
+                          ? "Follow the ordered trip flow across your current itinerary stops."
+                          : "A polished live location preview to validate the destination before generating your itinerary."}
+                      </p>
+                    </div>
+                    <div className="review-map-header-actions">
+                      <span className="review-map-live-pill">
+                        {routeSummary.has_connected_path ? `${routeSummary.stop_count} stops` : `${readinessScore}% ready`}
+                      </span>
+                      <button type="button" className="map-expand-button" onClick={() => setIsMapModalOpen(true)}>
+                        View larger map
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="review-map-wrapper"
+                    onClick={() => setIsMapModalOpen(true)}
+                    aria-label="Open larger destination map"
+                  >
                     <MapView
                       lat={mapLocation.lat}
                       lng={mapLocation.lng}
                       zoom={mapLocation.zoom}
                       title={mapLocation.label}
                       className="review-map-embed"
+                      sectionLabel="Destination Map"
+                      footerNote={
+                        routeSummary.has_connected_path
+                          ? "Connected stop overview for the current itinerary."
+                          : "Use this preview to confirm place context before generating the route."
+                      }
+                      routeStops={routeStops}
+                      showRouteLine={routeSummary.has_connected_path}
                       dragging={false}
                       touchZoom={false}
                       zoomControl={false}
                     />
-                    <div className="review-map-overlay">
-                      <div>
-                        <span className="review-map-label">Destination preview</span>
-                        <strong className="review-map-title">{formData.destination || "Nepal"}</strong>
-                      </div>
-                      <button type="button" className="map-expand-button" onClick={() => setIsMapModalOpen(true)}>
-                        View larger map
-                      </button>
+                    <div className="review-map-action-overlay">
+                      <span className="review-map-action-text">Click to expand the map preview</span>
                     </div>
-                  </div>
-                  <div className="review-map-chips">
-                    <span className="review-side-chip">{formData.destination || "Nepal"}</span>
-                    <span className="review-side-chip">
+                  </button>
+
+                  <div className="review-map-meta-grid">
+                    <div className="review-map-meta-card">
+                      <span className="review-map-meta-label">Stop Flow</span>
+                      <strong>{routeSummary.stop_count} mapped stop{routeSummary.stop_count === 1 ? "" : "s"}</strong>
+                    </div>
+                    <div className="review-map-meta-card">
+                      <span className="review-map-meta-label">Travel Window</span>
+                      <strong>
                       {formData.startDate
                         ? `${formatDateDisplay(formData.startDate)}${calculatedEndDate ? ` • ${formatDateDisplay(calculatedEndDate)}` : ""}`
                         : "Dates TBD"}
-                    </span>
-                    <span className="review-side-chip">{selectedTravelStyleLabel || "Style not set"}</span>
+                      </strong>
+                    </div>
+                    <div className="review-map-meta-card">
+                      <span className="review-map-meta-label">
+                        {routeSummary.has_connected_path ? "Route Distance" : "Trip Style"}
+                      </span>
+                      <strong>
+                        {routeSummary.has_connected_path && routeSummary.distance_km
+                          ? `${routeSummary.distance_km} km overview`
+                          : (selectedTravelStyleLabel || "Style not set")}
+                      </strong>
+                    </div>
                   </div>
-                </div>
 
-                <div className="review-map-status-line">
-                  <p>
-                    {hasConfirmedPlan
-                      ? "Itinerary created. Reopen the map anytime to inspect the destination in detail."
-                      : "Preview loaded. Use the larger map before generating if you want a fuller spatial check."}
-                  </p>
+                  {routeStops.length > 0 && (
+                    <div className="review-route-stops-card">
+                      <div className="review-route-stops-head">
+                        <div>
+                          <span className="review-route-stops-label">Where to go</span>
+                          <strong className="review-route-stops-title">Ordered journey preview</strong>
+                        </div>
+                        {googleMapsDirectionsUrl && (
+                          <a
+                            href={googleMapsDirectionsUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="review-route-external-link"
+                          >
+                            Open in Google Maps
+                          </a>
+                        )}
+                      </div>
+
+                      <div className="review-route-stop-list">
+                        {routeStops.map((stop, index) => (
+                          <div key={`${stop.order}-${stop.name}-${index}`} className="review-route-stop-item">
+                            <div className="review-route-stop-marker">{stop.order}</div>
+                            <div className="review-route-stop-copy">
+                              <div className="review-route-stop-topline">
+                                <strong>{stop.name}</strong>
+                                <span>Day {stop.day} · {stop.time_of_day}</span>
+                              </div>
+                              <p>{stop.note || "Planned route stop."}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="review-map-supporting-row">
+                    <p className="review-map-supporting-copy">
+                      {routeSummary.has_connected_path
+                        ? "This is a connected stop overview of the trip flow. Exact turn-by-turn routing can be added later with a routing engine."
+                        : (hasConfirmedPlan
+                          ? "Use the larger map to inspect the destination context around your generated trip."
+                          : "Use the larger view if you want a clearer spatial check before generating the route.")}
+                    </p>
+                    <div className="review-map-supporting-actions">
+                      <button type="button" className="map-expand-button secondary" onClick={() => setIsMapModalOpen(true)}>
+                        Open full preview
+                      </button>
+                      {googleMapsDirectionsUrl && (
+                        <a
+                          href={googleMapsDirectionsUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="map-expand-button secondary"
+                        >
+                          Navigate externally
+                        </a>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="review-action-bar">
@@ -1510,6 +1657,10 @@ function Plantrip() {
                     zoom={mapLocation.zoom}
                     title={mapLocation.label}
                     className="map-modal-map"
+                    sectionLabel="Route Preview"
+                    footerNote="Use the expanded canvas for a closer location check."
+                    routeStops={routeStops}
+                    showRouteLine={routeSummary.has_connected_path}
                     scrollWheelZoom={true}
                     doubleClickZoom={true}
                     dragging={true}
@@ -1517,7 +1668,11 @@ function Plantrip() {
                     zoomControl={true}
                   />
                   <div className="map-modal-footer">
-                    <p>Zoom, drag, and open the marker to inspect the destination more closely.</p>
+                    <p>
+                      {routeSummary.has_connected_path
+                        ? "Zoom, drag, and inspect the connected itinerary stops. Use Google Maps for external navigation."
+                        : "Zoom, drag, and inspect the destination more closely."}
+                    </p>
                   </div>
                 </div>
               </div>

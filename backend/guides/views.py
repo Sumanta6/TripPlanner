@@ -1,20 +1,20 @@
 from django.db.models import Count
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .models import GuideProfile, Booking, Activity
+from .models import Activity, Booking, GuideProfile, Review
 from .serializers import (
+    ActivitySerializer,
+    BookingSerializer,
+    DashboardSerializer,
     GuideProfileSerializer,
     GuideProfileUpdateSerializer,
-    BookingSerializer,
-    ActivitySerializer,
-    DashboardSerializer,
+    ReviewSummarySerializer,
+    ReviewWriteSerializer,
 )
 
-
-# ── Helper ────────────────────────────────────────────────────────────────────
 
 def get_or_create_guide_profile(user):
     """Return the GuideProfile for a user, creating one if it doesn't exist."""
@@ -31,23 +31,21 @@ def get_or_create_guide_profile(user):
 def update_outdated_booking_statuses(bookings):
     """Dynamically progression of accepted -> active -> completed based on current date."""
     from django.utils import timezone
+
     today = timezone.now().date()
     updated = []
-    
-    for b in bookings:
-        if b.status == 'accepted' and today >= b.trip_start and today <= b.trip_end:
-            b.status = 'active'
-            updated.append(b)
-        elif b.status in ['accepted', 'active'] and today > b.trip_end:
-            b.status = 'completed'
-            updated.append(b)
-            
+
+    for booking in bookings:
+        if booking.status == 'accepted' and today >= booking.trip_start and today <= booking.trip_end:
+            booking.status = 'active'
+            updated.append(booking)
+        elif booking.status in ['accepted', 'active'] and today > booking.trip_end:
+            booking.status = 'completed'
+            updated.append(booking)
+
     if updated:
-        from .models import Booking
         Booking.objects.bulk_update(updated, ['status'])
 
-
-# ── Public: Guide List & Detail ───────────────────────────────────────────────
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -56,11 +54,15 @@ def guide_list(request):
     GET /api/guides/
     Returns a list of all registered guides (public).
     """
-    guides = GuideProfile.objects.select_related('user').all()
-    # Pre-process status updates for all listed guides to ensure accurate availability_badge
+    guides = GuideProfile.objects.select_related('user').prefetch_related(
+        'reviews',
+        'reviews__traveler',
+        'reviews__traveler__traveler_profile',
+        'reviews__booking',
+    ).all()
     for guide in guides:
         update_outdated_booking_statuses(guide.bookings.all())
-    
+
     serializer = GuideProfileSerializer(guides, many=True, context={'request': request})
     return Response(serializer.data)
 
@@ -73,11 +75,36 @@ def guide_detail(request, pk):
     Returns the public profile of a single guide.
     """
     try:
-        guide = GuideProfile.objects.select_related('user').get(pk=pk)
+        guide = GuideProfile.objects.select_related('user').prefetch_related(
+            'reviews',
+            'reviews__traveler',
+            'reviews__traveler__traveler_profile',
+            'reviews__booking',
+        ).get(pk=pk)
     except GuideProfile.DoesNotExist:
         return Response({'error': 'Guide not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+    update_outdated_booking_statuses(guide.bookings.all())
     serializer = GuideProfileSerializer(guide, context={'request': request})
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def guide_reviews(request, pk):
+    """
+    GET /api/guides/<id>/reviews/
+    Returns verified reviews for a guide.
+    """
+    try:
+        guide = GuideProfile.objects.get(pk=pk)
+    except GuideProfile.DoesNotExist:
+        return Response({'error': 'Guide not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    reviews = guide.reviews.select_related(
+        'traveler', 'traveler__traveler_profile', 'booking'
+    ).all()
+    serializer = ReviewSummarySerializer(reviews, many=True, context={'request': request})
     return Response(serializer.data)
 
 
@@ -93,17 +120,15 @@ def request_guide(request, pk):
     except GuideProfile.DoesNotExist:
         return Response({'error': 'Guide not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    # Ensure data is mutable (dict instead of QueryDict if applicable)
     data = dict(request.data) if hasattr(request.data, 'dict') else request.data.copy()
-    
-    # Check if this booking should be linked to an itinerary
+
     from itinerary.models import SavedItinerary
+
     itinerary_id = data.get('itinerary_id')
     linked_itinerary = None
     if itinerary_id:
         try:
             linked_itinerary = SavedItinerary.objects.get(id=itinerary_id, traveler=request.user)
-            # Auto-fill fields from the saved itinerary
             if not data.get('destination'):
                 data['destination'] = linked_itinerary.destination
             if not data.get('trip_start') and linked_itinerary.start_date:
@@ -113,16 +138,15 @@ def request_guide(request, pk):
         except SavedItinerary.DoesNotExist:
             return Response({'error': 'Saved itinerary not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    # Manual validation
     destination = data.get('destination', '')
     if isinstance(destination, list):
         destination = destination[0]
     destination = str(destination).strip()
-    
+
     trip_start = data.get('trip_start')
     if isinstance(trip_start, list):
         trip_start = trip_start[0]
-        
+
     trip_end = data.get('trip_end')
     if isinstance(trip_end, list):
         trip_end = trip_end[0]
@@ -135,8 +159,7 @@ def request_guide(request, pk):
         return Response({'error': 'End date is required.'}, status=status.HTTP_400_BAD_REQUEST)
     if trip_end < trip_start:
         return Response({'error': 'End date cannot be earlier than start date.'}, status=status.HTTP_400_BAD_REQUEST)
-        
-    # Conflict check
+
     overlapping = Booking.objects.filter(
         guide=guide,
         status__in=['accepted', 'active'],
@@ -146,15 +169,13 @@ def request_guide(request, pk):
     if overlapping:
         return Response({'error': 'Guide is unavailable for selected dates.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Note: `guide` and `itinerary` are read_only in the Serializer, so we pass them in `save()`
-    # If the user has a traveler profile, safely grab details from it
     if hasattr(request.user, 'traveler_profile'):
-        t_profile = request.user.traveler_profile
-        data['traveler_name'] = data.get('traveler_name') or t_profile.full_name or request.user.username
-        data['traveler_phone'] = data.get('traveler_phone') or t_profile.phone
+        traveler_profile = request.user.traveler_profile
+        data['traveler_name'] = data.get('traveler_name') or traveler_profile.full_name or request.user.username
+        data['traveler_phone'] = data.get('traveler_phone') or traveler_profile.phone
     else:
         data['traveler_name'] = data.get('traveler_name') or request.user.username
-    
+
     data['traveler_email'] = data.get('traveler_email') or request.user.email
 
     serializer = BookingSerializer(data=data, context={'request': request})
@@ -164,10 +185,8 @@ def request_guide(request, pk):
             save_kwargs['traveler_user'] = request.user
         if linked_itinerary:
             save_kwargs['itinerary'] = linked_itinerary
-        
+
         booking = serializer.save(**save_kwargs)
-        
-        # Log activity for the guide
         Activity.objects.create(
             guide=guide,
             activity_type='request',
@@ -175,13 +194,9 @@ def request_guide(request, pk):
             highlight=f"To {booking.destination}",
             sub=f"{booking.trip_start} to {booking.trip_end}"
         )
-        
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-
-# ── Authenticated: My Profile ─────────────────────────────────────────────────
 
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
@@ -196,18 +211,12 @@ def my_profile(request):
         serializer = GuideProfileSerializer(guide, context={'request': request})
         return Response(serializer.data)
 
-    # PATCH
-    serializer = GuideProfileUpdateSerializer(
-        guide, data=request.data, partial=True
-    )
+    serializer = GuideProfileUpdateSerializer(guide, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
-        # Return the full profile after save
         return Response(GuideProfileSerializer(guide, context={'request': request}).data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-# ── Authenticated: Bookings ───────────────────────────────────────────────────
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -215,19 +224,22 @@ def my_bookings(request):
     """
     GET /api/guides/me/bookings/
     Returns all bookings (travelers) assigned to the logged-in guide.
-    Optional query param: ?status=active|upcoming|pending|completed
     """
     guide = get_or_create_guide_profile(request.user)
-    bookings = guide.bookings.all()
-    
-    # Auto-adjust statuses based on dates before returning
+    bookings = guide.bookings.select_related(
+        'traveler_user', 'traveler_user__traveler_profile', 'itinerary'
+    ).all()
     update_outdated_booking_statuses(bookings)
 
     status_filter = request.query_params.get('status')
     if status_filter:
         bookings = bookings.filter(status=status_filter)
 
-    serializer = BookingSerializer(bookings, many=True, context={'request': request})
+    serializer = BookingSerializer(
+        bookings,
+        many=True,
+        context={'request': request, 'restrict_guide_communication': True},
+    )
     return Response(serializer.data)
 
 
@@ -238,9 +250,11 @@ def my_booked_trips(request):
     GET /api/guides/my-trips/
     Returns all bookings made by the logged-in traveler.
     """
-    bookings = Booking.objects.filter(traveler_user=request.user).order_by('-created_at')
+    bookings = Booking.objects.select_related(
+        'guide', 'guide__user', 'itinerary', 'review'
+    ).filter(traveler_user=request.user).order_by('-created_at')
     update_outdated_booking_statuses(bookings)
-    
+
     serializer = BookingSerializer(bookings, many=True, context={'request': request})
     return Response(serializer.data)
 
@@ -258,7 +272,10 @@ def booking_detail(request, pk):
     except Booking.DoesNotExist:
         return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    serializer = BookingSerializer(booking, context={'request': request})
+    serializer = BookingSerializer(
+        booking,
+        context={'request': request, 'restrict_guide_communication': True},
+    )
     return Response(serializer.data)
 
 
@@ -267,7 +284,7 @@ def booking_detail(request, pk):
 def update_booking_status(request, pk):
     """
     PATCH /api/guides/me/bookings/<pk>/status/
-    Update the status of a specific booking (e.g. pending -> active, rejected).
+    Update the status of a specific booking.
     """
     guide = get_or_create_guide_profile(request.user)
     try:
@@ -281,29 +298,26 @@ def update_booking_status(request, pk):
 
     booking.status = new_status
     booking.save()
-    
-    # Logic for Date Conflicts when ACCEPTED
+
     if new_status == 'accepted':
-        # Find overlapping requests
         overlapping = Booking.objects.filter(
             guide=guide,
             status='pending',
             trip_start__lte=booking.trip_end,
             trip_end__gte=booking.trip_start
         ).exclude(pk=booking.pk)
-        
-        for ov_booking in overlapping:
-            ov_booking.status = 'auto_rejected'
-            ov_booking.notes = f"{ov_booking.notes}\n\n[System] Guide unavailable for selected dates."
-            ov_booking.save(update_fields=['status', 'notes'])
+
+        for overlapping_booking in overlapping:
+            overlapping_booking.status = 'auto_rejected'
+            overlapping_booking.notes = f"{overlapping_booking.notes}\n\n[System] Guide unavailable for selected dates."
+            overlapping_booking.save(update_fields=['status', 'notes'])
             Activity.objects.create(
                 guide=guide,
                 activity_type='auto_rejected',
-                message=f"Auto-rejected request from {ov_booking.traveler_name} due to date conflict.",
-                highlight=f"To {ov_booking.destination}"
+                message=f"Auto-rejected request from {overlapping_booking.traveler_name} due to date conflict.",
+                highlight=f"To {overlapping_booking.destination}"
             )
 
-    # Log activity
     if new_status == 'accepted':
         Activity.objects.create(
             guide=guide,
@@ -318,15 +332,43 @@ def update_booking_status(request, pk):
             message=f"Declined request from {booking.traveler_name}",
             highlight=f"To {booking.destination}"
         )
+    elif new_status == 'completed':
+        Activity.objects.create(
+            guide=guide,
+            activity_type='completed',
+            message=f"Completed trip with {booking.traveler_name}",
+            highlight=f"To {booking.destination}"
+        )
 
-    # Ensure status is updated if today is the trip start/end
     update_outdated_booking_statuses([booking])
-
     serializer = BookingSerializer(booking, context={'request': request})
     return Response(serializer.data)
 
 
-# ── Authenticated: Activity Feed ──────────────────────────────────────────────
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_review(request):
+    """
+    POST /api/guides/reviews/
+    Create a verified review for a completed booking.
+    """
+    serializer = ReviewWriteSerializer(data=request.data, context={'request': request})
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    review = serializer.save()
+    guide = review.guide
+
+    Activity.objects.create(
+        guide=guide,
+        activity_type='rating',
+        message=f"New {review.rating}-star review from {review.booking.traveler_name}",
+        highlight=f"To {review.booking.destination}"
+    )
+
+    response_serializer = ReviewSummarySerializer(review, context={'request': request})
+    return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -334,7 +376,6 @@ def my_activity(request):
     """
     GET /api/guides/me/activity/
     Returns the recent activity feed for the logged-in guide.
-    Optional query param: ?limit=<n> (default 20)
     """
     guide = get_or_create_guide_profile(request.user)
     limit = int(request.query_params.get('limit', 20))
@@ -343,8 +384,6 @@ def my_activity(request):
     serializer = ActivitySerializer(activities, many=True)
     return Response(serializer.data)
 
-
-# ── Authenticated: Dashboard Stats ────────────────────────────────────────────
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -357,28 +396,25 @@ def my_dashboard(request):
     bookings = guide.bookings.all()
     total = bookings.count()
 
-    # Status counts
-    counts = {item['status']: item['count'] for item in
-              bookings.values('status').annotate(count=Count('status'))}
+    counts = {item['status']: item['count'] for item in bookings.values('status').annotate(count=Count('status'))}
 
     active = counts.get('active', 0)
     pending = counts.get('pending', 0)
     upcoming = counts.get('upcoming', 0)
     completed = counts.get('completed', 0)
-
     completion_rate = round((completed / total * 100), 1) if total else 0
 
-    # Top destinations (by booking frequency)
     dest_counts = {}
     for booking in bookings.values('destination'):
-        dest = booking['destination'].split('&')[0].strip().split()[0]
-        dest_counts[dest] = dest_counts.get(dest, 0) + 1
+        destination = booking['destination'].split('&')[0].strip().split()[0]
+        dest_counts[destination] = dest_counts.get(destination, 0) + 1
 
     top_destinations = [
-        {'name': dest, 'count': count}
-        for dest, count in sorted(dest_counts.items(), key=lambda x: -x[1])[:4]
+        {'name': destination, 'count': count}
+        for destination, count in sorted(dest_counts.items(), key=lambda item: -item[1])[:4]
     ]
 
+    rating = GuideProfileSerializer(guide, context={'request': request}).data['rating']
     data = {
         'total_travelers': total,
         'active_trips': active,
@@ -387,7 +423,7 @@ def my_dashboard(request):
         'completed_trips': completed,
         'completion_rate': completion_rate,
         'top_destinations': top_destinations,
-        'rating': float(guide.rating),
+        'rating': rating,
         'tours_completed': guide.tours_completed,
         'experience_years': guide.experience_years,
         'languages_count': len(guide.languages),
@@ -396,6 +432,3 @@ def my_dashboard(request):
 
     serializer = DashboardSerializer(data)
     return Response(serializer.data)
-
-
-

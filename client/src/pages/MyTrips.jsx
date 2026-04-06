@@ -9,9 +9,18 @@ import {
   XCircle,
   ArrowRight,
   Eye,
-  Bell
+  Bell,
+  MessageSquareQuote,
+  Star,
+  X,
+  BadgeCheck
 } from "lucide-react";
-import { getMyBookedTrips } from "../services/api";
+import toast from "react-hot-toast";
+import {
+  getMyBookedTrips,
+  createGuideReview,
+  initCsrf
+} from "../services/api";
 import "./MyTrips.css";
 
 const TAB_LABELS = ["Upcoming / Active", "Completed", "Declined"];
@@ -46,12 +55,41 @@ function getStatusDisplay(status) {
   }
 }
 
+function ReviewStars({ value, onChange, interactive = false }) {
+  return (
+    <div className={`mt-review-stars ${interactive ? "interactive" : ""}`}>
+      {Array.from({ length: 5 }).map((_, index) => {
+        const starValue = index + 1;
+        const filled = starValue <= value;
+        return (
+          <button
+            key={starValue}
+            type="button"
+            className={`mt-review-star ${filled ? "filled" : ""}`}
+            onClick={interactive ? () => onChange(starValue) : undefined}
+            disabled={!interactive}
+            aria-label={`${starValue} star${starValue > 1 ? "s" : ""}`}
+          >
+            <Star size={18} fill={filled ? "currentColor" : "none"} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function MyTrips() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("Upcoming / Active");
   const [expandedNotes, setExpandedNotes] = useState({});
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -145,6 +183,85 @@ export default function MyTrips() {
         itineraryId: booking.itinerary?.id || null
       }
     });
+  };
+
+  const openReviewModal = (booking) => {
+    if (!booking?.can_review) return;
+    setSelectedBooking(booking);
+    setReviewRating(0);
+    setReviewComment("");
+    setReviewError("");
+    setReviewModalOpen(true);
+  };
+
+  const closeReviewModal = () => {
+    setReviewModalOpen(false);
+    setSelectedBooking(null);
+    setReviewRating(0);
+    setReviewComment("");
+    setReviewError("");
+  };
+
+  const handleReviewSubmit = async (event) => {
+    event.preventDefault();
+    if (!selectedBooking) return;
+
+    if (selectedBooking.status !== "completed") {
+      setReviewError("Reviews are only available for completed trips.");
+      return;
+    }
+
+    if (!selectedBooking.can_review || selectedBooking.review) {
+      setReviewError("This completed booking has already been reviewed and is now locked.");
+      return;
+    }
+
+    if (reviewRating < 1 || reviewRating > 5) {
+      setReviewError("Please choose a rating between 1 and 5 stars.");
+      return;
+    }
+
+    setReviewSubmitting(true);
+    setReviewError("");
+
+    try {
+      await initCsrf();
+
+      const payload = {
+        booking_id: selectedBooking.id,
+        rating: reviewRating,
+        comment: reviewComment.trim()
+      };
+
+      const savedReview = await createGuideReview(payload);
+
+      setBookings((current) =>
+        current.map((booking) =>
+          booking.id === selectedBooking.id
+            ? {
+                ...booking,
+                review: savedReview,
+                can_review: false
+              }
+            : booking
+        )
+      );
+
+      toast.success("Review submitted.");
+      closeReviewModal();
+    } catch (err) {
+      const data = err.response?.data || {};
+      const message =
+        data.error ||
+        data.booking_id?.[0] ||
+        data.rating?.[0] ||
+        data.detail ||
+        "Unable to save your review right now.";
+      setReviewError(message);
+      toast.error(message);
+    } finally {
+      setReviewSubmitting(false);
+    }
   };
 
   return (
@@ -248,7 +365,7 @@ export default function MyTrips() {
                   <h2>{activeTab}</h2>
                   <p>
                     {activeTab === "Upcoming / Active" && "Stay on top of accepted guides, pending requests, and trips that are currently underway."}
-                    {activeTab === "Completed" && "Review past guided trips and reopen the same travel direction when you are ready to plan again."}
+                    {activeTab === "Completed" && "Review past guided trips, leave verified feedback, and reopen the same travel direction when you are ready to plan again."}
                     {activeTab === "Declined" && "Requests that were declined or cancelled are kept here so you can quickly try again with another guide."}
                   </p>
                 </div>
@@ -265,6 +382,8 @@ export default function MyTrips() {
                     const status = getStatusDisplay(booking.status);
                     const noteExpanded = Boolean(expandedNotes[booking.id]);
                     const hasLongNote = Boolean(booking.notes && booking.notes.length > 140);
+                    const hasReview = Boolean(booking.review);
+                    const canSubmitReview = Boolean(booking.can_review);
 
                     return (
                       <article key={booking.id} className="mt-trip-card">
@@ -328,6 +447,27 @@ export default function MyTrips() {
                                 </button>
                               </div>
                             </div>
+
+                            {booking.status === "completed" && (
+                              <div className="mt-review-summary-card">
+                                <div className="mt-review-summary-head">
+                                  <span className="mt-review-kicker">Verified Review</span>
+                                  <BadgeCheck size={16} />
+                                </div>
+                                {hasReview ? (
+                                  <>
+                                    <ReviewStars value={booking.review.rating} />
+                                    <p>{booking.review.comment || "You submitted a verified review for this completed trip."}</p>
+                                    <div className="mt-review-submitted-badge">
+                                      <BadgeCheck size={16} />
+                                      Review Submitted
+                                    </div>
+                                  </>
+                                ) : (
+                                  <p>Completed trips unlock one verified rating for the exact guide you traveled with.</p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -344,9 +484,21 @@ export default function MyTrips() {
                           )}
 
                           {booking.status === "completed" && (
-                            <button type="button" className="mt-btn-primary" onClick={() => openGuidesForTrip(booking)}>
-                              Rebook
-                            </button>
+                            <>
+                              {canSubmitReview && (
+                                <button
+                                  type="button"
+                                  className="mt-btn-outline"
+                                  onClick={() => openReviewModal(booking)}
+                                >
+                                  <MessageSquareQuote size={16} />
+                                  Rate Guide
+                                </button>
+                              )}
+                              <button type="button" className="mt-btn-primary" onClick={() => openGuidesForTrip(booking)}>
+                                Rebook
+                              </button>
+                            </>
                           )}
 
                           {["rejected", "auto_rejected", "cancelled"].includes(booking.status) && (
@@ -370,6 +522,63 @@ export default function MyTrips() {
           </>
         )}
       </div>
+
+      {reviewModalOpen && selectedBooking && (
+        <div className="mt-review-modal-overlay" onClick={closeReviewModal}>
+          <div className="mt-review-modal" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="mt-review-close" onClick={closeReviewModal} aria-label="Close review form">
+              <X size={18} />
+            </button>
+
+            <div className="mt-review-modal-head">
+              <span className="mt-review-modal-badge">Verified completed trip</span>
+              <h3>Rate Your Guide</h3>
+              <p>
+                This review is tied to booking #{selectedBooking.id} with {selectedBooking.guide_name || "your guide"} for {selectedBooking.destination}.
+              </p>
+            </div>
+
+            <div className="mt-review-proof">
+              <div>
+                <span>Trip</span>
+                <strong>{selectedBooking.destination}</strong>
+              </div>
+              <div>
+                <span>Dates</span>
+                <strong>{formatDate(selectedBooking.trip_start)} to {formatDate(selectedBooking.trip_end)}</strong>
+              </div>
+            </div>
+
+            <form className="mt-review-form" onSubmit={handleReviewSubmit}>
+              {reviewError && <div className="alert-error">{reviewError}</div>}
+
+              <div className="mt-review-field">
+                <label>Your Rating</label>
+                <ReviewStars value={reviewRating} onChange={setReviewRating} interactive />
+              </div>
+
+              <div className="mt-review-field">
+                <label>Review Comment</label>
+                <textarea
+                  rows="5"
+                  value={reviewComment}
+                  onChange={(event) => setReviewComment(event.target.value)}
+                  placeholder="Share what made the guide trustworthy, helpful, or memorable during your completed trip."
+                />
+              </div>
+
+              <div className="mt-review-modal-actions">
+                <button type="button" className="mt-btn-outline" onClick={closeReviewModal} disabled={reviewSubmitting}>
+                  Cancel
+                </button>
+                <button type="submit" className="mt-btn-primary" disabled={reviewSubmitting}>
+                  {reviewSubmitting ? "Saving..." : "Submit Review"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

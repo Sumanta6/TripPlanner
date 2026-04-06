@@ -137,3 +137,36 @@ class Activity(models.Model):
 
     def __str__(self):
         return f"[{self.activity_type}] {self.highlight}"
+
+
+class Review(models.Model):
+    """Verified traveler review tied to a completed booking."""
+
+    guide = models.ForeignKey(
+        GuideProfile, on_delete=models.CASCADE, related_name='reviews'
+    )
+    traveler = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='guide_reviews'
+    )
+    booking = models.OneToOneField(
+        Booking, on_delete=models.CASCADE, related_name='review'
+    )
+    rating = models.PositiveSmallIntegerField()
+    comment = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Review'
+        verbose_name_plural = 'Reviews'
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(rating__gte=1) & models.Q(rating__lte=5),
+                name='guides_review_rating_between_1_and_5',
+            ),
+        ]
+
+    def __str__(self):
+        return f"Review {self.rating}/5 for {self.guide} by {self.traveler}"

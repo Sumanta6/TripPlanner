@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { useLocation, Link } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import AuthModal from "../components/AuthModal";
 import {
   FaMapMarkerAlt, FaUsers, FaRoute, FaCalendarCheck,
   FaRobot, FaMoneyBillWave, FaCompass, FaStar,
-  FaFacebook, FaInstagram, FaTwitter, FaYoutube,
   FaChevronDown, FaArrowRight, FaShieldAlt,
 } from "react-icons/fa";
 import "./Landing.css";
@@ -385,45 +384,6 @@ export default function Landing({ setIsLoggedIn }) {
           FOOTER
       ═══════════════════════════════════════════════════════ */}
       <footer className="lp-footer">
-        <div className="lp-footer-top">
-          <div className="lp-footer-brand">
-            <div className="lp-footer-logo">✈️ Trip<span className="footer-accent">Planner</span></div>
-            <p>AI-powered travel planning built exclusively for Nepal. Plan smarter, travel better, explore deeper.</p>
-            <div className="lp-footer-social">
-              <a href="#!" className="social-btn"><FaFacebook /></a>
-              <a href="#!" className="social-btn"><FaInstagram /></a>
-              <a href="#!" className="social-btn"><FaTwitter /></a>
-              <a href="#!" className="social-btn"><FaYoutube /></a>
-            </div>
-          </div>
-
-          <div className="lp-footer-links">
-            <h4>Explore</h4>
-            <ul>
-              <li><Link to="/destinations">Popular Destinations</Link></li>
-              <li><button onClick={() => openAuth("login")}>Plan Your Trip</button></li>
-              <li><Link to="/how-it-works">How It Works</Link></li>
-              <li><Link to="/blog">Travel Blog</Link></li>
-            </ul>
-          </div>
-
-          <div className="lp-footer-links">
-            <h4>Company</h4>
-            <ul>
-              <li><Link to="/contact">About Us</Link></li>
-              <li><Link to="/contact">Contact</Link></li>
-              <li><a href="http://localhost:3001">Guide Portal</a></li>
-            </ul>
-          </div>
-
-          <div className="lp-footer-contact">
-            <h4>Contact</h4>
-            <p>📍 Thamel, Kathmandu, Nepal</p>
-            <p>✉️ sumanta.tripplanner@gmail.com</p>
-            <p>📞 +977 984-1234567</p>
-          </div>
-        </div>
-
         <div className="lp-footer-bottom">
           <p>© 2026 TripPlanner. All rights reserved. Made with ❤️ in Nepal.</p>
           <div className="footer-policy-links">

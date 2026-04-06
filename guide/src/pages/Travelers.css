@@ -386,6 +386,31 @@
     white-space: pre-wrap;
 }
 
+.tv-communication-locked {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.28), rgba(15, 23, 42, 0.12));
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.tv-communication-locked-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(148, 163, 184, 0.12);
+    color: #94a3b8;
+    flex-shrink: 0;
+}
+
 /* Actions */
 .tv-card-actions {
     display: flex;
@@ -470,6 +495,20 @@
 .tv-btn-email:hover {
     background: var(--accent);
     color: #fff;
+}
+
+.tv-btn-disabled {
+    background: rgba(148, 163, 184, 0.08);
+    color: var(--text-muted);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.tv-btn-disabled:hover {
+    transform: none;
+    background: rgba(148, 163, 184, 0.08);
+    color: var(--text-muted);
 }
 
 /* ── Empty State ─────────────────────────────────────────────────────────────── */

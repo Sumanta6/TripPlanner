@@ -1,19 +1,37 @@
-import React from "react";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import React, { useMemo } from "react";
+import { MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 const DEFAULT_CENTER = { lat: 27.7172, lng: 85.324, zoom: 11 };
 
-// Leaflet needs the icon URLs wired up when used inside a bundler.
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow
-});
+function buildMarkerIcon(order, isPrimary) {
+  return L.divIcon({
+    className: "map-card__marker-wrap",
+    html: `
+      <div class="map-card__marker ${isPrimary ? "map-card__marker--primary" : ""}">
+        <span class="map-card__marker-core">${order}</span>
+      </div>
+    `,
+    iconSize: [30, 30],
+    iconAnchor: [15, 30]
+  });
+}
+
+function FitBounds({ stops }) {
+  const map = useMap();
+
+  React.useEffect(() => {
+    if (!stops?.length) return;
+    if (stops.length === 1) {
+      map.setView([stops[0].latitude, stops[0].longitude], map.getZoom());
+      return;
+    }
+    const bounds = L.latLngBounds(stops.map((stop) => [stop.latitude, stop.longitude]));
+    map.fitBounds(bounds, { padding: [32, 32] });
+  }, [map, stops]);
+
+  return null;
+}
 
 function MapView({
   lat = DEFAULT_CENTER.lat,
@@ -21,6 +39,10 @@ function MapView({
   zoom = DEFAULT_CENTER.zoom,
   title = "Kathmandu, Nepal",
   className = "",
+  sectionLabel = "Destination Map",
+  footerNote = "",
+  routeStops = [],
+  showRouteLine = false,
   scrollWheelZoom = false,
   doubleClickZoom = false,
   dragging = true,
@@ -28,30 +50,93 @@ function MapView({
   zoomControl = true,
   keyboard = false
 }) {
-  const position = [lat, lng];
+  const normalizedStops = useMemo(() => {
+    if (Array.isArray(routeStops) && routeStops.length) {
+      return routeStops
+        .filter((stop) => stop?.latitude != null && stop?.longitude != null)
+        .map((stop) => ({
+          ...stop,
+          latitude: Number(stop.latitude),
+          longitude: Number(stop.longitude)
+        }));
+    }
+
+    return [{
+      order: 1,
+      name: title,
+      latitude: lat,
+      longitude: lng,
+      stop_type: "destination"
+    }];
+  }, [lat, lng, routeStops, title]);
+
+  const polylinePositions = normalizedStops.map((stop) => [stop.latitude, stop.longitude]);
+  const initialCenter = normalizedStops[0]
+    ? [normalizedStops[0].latitude, normalizedStops[0].longitude]
+    : [lat, lng];
 
   return (
     <div className={`map-card ${className}`.trim()}>
-      <MapContainer
-        className="map-card__container"
-        center={position}
-        zoom={zoom}
-        scrollWheelZoom={scrollWheelZoom}
-        doubleClickZoom={doubleClickZoom}
-        dragging={dragging}
-        touchZoom={touchZoom}
-        zoomControl={zoomControl}
-        keyboard={keyboard}
-        aria-label={title}
-      >
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution="Map data © OpenStreetMap contributors"
-        />
-        <Marker position={position} keyboard={false} autoPanOnFocus={false}>
-          <Popup autoPan={false}>{title}</Popup>
-        </Marker>
-      </MapContainer>
+      <div className="map-card__chrome">
+        <div className="map-card__eyebrow">{sectionLabel}</div>
+        <div className="map-card__heading-row">
+          <div>
+            <strong className="map-card__title">{title}</strong>
+            {footerNote ? <p className="map-card__subtitle">{footerNote}</p> : null}
+          </div>
+          <div className="map-card__pin-pill">
+            <span className="map-card__pin-dot" />
+            {normalizedStops.length > 1 ? `${normalizedStops.length} stops` : "Live preview"}
+          </div>
+        </div>
+      </div>
+
+      <div className="map-card__stage">
+        <MapContainer
+          className="map-card__container"
+          center={initialCenter}
+          zoom={zoom}
+          scrollWheelZoom={scrollWheelZoom}
+          doubleClickZoom={doubleClickZoom}
+          dragging={dragging}
+          touchZoom={touchZoom}
+          zoomControl={zoomControl}
+          keyboard={keyboard}
+          attributionControl={false}
+          aria-label={title}
+        >
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          {normalizedStops.length > 1 ? <FitBounds stops={normalizedStops} /> : null}
+          {showRouteLine && polylinePositions.length > 1 ? (
+            <Polyline
+              positions={polylinePositions}
+              pathOptions={{
+                color: "#1d8a9b",
+                weight: 4,
+                opacity: 0.82,
+                lineCap: "round",
+                lineJoin: "round",
+                dashArray: "10 8"
+              }}
+            />
+          ) : null}
+          {normalizedStops.map((stop, index) => (
+            <Marker
+              key={`${stop.order}-${stop.name}-${stop.latitude}-${stop.longitude}`}
+              position={[stop.latitude, stop.longitude]}
+              icon={buildMarkerIcon(stop.order || index + 1, index === 0)}
+              keyboard={false}
+              autoPanOnFocus={false}
+            />
+          ))}
+        </MapContainer>
+
+        <div className="map-card__depth" />
+      </div>
+
+      <div className="map-card__footer">
+        <span className="map-card__footer-copy">Map tiles by OpenStreetMap contributors</span>
+      </div>
     </div>
   );
 }
