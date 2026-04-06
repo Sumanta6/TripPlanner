@@ -16,7 +16,7 @@ const HERO_SLIDES = [
     sub: "AI-powered travel planning that builds custom itineraries around your time, budget, and interests.",
   },
   {
-    img: "/images/hero-pokhara.jpg",
+    img: "/images/raimond-klavins-KKm1ua7MSf0-unsplash.jpg",
     title: <>Discover the<br /><span className="hero-highlight">Beauty of Nepal</span></>,
     sub: "From the serene lakes of Pokhara to the rooftop of the world — explore every corner effortlessly.",
   },
@@ -39,49 +39,37 @@ const DESTINATIONS = [
     name: "Kathmandu",
     tagline: "City of Temples",
     desc: "Explore ancient Durbar Squares, sacred stupas, and vibrant bazaars in the capital of Nepal.",
-    img: "/images/dest-bhaktapur.jpg",
-    gradient: "linear-gradient(135deg,#1e3a5f,#4f7cff)",
-    emoji: "🏛️",
+    img: "/images/raimond-klavins-59Al83Zjtf8-unsplash.jpg",
   },
   {
     name: "Pokhara",
     tagline: "Valley of Lakes",
     desc: "Paraglide over Phewa Lake with Annapurna in the backdrop — Nepal's adventure capital.",
-    img: "/images/dest-phewa.jpg",
-    gradient: "linear-gradient(135deg,#064e3b,#10b981)",
-    emoji: "⛵",
+    img: "/images/meera-pankhania-7cENZhgyf7c-unsplash.jpg",
   },
   {
     name: "Everest Region",
     tagline: "Top of the World",
     desc: "Trek to Everest Base Camp and witness the world's highest peaks up close.",
-    img: "/images/dest-everest.jpg",
-    gradient: null,
-    emoji: "🏔️",
+    img: "/images/sabin-kumar-3YJwXr_xh8E-unsplash.jpg",
   },
   {
     name: "Mustang",
     tagline: "Desert Kingdom",
     desc: "Step into the mystical walled city of Lo Manthang in the rain-shadow desert plateau.",
-    img: "/images/dest-mustang.jpg",
-    gradient: null,
-    emoji: "🏯",
+    img: "/images/chandan-chaurasia-tM7p9GOBPwk-unsplash.jpg",
   },
   {
     name: "Chitwan",
     tagline: "Wildlife Sanctuary",
     desc: "Spot one-horned rhinos and Bengal tigers on a jungle safari in Chitwan National Park.",
-    img: "/images/dest-culture.jpg",
-    gradient: null,
-    emoji: "🦏",
+    img: "/images/vince-russell-FXVY6ZIOkhM-unsplash.jpg",
   },
   {
     name: "Lumbini",
     tagline: "Birthplace of Buddha",
     desc: "Walk in the footsteps of the Buddha at this sacred UNESCO World Heritage Site.",
-    img: "/images/dest-temple.jpg",
-    gradient: null,
-    emoji: "☮️",
+    img: "/images/kabita-darlami-v_iTE6Zy28A-unsplash.jpg",
   },
 ];
 
@@ -232,26 +220,21 @@ export default function Landing({ setIsLoggedIn }) {
             <RevealSection key={dest.name} className={`dest-reveal-delay-${i}`}>
               <div className="lp-dest-card">
                 <div className="dest-img-wrap">
-                  {dest.gradient ? (
-                    <div className="dest-img dest-img-gradient" style={{ background: dest.gradient }}>
-                      <span className="dest-emoji">{dest.emoji}</span>
-                    </div>
-                  ) : (
-                    <img src={dest.img} alt={dest.name} className="dest-img" loading="lazy"
-                      onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
-                    />
-                  )}
-                  {!dest.gradient && (
-                    <div className="dest-img dest-img-fallback" style={{ display: 'none' }}>
-                      <span className="dest-emoji">{dest.emoji}</span>
-                    </div>
-                  )}
+                  <img
+                    src={dest.img}
+                    alt={dest.name}
+                    className="dest-img"
+                    loading="lazy"
+                    onError={(e) => {
+                      e.currentTarget.src = "/images/hero-nepal-premium.png";
+                    }}
+                  />
                   <div className="dest-img-overlay">
+                    <h3>{dest.name}</h3>
                     <span className="dest-tagline">{dest.tagline}</span>
                   </div>
                 </div>
                 <div className="dest-card-body">
-                  <h3>{dest.name}</h3>
                   <p>{dest.desc}</p>
                   <button className="dest-explore-btn" onClick={() => openAuth("login")}>
                     Explore <FaArrowRight />

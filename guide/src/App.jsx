@@ -16,6 +16,7 @@ import { Toaster } from 'react-hot-toast';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const GUIDE_KEY = 'guideLoggedIn';
+const LANDING_URL = 'http://localhost:3000/';
 
 function getInitialAuth() {
     return (
@@ -56,6 +57,7 @@ export default function App() {
         localStorage.removeItem(GUIDE_KEY);
         sessionStorage.removeItem(GUIDE_KEY);
         setLoggedIn(false);
+        window.location.replace(LANDING_URL);
     }
 
     return (
