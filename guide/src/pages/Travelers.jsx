@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-    FaSearch, FaFilter, FaEnvelope, FaLock, FaComments, FaPaperPlane, FaTimes,
+    FaSearch, FaFilter, FaEnvelope, FaComments, FaPaperPlane, FaTimes,
     FaStickyNote, FaMapMarkerAlt, FaCalendarAlt,
     FaChevronDown, FaChevronUp
 } from 'react-icons/fa';
@@ -44,6 +44,21 @@ function getInitials(name) {
         .slice(0, 2)
         .map((part) => part[0]?.toUpperCase() || '')
         .join('') || 'U';
+}
+
+function getBookingStateMessage(status) {
+    switch (status) {
+        case 'pending':
+            return 'Waiting for guide confirmation';
+        case 'rejected':
+            return 'This request was not accepted';
+        case 'auto_rejected':
+            return 'This request expired';
+        case 'completed':
+            return 'Trip completed';
+        default:
+            return '';
+    }
 }
 
 function isOwnChatMessage(message, currentUserId, thread) {
@@ -361,6 +376,7 @@ export default function Travelers() {
                         const cfg = STATUS_MAP[t.status] || STATUS_MAP.pending;
                         const initials = (t.traveler_name || '?').charAt(0).toUpperCase();
                         const canCommunicate = Boolean(t.can_chat ?? COMMUNICATION_ENABLED_STATUSES.has(t.status));
+                        const bookingStateMessage = getBookingStateMessage(t.status);
 
                         return (
                             <div className="tv-card" key={t.id}>
@@ -394,12 +410,6 @@ export default function Travelers() {
                                             <div className="tv-info-icon email"><FaEnvelope /></div>
                                             <span className="tv-info-label">Email</span>
                                             <span className="tv-info-value">{t.traveler_email}</span>
-                                        </div>
-                                    )}
-                                    {!canCommunicate && (
-                                        <div className="tv-communication-locked" aria-live="polite">
-                                            <span className="tv-communication-locked-icon"><FaLock /></span>
-                                            <span>{t.chat_locked_message || 'Chat available after acceptance'}</span>
                                         </div>
                                     )}
                                 </div>
@@ -457,26 +467,11 @@ export default function Travelers() {
                                                 </a>
                                             )}
                                         </>
-                                    ) : (
-                                        <>
-                                            <button
-                                                type="button"
-                                                className="tv-action-btn tv-btn-disabled"
-                                                disabled
-                                                aria-disabled="true"
-                                            >
-                                                <FaComments /> Chat locked
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="tv-action-btn tv-btn-disabled"
-                                                disabled
-                                                aria-disabled="true"
-                                            >
-                                                <FaEnvelope /> Email locked
-                                            </button>
-                                        </>
-                                    )}
+                                    ) : bookingStateMessage ? (
+                                        <div className="tv-booking-state-message" aria-live="polite">
+                                            {bookingStateMessage}
+                                        </div>
+                                    ) : null}
                                 </div>
                             </div>
                         );

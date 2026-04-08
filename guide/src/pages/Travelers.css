@@ -743,18 +743,21 @@
     color: #fff;
 }
 
-.tv-btn-disabled {
+.tv-booking-state-message {
+    width: 100%;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 14px;
+    border-radius: 14px;
     background: rgba(148, 163, 184, 0.08);
-    color: var(--text-muted);
-    border: 1px solid rgba(148, 163, 184, 0.16);
-    cursor: not-allowed;
-    box-shadow: none;
-}
-
-.tv-btn-disabled:hover {
-    transform: none;
-    background: rgba(148, 163, 184, 0.08);
-    color: var(--text-muted);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-align: center;
 }
 
 /* ── Empty State ─────────────────────────────────────────────────────────────── */
