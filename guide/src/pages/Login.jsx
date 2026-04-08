@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import axios from 'axios';
+import { storeGuideAuthToken } from '../services/guidesService';
 import './Auth.css';
 
 const GOOGLE_CLIENT_ID =
@@ -27,17 +28,11 @@ export default function Login({ onLogin }) {
             setError('');
             try {
                 const res = await axios.post(
-                    `${API}/google-login/`,
+                    `${API}/guide/google-login/`,
                     { token: response.credential },
                     { withCredentials: true }
                 );
-
-                // Role guard – reject traveler accounts on this portal
-                const role = res.data?.role;
-                if (role && role !== 'guide') {
-                    setError('This account belongs to a traveler. Please use the Traveler portal.');
-                    return;
-                }
+                storeGuideAuthToken(res.data?.token, true);
 
                 onLogin(true); // remember = true for Google
                 navigate('/dashboard');
@@ -76,17 +71,11 @@ export default function Login({ onLogin }) {
 
         try {
             const res = await axios.post(
-                `${API}/login/`,
+                `${API}/guide/login/`,
                 { email: form.email, password: form.password, remember_me: rememberMe },
                 { withCredentials: true }
             );
-
-            // Role guard
-            const role = res.data?.role;
-            if (role && role !== 'guide') {
-                setError('This account belongs to a traveler. Please use the Traveler portal.');
-                return;
-            }
+            storeGuideAuthToken(res.data?.token, rememberMe);
 
             onLogin(rememberMe);
             navigate('/dashboard');

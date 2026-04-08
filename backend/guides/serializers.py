@@ -1,7 +1,8 @@
 from django.db.models import Count
 from rest_framework import serializers
+from django.core.exceptions import ObjectDoesNotExist
 
-from .models import GuideProfile, Booking, Activity, Review
+from .models import GuideProfile, Booking, Activity, Review, ChatMessage
 
 
 def build_review_breakdown(guide):
@@ -60,6 +61,7 @@ class ReviewSummarySerializer(serializers.ModelSerializer):
 
 class GuideProfileSerializer(serializers.ModelSerializer):
     """Full serializer – used for list and detail views."""
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
     availability_badge = serializers.SerializerMethodField()
     booked_ranges = serializers.SerializerMethodField()
     rating = serializers.SerializerMethodField()
@@ -70,7 +72,7 @@ class GuideProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = GuideProfile
         fields = [
-            'id', 'full_name', 'email', 'phone', 'address',
+            'id', 'user_id', 'full_name', 'email', 'phone', 'address',
             'profile_image', 'bio',
             'languages', 'specialization', 'destinations',
             'experience_years', 'rating', 'review_count', 'rating_breakdown',
@@ -182,6 +184,10 @@ class BookingSerializer(serializers.ModelSerializer):
     traveler_phone = serializers.SerializerMethodField()
     can_review = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
+    can_view_chat = serializers.SerializerMethodField()
+    can_send_chat = serializers.SerializerMethodField()
+    can_chat = serializers.SerializerMethodField()
+    chat_locked_message = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -191,11 +197,14 @@ class BookingSerializer(serializers.ModelSerializer):
             'destination', 'trip_start', 'trip_end',
             'status', 'notes', 'avatar', 'itinerary',
             'can_review', 'review',
+            'can_view_chat', 'can_send_chat', 'can_chat', 'chat_locked_message',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
             'id', 'guide', 'avatar', 'itinerary',
-            'can_review', 'review', 'created_at', 'updated_at',
+            'can_review', 'review',
+            'can_view_chat', 'can_send_chat', 'can_chat', 'chat_locked_message',
+            'created_at', 'updated_at',
         ]
 
     def get_avatar(self, obj):
@@ -235,6 +244,20 @@ class BookingSerializer(serializers.ModelSerializer):
         if not hasattr(obj, 'review'):
             return None
         return ReviewSummarySerializer(obj.review, context=self.context).data
+
+    def get_can_view_chat(self, obj):
+        return obj.status in {'accepted', 'active', 'completed'}
+
+    def get_can_send_chat(self, obj):
+        return obj.status in {'accepted', 'active'}
+
+    def get_can_chat(self, obj):
+        return self.get_can_send_chat(obj)
+
+    def get_chat_locked_message(self, obj):
+        if self.get_can_view_chat(obj):
+            return ''
+        return 'Chat available after acceptance'
 
 
 # ── Reviews ───────────────────────────────────────────────────────────────────
@@ -278,6 +301,65 @@ class ReviewWriteSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop('booking_id', None)
         return super().create(validated_data)
+
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    sender_name = serializers.SerializerMethodField()
+    sender_id = serializers.IntegerField(read_only=True)
+    sender_email = serializers.EmailField(source='sender.email', read_only=True)
+    booking_id = serializers.IntegerField(read_only=True)
+    content = serializers.CharField(source='message', read_only=True)
+    is_own = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ChatMessage
+        fields = [
+            'id', 'booking', 'booking_id', 'sender_id', 'sender_email', 'sender_role', 'sender_name',
+            'message', 'content', 'is_own', 'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_sender_name(self, obj):
+        if obj.sender_role == 'guide':
+            try:
+                guide_profile = obj.sender.guide_profile
+            except ObjectDoesNotExist:
+                guide_profile = None
+
+            if guide_profile and guide_profile.full_name:
+                return guide_profile.full_name
+            return obj.sender.get_full_name() or obj.sender.username
+
+        try:
+            traveler_profile = obj.sender.traveler_profile
+        except ObjectDoesNotExist:
+            traveler_profile = None
+
+        if traveler_profile and traveler_profile.full_name:
+            return traveler_profile.full_name
+        return obj.sender.get_full_name() or obj.sender.username
+
+    def get_is_own(self, obj):
+        request = self.context.get('request')
+        return bool(request and request.user.is_authenticated and request.user.id == obj.sender_id)
+
+
+class ChatThreadSerializer(serializers.Serializer):
+    current_user_id = serializers.IntegerField()
+    current_user_email = serializers.EmailField(allow_blank=True)
+    viewer_role = serializers.CharField()
+    booking_id = serializers.IntegerField()
+    guide_user_id = serializers.IntegerField(allow_null=True)
+    traveler_user_id = serializers.IntegerField(allow_null=True)
+    booking_status = serializers.CharField()
+    destination = serializers.CharField()
+    counterpart_name = serializers.CharField()
+    counterpart_email = serializers.CharField(allow_blank=True)
+    can_view_chat = serializers.BooleanField()
+    can_send_chat = serializers.BooleanField()
+    can_chat = serializers.BooleanField()
+    locked_message = serializers.CharField(allow_blank=True)
+    messages = ChatMessageSerializer(many=True)
 
 
 # ── Activity ──────────────────────────────────────────────────────────────────

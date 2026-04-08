@@ -10,6 +10,28 @@
 
 import axios from 'axios';
 
+const GUIDE_TOKEN_KEY = 'guideAuthToken';
+
+export function getGuideAuthToken() {
+    return localStorage.getItem(GUIDE_TOKEN_KEY) || sessionStorage.getItem(GUIDE_TOKEN_KEY) || '';
+}
+
+export function storeGuideAuthToken(token, remember = false) {
+    if (!token) return;
+    if (remember) {
+        localStorage.setItem(GUIDE_TOKEN_KEY, token);
+        sessionStorage.removeItem(GUIDE_TOKEN_KEY);
+        return;
+    }
+    sessionStorage.setItem(GUIDE_TOKEN_KEY, token);
+    localStorage.removeItem(GUIDE_TOKEN_KEY);
+}
+
+export function clearGuideAuthToken() {
+    localStorage.removeItem(GUIDE_TOKEN_KEY);
+    sessionStorage.removeItem(GUIDE_TOKEN_KEY);
+}
+
 // ── Helper to get CSRF token from cookies ─────────────────────────────────────
 export function getCookie(name) {
     const value = `; ${document.cookie}`;
@@ -33,6 +55,10 @@ api.interceptors.request.use((config) => {
     const csrfToken = getCookie('csrftoken');
     if (csrfToken) {
         config.headers['X-CSRFToken'] = csrfToken;
+    }
+    const guideToken = getGuideAuthToken();
+    if (guideToken) {
+        config.headers.Authorization = `Bearer ${guideToken}`;
     }
     return config;
 }, (error) => Promise.reject(error));
@@ -107,6 +133,18 @@ export async function getMyBookings(statusFilter = null) {
  */
 export async function updateBookingStatus(id, status) {
     const { data } = await api.patch(`me/bookings/${id}/status/`, { status });
+    return data;
+}
+
+/** GET /api/guides/bookings/<id>/chat/ – booking chat thread */
+export async function getBookingChat(id) {
+    const { data } = await api.get(`bookings/${id}/chat/`);
+    return data;
+}
+
+/** POST /api/guides/bookings/<id>/chat/ – send booking chat message */
+export async function sendBookingChatMessage(id, message) {
+    const { data } = await api.post(`bookings/${id}/chat/`, { message });
     return data;
 }
 

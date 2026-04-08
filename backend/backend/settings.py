@@ -49,6 +49,7 @@ MIDDLEWARE = [
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "accounts.authentication.GuideTokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
 }
@@ -150,6 +151,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # ======================
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "accounts.authentication.GuideTokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
 }

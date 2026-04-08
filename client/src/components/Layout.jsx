@@ -1,5 +1,6 @@
 import Navbar from "./Navbar";
 import { Outlet } from "react-router-dom";
+import ClientChatLauncher from "./ClientChatLauncher";
 
 export default function Layout({
   isLoggedIn,
@@ -17,6 +18,8 @@ export default function Layout({
       <main className="main-content">
         <Outlet />
       </main>
+
+      <ClientChatLauncher isLoggedIn={isLoggedIn} />
     </div>
   );
 }

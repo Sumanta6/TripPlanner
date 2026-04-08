@@ -170,3 +170,30 @@ class Review(models.Model):
 
     def __str__(self):
         return f"Review {self.rating}/5 for {self.guide} by {self.traveler}"
+
+
+class ChatMessage(models.Model):
+    """Persistent booking-scoped chat message between one traveler and one guide."""
+
+    SENDER_CHOICES = [
+        ('guide', 'Guide'),
+        ('traveler', 'Traveler'),
+    ]
+
+    booking = models.ForeignKey(
+        Booking, on_delete=models.CASCADE, related_name='chat_messages'
+    )
+    sender = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='booking_chat_messages'
+    )
+    sender_role = models.CharField(max_length=20, choices=SENDER_CHOICES)
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+        verbose_name = 'Chat Message'
+        verbose_name_plural = 'Chat Messages'
+
+    def __str__(self):
+        return f"{self.sender_role} message for booking #{self.booking_id}"

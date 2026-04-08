@@ -64,6 +64,11 @@ export async function getMyProfile() {
     return data;
 }
 
+export async function getAuthStatus() {
+    const { data } = await api.get("/accounts/check-auth/");
+    return data;
+}
+
 /** PATCH /accounts/profile/me/ – partially update the traveler's profile */
 export async function updateMyProfile(updates) {
     const { data } = await api.patch("/accounts/profile/me/", updates);
@@ -107,6 +112,18 @@ export async function requestGuideWithItinerary(guideId, bookingData) {
 /** POST /api/guides/reviews/ – create verified review */
 export async function createGuideReview(payload) {
     const { data } = await api.post("/api/guides/reviews/", payload);
+    return data;
+}
+
+/** GET /api/guides/bookings/:id/chat/ – fetch booking chat thread */
+export async function getBookingChat(bookingId) {
+    const { data } = await api.get(`/api/guides/bookings/${bookingId}/chat/`);
+    return data;
+}
+
+/** POST /api/guides/bookings/:id/chat/ – send booking chat message */
+export async function sendBookingChatMessage(bookingId, message) {
+    const { data } = await api.post(`/api/guides/bookings/${bookingId}/chat/`, { message });
     return data;
 }
 

@@ -1,11 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-    FaSearch, FaFilter, FaPhone, FaEnvelope, FaLock,
+    FaSearch, FaFilter, FaEnvelope, FaLock, FaComments, FaPaperPlane, FaTimes,
     FaStickyNote, FaMapMarkerAlt, FaCalendarAlt,
     FaChevronDown, FaChevronUp
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
-import { getMyBookings, updateBookingStatus, initCsrf } from '../services/guidesService';
+import {
+    getMyBookings,
+    updateBookingStatus,
+    initCsrf,
+    getBookingChat,
+    sendBookingChatMessage,
+} from '../services/guidesService';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Travelers.css';
@@ -28,6 +34,66 @@ function fmtDate(dateStr) {
     if (!dateStr) return '';
     const d = new Date(dateStr + 'T00:00:00');
     return d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function getInitials(name) {
+    if (!name) return 'U';
+    return name
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase() || '')
+        .join('') || 'U';
+}
+
+function isOwnChatMessage(message, currentUserId, thread) {
+    const senderId = message?.sender_id;
+
+    if (senderId != null && currentUserId != null) {
+        const ownById = String(senderId) === String(currentUserId);
+        if (process.env.NODE_ENV !== 'production') {
+            console.debug('Guide chat ownership', {
+                viewerRole: 'guide',
+                currentUserId,
+                messageId: message?.id,
+                senderId,
+                senderName: message?.sender_name,
+                senderRole: message?.sender_role,
+                isMine: ownById,
+            });
+        }
+        return ownById;
+    }
+
+    if (message?.sender_role) {
+        const ownByRole = String(message.sender_role) === 'guide';
+        if (process.env.NODE_ENV !== 'production') {
+            console.debug('Guide chat ownership role fallback', {
+                viewerRole: 'guide',
+                currentUserId,
+                messageId: message?.id,
+                senderId,
+                senderName: message?.sender_name,
+                senderRole: message?.sender_role,
+                isMine: ownByRole,
+            });
+        }
+        return ownByRole;
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+        console.warn('Guide chat sender ownership could not be resolved.', {
+            currentUserId,
+            viewerRole: 'guide',
+            messageId: message?.id,
+            senderId,
+            senderName: message?.sender_name,
+            senderRole: message?.sender_role,
+            senderEmail: message?.sender_email,
+        });
+    }
+
+    return false;
 }
 
 /* ── Skeleton Card ───────────────────────────────────────────────────────────── */
@@ -62,8 +128,21 @@ export default function Travelers() {
     const [filterStatus, setFilterStatus] = useState('all');
     const [expandedNote, setExpandedNote] = useState(null);
     const [processing, setProcessing] = useState({});
-    const { refreshProfile } = useAuth();
+    const [chatOpen, setChatOpen] = useState(false);
+    const [chatBooking, setChatBooking] = useState(null);
+    const [chatThread, setChatThread] = useState(null);
+    const [chatDraft, setChatDraft] = useState('');
+    const [chatLoading, setChatLoading] = useState(false);
+    const [chatSending, setChatSending] = useState(false);
+    const [chatError, setChatError] = useState('');
+    const { refreshProfile, profile } = useAuth();
     const navigate = useNavigate();
+
+    useEffect(() => {
+        if (process.env.NODE_ENV !== 'production' && chatOpen) {
+            console.debug('Guide chat current user', profile, 'resolvedId', profile?.user_id ?? chatThread?.current_user_id ?? null);
+        }
+    }, [chatOpen, profile, chatThread]);
 
     /* ── Fetch bookings ──────────────────────────────────────────────────────── */
     useEffect(() => {
@@ -83,6 +162,35 @@ export default function Travelers() {
         load();
         return () => { alive = false; };
     }, []);
+
+    useEffect(() => {
+        if (!chatOpen || !chatBooking?.id) return undefined;
+
+        let active = true;
+
+        async function refreshChat(silent = true) {
+            if (!silent) setChatLoading(true);
+            try {
+                const data = await getBookingChat(chatBooking.id);
+                if (!active) return;
+                setChatThread(data);
+                setChatError('');
+            } catch (err) {
+                if (!active) return;
+                setChatError(err.message || 'Unable to load chat.');
+            } finally {
+                if (active && !silent) setChatLoading(false);
+            }
+        }
+
+        refreshChat(false);
+        const timer = window.setInterval(() => refreshChat(true), 6000);
+
+        return () => {
+            active = false;
+            window.clearInterval(timer);
+        };
+    }, [chatOpen, chatBooking]);
 
     /* ── Status change handler ───────────────────────────────────────────────── */
     const handleStatusChange = async (id, newStatus) => {
@@ -126,6 +234,47 @@ export default function Travelers() {
             return matchSearch && matchStatus;
         });
     }, [bookings, search, filterStatus]);
+
+    const openChat = async (booking) => {
+        if (!booking?.can_chat) {
+            toast.error(booking?.chat_locked_message || 'Chat available after acceptance.');
+            return;
+        }
+        setChatBooking(booking);
+        setChatThread(null);
+        setChatDraft('');
+        setChatError('');
+        setChatOpen(true);
+    };
+
+    const closeChat = () => {
+        setChatOpen(false);
+        setChatBooking(null);
+        setChatThread(null);
+        setChatDraft('');
+        setChatError('');
+    };
+
+    const handleSendChat = async (event) => {
+        event.preventDefault();
+        if (!chatBooking?.id || !chatDraft.trim() || chatSending) return;
+
+        setChatSending(true);
+        setChatError('');
+        try {
+            await initCsrf();
+            const created = await sendBookingChatMessage(chatBooking.id, chatDraft.trim());
+            setChatThread((current) => current ? {
+                ...current,
+                messages: [...current.messages, created],
+            } : current);
+            setChatDraft('');
+        } catch (err) {
+            setChatError(err.message || 'Unable to send message.');
+        } finally {
+            setChatSending(false);
+        }
+    };
 
     /* ════════════════════════════════════════════════════════════════════════── */
     return (
@@ -211,7 +360,7 @@ export default function Travelers() {
                     {filtered.map(t => {
                         const cfg = STATUS_MAP[t.status] || STATUS_MAP.pending;
                         const initials = (t.traveler_name || '?').charAt(0).toUpperCase();
-                        const canCommunicate = COMMUNICATION_ENABLED_STATUSES.has(t.status);
+                        const canCommunicate = Boolean(t.can_chat ?? COMMUNICATION_ENABLED_STATUSES.has(t.status));
 
                         return (
                             <div className="tv-card" key={t.id}>
@@ -240,13 +389,6 @@ export default function Travelers() {
                                         <span className="tv-info-label">Dates</span>
                                         <span className="tv-info-value">{fmtDate(t.trip_start)} – {fmtDate(t.trip_end)}</span>
                                     </div>
-                                    {canCommunicate && t.traveler_phone && (
-                                        <div className="tv-info-row">
-                                            <div className="tv-info-icon phone"><FaPhone /></div>
-                                            <span className="tv-info-label">Phone</span>
-                                            <span className="tv-info-value">{t.traveler_phone}</span>
-                                        </div>
-                                    )}
                                     {canCommunicate && t.traveler_email && (
                                         <div className="tv-info-row">
                                             <div className="tv-info-icon email"><FaEnvelope /></div>
@@ -257,7 +399,7 @@ export default function Travelers() {
                                     {!canCommunicate && (
                                         <div className="tv-communication-locked" aria-live="polite">
                                             <span className="tv-communication-locked-icon"><FaLock /></span>
-                                            <span>Communication available after acceptance</span>
+                                            <span>{t.chat_locked_message || 'Chat available after acceptance'}</span>
                                         </div>
                                     )}
                                 </div>
@@ -302,11 +444,13 @@ export default function Travelers() {
                                         </>
                                     ) : canCommunicate ? (
                                         <>
-                                            {t.traveler_phone && (
-                                                <a href={`tel:${t.traveler_phone}`} className="tv-action-btn tv-btn-call">
-                                                    <FaPhone /> Call
-                                                </a>
-                                            )}
+                                            <button
+                                                type="button"
+                                                className="tv-action-btn tv-btn-chat"
+                                                onClick={() => openChat(t)}
+                                            >
+                                                <FaComments /> Chat
+                                            </button>
                                             {t.traveler_email && (
                                                 <a href={`mailto:${t.traveler_email}`} className="tv-action-btn tv-btn-email">
                                                     <FaEnvelope /> Email
@@ -321,7 +465,7 @@ export default function Travelers() {
                                                 disabled
                                                 aria-disabled="true"
                                             >
-                                                <FaPhone /> Call locked
+                                                <FaComments /> Chat locked
                                             </button>
                                             <button
                                                 type="button"
@@ -337,6 +481,75 @@ export default function Travelers() {
                             </div>
                         );
                     })}
+                </div>
+            )}
+
+            {chatOpen && chatBooking && (
+                <div className="tv-chat-modal-overlay" onClick={closeChat}>
+                    <div className="tv-chat-modal" onClick={(event) => event.stopPropagation()}>
+                        <button type="button" className="tv-chat-close" onClick={closeChat} aria-label="Close chat">
+                            <FaTimes />
+                        </button>
+
+                        <div className="tv-chat-head">
+                            <div className="tv-chat-person">
+                                <div className="tv-chat-avatar">
+                                    {getInitials(chatThread?.counterpart_name || chatBooking.traveler_name)}
+                                </div>
+                                <div>
+                                    <span className="tv-chat-kicker">Booking Chat</span>
+                                    <h3>{chatThread?.counterpart_name || chatBooking.traveler_name}</h3>
+                                    <p>{chatBooking.destination} · {fmtDate(chatBooking.trip_start)} – {fmtDate(chatBooking.trip_end)}</p>
+                                </div>
+                            </div>
+                            {chatThread?.counterpart_email ? (
+                                <a className="tv-chat-email" href={`mailto:${chatThread.counterpart_email}`}>
+                                    <FaEnvelope /> Email
+                                </a>
+                            ) : null}
+                        </div>
+
+                        <div className="tv-chat-body">
+                            {chatLoading ? (
+                                <div className="tv-chat-state">Loading conversation…</div>
+                            ) : chatError ? (
+                                <div className="tv-chat-state tv-chat-state-error">{chatError}</div>
+                            ) : chatThread?.messages?.length ? (
+                                <div className="tv-chat-messages">
+                                    {chatThread.messages.map((message) => {
+                                        const currentUserId = profile?.user_id ?? chatThread?.current_user_id ?? null;
+                                        const ownMessage = isOwnChatMessage(message, currentUserId, chatThread);
+                                        return (
+                                        <div key={message.id} className={`tv-chat-row ${ownMessage ? 'own' : 'peer'}`}>
+                                            <div className={`tv-chat-message ${ownMessage ? 'own' : ''}`}>
+                                                <div className="tv-chat-message-meta">
+                                                    <strong>{ownMessage ? 'You' : message.sender_name}</strong>
+                                                </div>
+                                                <p>{message.content ?? message.message}</p>
+                                            </div>
+                                            <span className={`tv-chat-time ${ownMessage ? 'own' : ''}`}>
+                                                {new Date(message.created_at).toLocaleString()}
+                                            </span>
+                                        </div>
+                                    );})}
+                                </div>
+                            ) : (
+                                <div className="tv-chat-state">Start the conversation for this accepted booking.</div>
+                            )}
+                        </div>
+
+                        <form className="tv-chat-form" onSubmit={handleSendChat}>
+                            <textarea
+                                rows="3"
+                                value={chatDraft}
+                                onChange={(event) => setChatDraft(event.target.value)}
+                                placeholder="Write a message to the traveler…"
+                            />
+                            <button type="submit" className="tv-chat-send" disabled={chatSending || !chatDraft.trim()}>
+                                <FaPaperPlane /> {chatSending ? 'Sending…' : 'Send'}
+                            </button>
+                        </form>
+                    </div>
                 </div>
             )}
         </div>

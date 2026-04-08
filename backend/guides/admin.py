@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import GuideProfile, Booking, Activity
+from .models import GuideProfile, Booking, Activity, ChatMessage
 
 
 @admin.register(GuideProfile)
@@ -53,4 +53,13 @@ class ActivityAdmin(admin.ModelAdmin):
     list_display_links = ['id', 'activity_type']
     list_filter = ['activity_type']
     search_fields = ['highlight', 'message']
+    readonly_fields = ['created_at']
+
+
+@admin.register(ChatMessage)
+class ChatMessageAdmin(admin.ModelAdmin):
+    list_display = ['id', 'booking', 'sender', 'sender_role', 'created_at']
+    list_display_links = ['id', 'booking']
+    list_filter = ['sender_role', 'created_at']
+    search_fields = ['booking__traveler_name', 'booking__destination', 'message']
     readonly_fields = ['created_at']

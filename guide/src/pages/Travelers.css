@@ -228,6 +228,252 @@
     box-shadow: var(--card-shadow-hover);
 }
 
+.tv-chat-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.56);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 28px;
+    z-index: 1000;
+}
+
+.tv-chat-modal {
+    width: min(440px, calc(100vw - 56px));
+    height: min(78vh, 720px);
+    max-height: min(78vh, 720px);
+    display: flex;
+    flex-direction: column;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 24px;
+    box-shadow: 0 28px 70px rgba(15, 23, 42, 0.28);
+    overflow: hidden;
+    position: relative;
+}
+
+.tv-chat-close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.tv-chat-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 26px 28px 18px;
+    border-bottom: 1px solid var(--border-light);
+    background: linear-gradient(180deg, rgba(79, 124, 255, 0.08), transparent);
+}
+
+.tv-chat-person {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.tv-chat-avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, rgba(79, 124, 255, 0.18), rgba(124, 58, 237, 0.14));
+    color: #3158d5;
+    font-size: 0.92rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    box-shadow: inset 0 0 0 1px rgba(79, 124, 255, 0.12);
+}
+
+.tv-chat-kicker {
+    display: inline-flex;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(79, 124, 255, 0.1);
+    color: #4f7cff;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+}
+
+.tv-chat-head h3 {
+    margin: 0 0 6px;
+    color: var(--text-primary);
+    font-size: 24px;
+    letter-spacing: -0.02em;
+}
+
+.tv-chat-head p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.tv-chat-email {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.tv-chat-body {
+    flex: 1;
+    padding: 22px 28px;
+    overflow: auto;
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0.8), rgba(241, 245, 249, 0.9));
+}
+
+.tv-chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tv-chat-row {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 4px;
+}
+
+.tv-chat-row.own {
+    align-items: flex-end;
+    justify-content: flex-end;
+}
+
+.tv-chat-message {
+    max-width: min(68%, 420px);
+    padding: 10px 13px;
+    border-radius: 18px 18px 18px 8px;
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+}
+
+.tv-chat-message.own {
+    background: linear-gradient(135deg, #4f7cff, #7c3aed);
+    color: #fff;
+    border-color: transparent;
+    border-radius: 18px 18px 8px 18px;
+}
+
+.tv-chat-message-meta {
+    display: flex;
+    justify-content: flex-start;
+    gap: 12px;
+    margin-bottom: 4px;
+    font-size: 11px;
+}
+
+.tv-chat-message-meta strong {
+    font-weight: 800;
+}
+
+.tv-chat-message p {
+    margin: 0;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.tv-chat-time {
+    max-width: min(68%, 420px);
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 0 4px;
+}
+
+.tv-chat-time.own {
+    text-align: right;
+}
+
+.tv-chat-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+    border-radius: 18px;
+    border: 1px dashed rgba(148, 163, 184, 0.28);
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.56);
+    text-align: center;
+    padding: 24px;
+}
+
+.tv-chat-state-error {
+    color: #b91c1c;
+}
+
+.tv-chat-form {
+    display: flex;
+    gap: 14px;
+    align-items: flex-end;
+    padding: 18px 28px 26px;
+    border-top: 1px solid var(--border-light);
+    background: var(--card-bg);
+}
+
+.tv-chat-form textarea {
+    flex: 1;
+    resize: none;
+    min-height: 88px;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    padding: 14px 16px;
+    font: inherit;
+    outline: none;
+}
+
+.tv-chat-send {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 46px;
+    padding: 0 18px;
+    border: none;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #4f7cff, #7c3aed);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.tv-chat-send:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
 /* Card Header */
 .tv-card-head {
     display: flex;
@@ -475,14 +721,14 @@
     transform: none;
 }
 
-.tv-btn-call {
-    background: var(--green-bg);
-    color: var(--green);
-    border: 1px solid var(--green);
+.tv-btn-chat {
+    background: rgba(79, 124, 255, 0.12);
+    color: #4f7cff;
+    border: 1px solid rgba(79, 124, 255, 0.3);
 }
 
-.tv-btn-call:hover {
-    background: var(--green);
+.tv-btn-chat:hover {
+    background: #4f7cff;
     color: #fff;
 }
 
@@ -564,6 +810,18 @@
 
 /* ── Responsive ──────────────────────────────────────────────────────────────── */
 @media screen and (max-width: 768px) {
+    .tv-chat-modal-overlay {
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+    }
+
+    .tv-chat-modal {
+        width: min(100%, 100%);
+        height: min(86vh, 760px);
+        max-height: min(86vh, 760px);
+    }
+
     .tv-page {
         padding: 0 16px 32px;
     }

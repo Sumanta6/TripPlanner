@@ -466,6 +466,42 @@
   font-size: 1rem;
 }
 
+.mt-guide-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.mt-guide-chat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(47, 127, 143, 0.16);
+  background: rgba(47, 127, 143, 0.08);
+  color: #2f7f8f;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.22s ease, background 0.22s ease, border-color 0.22s ease, color 0.22s ease;
+}
+
+.mt-guide-chat-chip:hover {
+  transform: translateY(-1px);
+  background: rgba(47, 127, 143, 0.12);
+}
+
+.mt-guide-chat-chip.is-primary {
+  background: linear-gradient(135deg, #173450 0%, #2f7f8f 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(47, 127, 143, 0.2);
+}
+
 .mt-review-summary-card {
   margin-top: 16px;
   padding: 16px;
@@ -592,6 +628,19 @@
   transform: translateY(-1px);
   background: #fff;
   border-color: #94a3b8;
+}
+
+.mt-btn-primary:disabled,
+.mt-btn-outline:disabled {
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  opacity: 0.65;
+}
+
+.mt-btn-outline:disabled:hover,
+.mt-btn-primary:disabled:hover {
+  transform: none;
 }
 
 .mt-header-action {
@@ -851,6 +900,7 @@
     padding: 22px;
     border-radius: 24px;
   }
+
 }
 
 @media (prefers-color-scheme: dark) {
@@ -957,6 +1007,16 @@
   .mt-review-modal-badge,
   .mt-review-summary-head {
     color: #8ad7e2;
+  }
+
+  .mt-guide-chat-chip {
+    background: rgba(89, 182, 196, 0.12);
+    border-color: rgba(99, 200, 215, 0.16);
+    color: #8ad7e2;
+  }
+
+  .mt-guide-chat-chip.is-primary {
+    color: #edf3fb;
   }
 
   .mt-review-submitted-badge {

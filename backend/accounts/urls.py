@@ -4,8 +4,10 @@ from . import views
 urlpatterns = [
     path("register/", views.register),
     path("login/", views.login),
+    path("guide/login/", views.guide_login),
     path("logout/", views.logout),
     path("google-login/", views.google_login),
+    path("guide/google-login/", views.guide_google_login),
 
     path("forgot-password/", views.forgot_password),
     path("reset-password/<uid>/<token>/", views.reset_password),

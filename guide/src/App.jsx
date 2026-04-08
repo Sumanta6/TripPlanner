@@ -13,6 +13,7 @@ import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import { AuthProvider } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
+import { clearGuideAuthToken } from './services/guidesService';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const GUIDE_KEY = 'guideLoggedIn';
@@ -54,6 +55,7 @@ export default function App() {
     }
 
     function handleLogout() {
+        clearGuideAuthToken();
         localStorage.removeItem(GUIDE_KEY);
         sessionStorage.removeItem(GUIDE_KEY);
         setLoggedIn(false);

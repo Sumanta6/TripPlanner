@@ -18,6 +18,7 @@ from django.core.exceptions import ValidationError
 
 from .models import Trip, TravelerProfile
 from .serializers import TripSerializer, RegisterSerializer, TravelerProfileSerializer
+from .authentication import build_guide_auth_token
 from guides.models import Booking
 from guides.serializers import BookingSerializer
 
@@ -68,7 +69,52 @@ def login(request):
     print(f"DEBUG LOGIN: django_login successful for {email}. Session key: {request.session.session_key}")
     request.session.set_expiry(60 * 60 * 24 * 14 if remember_me else 0)
 
-    return Response({"message": "Login successful"}, status=200)
+    role = "guide" if hasattr(user, "guide_profile") else "traveler"
+    return Response(
+        {
+            "message": "Login successful",
+            "role": role,
+            "email": user.email,
+            "user": {"id": user.id, "email": user.email, "role": role},
+        },
+        status=200,
+    )
+
+
+@csrf_exempt
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def guide_login(request):
+    email = request.data.get("email")
+    password = request.data.get("password")
+
+    if not email or not password:
+        return Response({"error": "Email and password required"}, status=400)
+
+    try:
+        user_obj = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return Response({"error": "Invalid email or password"}, status=401)
+
+    user = authenticate(username=user_obj.username, password=password)
+    if user is None:
+        return Response({"error": "Invalid email or password"}, status=401)
+
+    if not hasattr(user, "guide_profile"):
+        return Response({"error": "This account belongs to a traveler. Please use the Traveler portal."}, status=403)
+
+    token = build_guide_auth_token(user)
+    return Response(
+        {
+            "message": "Guide login successful",
+            "role": "guide",
+            "token": token,
+            "email": user.email,
+            "user": {"id": user.id, "email": user.email, "role": "guide"},
+        },
+        status=200,
+    )
 
 
 # ======================
@@ -101,7 +147,59 @@ def google_login(request):
     )
 
     django_login(request, user)
-    return Response({"message": "Google login successful"}, status=200)
+    role = "guide" if hasattr(user, "guide_profile") else "traveler"
+    return Response(
+        {
+            "message": "Google login successful",
+            "role": role,
+            "email": user.email,
+            "user": {"id": user.id, "email": user.email, "role": role},
+        },
+        status=200,
+    )
+
+
+@csrf_exempt
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def guide_google_login(request):
+    token = request.data.get("token")
+    if not token:
+        return Response({"error": "Token missing"}, status=400)
+
+    try:
+        info = id_token.verify_oauth2_token(
+            token,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID,
+        )
+    except Exception:
+        return Response({"error": "Invalid Google token"}, status=400)
+
+    email = info.get("email")
+    if not email:
+        return Response({"error": "Google account email missing"}, status=400)
+
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return Response({"error": "No guide account found for this Google user."}, status=404)
+
+    if not hasattr(user, "guide_profile"):
+        return Response({"error": "This account belongs to a traveler. Please use the Traveler portal."}, status=403)
+
+    token_value = build_guide_auth_token(user)
+    return Response(
+        {
+            "message": "Guide Google login successful",
+            "role": "guide",
+            "token": token_value,
+            "email": user.email,
+            "user": {"id": user.id, "email": user.email, "role": "guide"},
+        },
+        status=200,
+    )
 
 
 # ======================
@@ -208,10 +306,13 @@ def create_trip(request):
 @api_view(["GET"])
 def check_auth(request):
     if request.user.is_authenticated:
+        role = "guide" if hasattr(request.user, "guide_profile") else "traveler"
         return Response({
             "authenticated": True,
             "user": {
+                "id": request.user.id,
                 "email": request.user.email,
+                "role": role,
             }
         })
     return Response({"authenticated": False})

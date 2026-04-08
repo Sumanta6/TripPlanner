@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import BookingChatModal from "../components/BookingChatModal";
 import {
   Calendar,
   MapPin,
@@ -10,6 +11,7 @@ import {
   ArrowRight,
   Eye,
   Bell,
+  MessageCircle,
   MessageSquareQuote,
   Star,
   X,
@@ -18,8 +20,11 @@ import {
 import toast from "react-hot-toast";
 import {
   getMyBookedTrips,
+  getBookingChat,
+  getAuthStatus,
   createGuideReview,
-  initCsrf
+  initCsrf,
+  sendBookingChatMessage
 } from "../services/api";
 import "./MyTrips.css";
 
@@ -90,6 +95,14 @@ export default function MyTrips() {
   const [reviewComment, setReviewComment] = useState("");
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState("");
+  const [chatModalOpen, setChatModalOpen] = useState(false);
+  const [selectedChatBooking, setSelectedChatBooking] = useState(null);
+  const [chatThread, setChatThread] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatSending, setChatSending] = useState(false);
+  const [chatError, setChatError] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -97,9 +110,13 @@ export default function MyTrips() {
 
     async function fetchBookings() {
       try {
-        const data = await getMyBookedTrips();
+        const [data, auth] = await Promise.all([getMyBookedTrips(), getAuthStatus()]);
         if (alive) {
           setBookings(Array.isArray(data) ? data : data.results || []);
+          setCurrentUser(auth?.user || null);
+          if (process.env.NODE_ENV !== "production") {
+            console.debug("Traveler auth user", auth?.user || null);
+          }
         }
       } catch {
         if (alive) {
@@ -115,6 +132,39 @@ export default function MyTrips() {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!chatModalOpen || !selectedChatBooking?.id) return undefined;
+
+    let active = true;
+
+    async function refreshChat(silent = true) {
+      if (!silent) setChatLoading(true);
+      try {
+        const data = await getBookingChat(selectedChatBooking.id);
+        if (!active) return;
+        setChatThread(data);
+        setChatError("");
+      } catch (err) {
+        if (!active) return;
+        const message =
+          err.response?.data?.error ||
+          err.message ||
+          "Unable to load chat right now.";
+        setChatError(message);
+      } finally {
+        if (active && !silent) setChatLoading(false);
+      }
+    }
+
+    refreshChat(false);
+    const timer = window.setInterval(() => refreshChat(true), 6000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [chatModalOpen, selectedChatBooking]);
 
   const recentUpdates = useMemo(() => {
     const now = new Date();
@@ -200,6 +250,56 @@ export default function MyTrips() {
     setReviewRating(0);
     setReviewComment("");
     setReviewError("");
+  };
+
+  const openChatModal = (booking) => {
+    if (!booking?.can_view_chat) {
+      toast.error(booking?.chat_locked_message || "Chat available after acceptance.");
+      return;
+    }
+    setSelectedChatBooking(booking);
+    setChatThread(null);
+    setChatDraft("");
+    setChatError("");
+    setChatModalOpen(true);
+  };
+
+  const closeChatModal = () => {
+    setChatModalOpen(false);
+    setSelectedChatBooking(null);
+    setChatThread(null);
+    setChatDraft("");
+    setChatError("");
+  };
+
+  const handleChatSubmit = async (event) => {
+    event.preventDefault();
+    if (!selectedChatBooking?.id || !chatDraft.trim() || chatSending) return;
+
+    setChatSending(true);
+    setChatError("");
+    try {
+      await initCsrf();
+      const message = await sendBookingChatMessage(selectedChatBooking.id, chatDraft.trim());
+      setChatThread((current) =>
+        current
+          ? {
+              ...current,
+              messages: [...current.messages, message]
+            }
+          : current
+      );
+      setChatDraft("");
+    } catch (err) {
+      const message =
+        err.response?.data?.error ||
+        err.message ||
+        "Unable to send your message.";
+      setChatError(message);
+      toast.error(message);
+    } finally {
+      setChatSending(false);
+    }
   };
 
   const handleReviewSubmit = async (event) => {
@@ -384,6 +484,7 @@ export default function MyTrips() {
                     const hasLongNote = Boolean(booking.notes && booking.notes.length > 140);
                     const hasReview = Boolean(booking.review);
                     const canSubmitReview = Boolean(booking.can_review);
+                    const canViewChat = Boolean(booking.can_view_chat);
 
                     return (
                       <article key={booking.id} className="mt-trip-card">
@@ -434,22 +535,34 @@ export default function MyTrips() {
                             )}
                           </div>
 
-                          <div className="mt-guide-panel">
-                            <span className="mt-guide-kicker">Guide</span>
-                            <div className="mt-guide-row">
-                              <div className="mt-guide-avatar">
-                                {booking.guide_name ? booking.guide_name.charAt(0) : "G"}
+                            <div className="mt-guide-panel">
+                              <span className="mt-guide-kicker">Guide</span>
+                              <div className="mt-guide-row">
+                                <div className="mt-guide-avatar">
+                                  {booking.guide_name ? booking.guide_name.charAt(0) : "G"}
                               </div>
-                              <div className="mt-guide-copy">
-                                <h4>{booking.guide_name || "Local Guide"}</h4>
-                                <button type="button" className="mt-guide-link" onClick={() => navigate("/guides")}>
-                                  View Profile
-                                </button>
+                                  <div className="mt-guide-copy">
+                                    <h4>{booking.guide_name || "Local Guide"}</h4>
+                                    <div className="mt-guide-actions">
+                                      <button type="button" className="mt-guide-link" onClick={() => navigate("/guides")}>
+                                        View Profile
+                                      </button>
+                                      {canViewChat && (
+                                        <button
+                                          type="button"
+                                          className={`mt-guide-chat-chip ${booking.status === "active" ? "is-primary" : ""}`}
+                                          onClick={() => openChatModal(booking)}
+                                        >
+                                          <MessageCircle size={14} />
+                                          Open Chat
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
                               </div>
-                            </div>
 
-                            {booking.status === "completed" && (
-                              <div className="mt-review-summary-card">
+                              {booking.status === "completed" && (
+                                <div className="mt-review-summary-card">
                                 <div className="mt-review-summary-head">
                                   <span className="mt-review-kicker">Verified Review</span>
                                   <BadgeCheck size={16} />
@@ -579,6 +692,21 @@ export default function MyTrips() {
           </div>
         </div>
       )}
+
+      <BookingChatModal
+        isOpen={chatModalOpen}
+        onClose={closeChatModal}
+        booking={selectedChatBooking}
+        thread={chatThread}
+        viewerRole="traveler"
+        currentUser={currentUser}
+        loading={chatLoading}
+        error={chatError}
+        draft={chatDraft}
+        onDraftChange={setChatDraft}
+        onSend={handleChatSubmit}
+        sending={chatSending}
+      />
     </div>
   );
 }

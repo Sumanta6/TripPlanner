@@ -1,13 +1,16 @@
+from django.db import OperationalError, ProgrammingError
 from django.db.models import Count
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Activity, Booking, GuideProfile, Review
+from .models import Activity, Booking, ChatMessage, GuideProfile, Review
 from .serializers import (
     ActivitySerializer,
     BookingSerializer,
+    ChatMessageSerializer,
+    ChatThreadSerializer,
     DashboardSerializer,
     GuideProfileSerializer,
     GuideProfileUpdateSerializer,
@@ -26,6 +29,53 @@ def get_or_create_guide_profile(user):
         },
     )
     return profile
+
+
+def get_chat_booking_for_user(user, pk):
+    """Return a booking only if the current user is the guide or traveler on it."""
+    booking = Booking.objects.select_related(
+        'guide', 'guide__user', 'traveler_user', 'traveler_user__traveler_profile'
+    ).filter(pk=pk).first()
+
+    if not booking:
+        return None
+
+    guide_user_id = booking.guide.user_id
+    traveler_user_id = booking.traveler_user_id
+
+    if user.id not in {guide_user_id, traveler_user_id}:
+        return None
+
+    return booking
+
+
+def build_chat_thread_payload(booking, request):
+    is_guide = booking.guide.user_id == request.user.id
+    viewer_role = 'guide' if is_guide else 'traveler'
+    counterpart_name = booking.traveler_name if is_guide else (booking.guide.full_name or booking.guide.user.username)
+    counterpart_email = booking.traveler_email if is_guide else (booking.guide.email or booking.guide.user.email or '')
+    can_view_chat = booking.status in {'accepted', 'active', 'completed'}
+    can_send_chat = booking.status in {'accepted', 'active'}
+    locked_message = '' if can_view_chat else 'Chat available after acceptance'
+    messages = ChatMessage.objects.select_related('sender').filter(booking=booking).order_by('created_at')
+
+    return {
+        'current_user_id': request.user.id,
+        'current_user_email': request.user.email or '',
+        'viewer_role': viewer_role,
+        'booking_id': booking.id,
+        'guide_user_id': booking.guide.user_id,
+        'traveler_user_id': booking.traveler_user_id,
+        'booking_status': booking.status,
+        'destination': booking.destination,
+        'counterpart_name': counterpart_name,
+        'counterpart_email': counterpart_email,
+        'can_view_chat': can_view_chat,
+        'can_send_chat': can_send_chat,
+        'can_chat': can_send_chat,
+        'locked_message': locked_message,
+        'messages': messages,
+    }
 
 
 def update_outdated_booking_statuses(bookings):
@@ -341,7 +391,10 @@ def update_booking_status(request, pk):
         )
 
     update_outdated_booking_statuses([booking])
-    serializer = BookingSerializer(booking, context={'request': request})
+    serializer = BookingSerializer(
+        booking,
+        context={'request': request, 'restrict_guide_communication': True},
+    )
     return Response(serializer.data)
 
 
@@ -368,6 +421,76 @@ def create_review(request):
 
     response_serializer = ReviewSummarySerializer(review, context={'request': request})
     return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def booking_chat(request, pk):
+    """
+    GET  /api/guides/bookings/<pk>/chat/ – fetch booking chat thread
+    POST /api/guides/bookings/<pk>/chat/ – send a message into booking chat thread
+    """
+    try:
+        booking = get_chat_booking_for_user(request.user, pk)
+    except (ProgrammingError, OperationalError):
+        return Response(
+            {'error': 'Chat service is unavailable until the latest database migrations are applied.'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    if not booking:
+        return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    update_outdated_booking_statuses([booking])
+
+    can_view_chat = booking.status in {'accepted', 'active', 'completed'}
+    can_send_chat = booking.status in {'accepted', 'active'}
+    if request.method == 'GET' and not can_view_chat:
+        return Response(
+            {'error': 'Chat available after acceptance.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    if request.method == 'POST' and not can_send_chat:
+        return Response(
+            {'error': 'This chat is read-only for the current booking status.' if booking.status == 'completed' else 'Chat available after acceptance.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    if request.method == 'POST':
+        message = str(request.data.get('message', '')).strip()
+        if not message:
+            return Response({'error': 'Message is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if booking.guide.user_id == request.user.id:
+            sender_role = 'guide'
+        elif booking.traveler_user_id == request.user.id:
+            sender_role = 'traveler'
+        else:
+            return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            chat_message = ChatMessage.objects.create(
+                booking=booking,
+                sender=request.user,
+                sender_role=sender_role,
+                message=message,
+            )
+        except (ProgrammingError, OperationalError):
+            return Response(
+                {'error': 'Chat service is unavailable until the latest database migrations are applied.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        serializer = ChatMessageSerializer(chat_message, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    try:
+        thread_payload = build_chat_thread_payload(booking, request)
+    except (ProgrammingError, OperationalError):
+        return Response(
+            {'error': 'Chat service is unavailable until the latest database migrations are applied.'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    serializer = ChatThreadSerializer(thread_payload, context={'request': request})
+    return Response(serializer.data)
 
 
 @api_view(['GET'])

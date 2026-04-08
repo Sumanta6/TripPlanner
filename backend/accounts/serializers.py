@@ -38,9 +38,14 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 
 class TravelerProfileSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source="user.id", read_only=True)
+    email = serializers.EmailField(source="user.email", read_only=True)
+
     class Meta:
         model = TravelerProfile
         fields = [
+            "user_id",
+            "email",
             "full_name",
             "phone",
             "address",
