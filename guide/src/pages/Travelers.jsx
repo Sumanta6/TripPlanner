@@ -150,6 +150,8 @@ export default function Travelers() {
     const [chatLoading, setChatLoading] = useState(false);
     const [chatSending, setChatSending] = useState(false);
     const [chatError, setChatError] = useState('');
+    const [profileOpen, setProfileOpen] = useState(false);
+    const [selectedTraveler, setSelectedTraveler] = useState(null);
     const { refreshProfile, profile } = useAuth();
     const navigate = useNavigate();
 
@@ -270,6 +272,16 @@ export default function Travelers() {
         setChatError('');
     };
 
+    const openTravelerProfile = (booking) => {
+        setSelectedTraveler(booking);
+        setProfileOpen(true);
+    };
+
+    const closeTravelerProfile = () => {
+        setProfileOpen(false);
+        setSelectedTraveler(null);
+    };
+
     const handleSendChat = async (event) => {
         event.preventDefault();
         if (!chatBooking?.id || !chatDraft.trim() || chatSending) return;
@@ -377,11 +389,26 @@ export default function Travelers() {
                         const initials = (t.traveler_name || '?').charAt(0).toUpperCase();
                         const canCommunicate = Boolean(t.can_chat ?? COMMUNICATION_ENABLED_STATUSES.has(t.status));
                         const bookingStateMessage = getBookingStateMessage(t.status);
+                        const openProfileFromCard = () => openTravelerProfile(t);
 
                         return (
-                            <div className="tv-card" key={t.id}>
+                            <div
+                                className="tv-card tv-card-clickable"
+                                key={t.id}
+                                onClick={openProfileFromCard}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter' || event.key === ' ') {
+                                        event.preventDefault();
+                                        openProfileFromCard();
+                                    }
+                                }}
+                            >
                                 {/* Card Header */}
-                                <div className="tv-card-head">
+                                <div
+                                    className="tv-card-head tv-card-head-clickable"
+                                >
                                     <div className="tv-avatar">
                                         {t.avatar && t.avatar.length > 2 ? (
                                             <img src={t.avatar} alt={t.traveler_name} />
@@ -391,6 +418,7 @@ export default function Travelers() {
                                         <h3 className="tv-name">{t.traveler_name}</h3>
                                         <span className={`tv-badge ${cfg.badge}`}>{cfg.label}</span>
                                     </div>
+                                    <span className="tv-profile-link">View Profile</span>
                                 </div>
 
                                 {/* Card Body */}
@@ -419,7 +447,10 @@ export default function Travelers() {
                                     <>
                                         <div
                                             className="tv-notes-toggle"
-                                            onClick={() => setExpandedNote(expandedNote === t.id ? null : t.id)}
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                setExpandedNote(expandedNote === t.id ? null : t.id);
+                                            }}
                                         >
                                             <FaStickyNote />
                                             <span>{expandedNote === t.id ? 'Hide Notes' : 'View Notes'}</span>
@@ -439,14 +470,20 @@ export default function Travelers() {
                                         <>
                                             <button
                                                 className="tv-action-btn tv-btn-accept"
-                                                onClick={() => handleStatusChange(t.id, 'accepted')}
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    handleStatusChange(t.id, 'accepted');
+                                                }}
                                                 disabled={processing[t.id]}
                                             >
                                                 {processing[t.id] ? '...' : '✓ Accept'}
                                             </button>
                                             <button
                                                 className="tv-action-btn tv-btn-reject"
-                                                onClick={() => handleStatusChange(t.id, 'rejected')}
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    handleStatusChange(t.id, 'rejected');
+                                                }}
                                                 disabled={processing[t.id]}
                                             >
                                                 {processing[t.id] ? '...' : '✕ Reject'}
@@ -457,12 +494,19 @@ export default function Travelers() {
                                             <button
                                                 type="button"
                                                 className="tv-action-btn tv-btn-chat"
-                                                onClick={() => openChat(t)}
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    openChat(t);
+                                                }}
                                             >
                                                 <FaComments /> Chat
                                             </button>
                                             {t.traveler_email && (
-                                                <a href={`mailto:${t.traveler_email}`} className="tv-action-btn tv-btn-email">
+                                                <a
+                                                    href={`mailto:${t.traveler_email}`}
+                                                    className="tv-action-btn tv-btn-email"
+                                                    onClick={(event) => event.stopPropagation()}
+                                                >
                                                     <FaEnvelope /> Email
                                                 </a>
                                             )}
@@ -476,6 +520,78 @@ export default function Travelers() {
                             </div>
                         );
                     })}
+                </div>
+            )}
+
+            {profileOpen && selectedTraveler && (
+                <div className="tv-profile-modal-overlay" onClick={closeTravelerProfile}>
+                    <div className="tv-profile-modal" onClick={(event) => event.stopPropagation()}>
+                        <button
+                            type="button"
+                            className="tv-profile-close"
+                            onClick={closeTravelerProfile}
+                            aria-label="Close traveler profile"
+                        >
+                            <FaTimes />
+                        </button>
+
+                        <div className="tv-profile-head">
+                            <div className="tv-profile-identity">
+                                <div className="tv-profile-avatar">
+                                    {selectedTraveler.avatar && selectedTraveler.avatar.length > 2 ? (
+                                        <img src={selectedTraveler.avatar} alt={selectedTraveler.traveler_name} />
+                                    ) : (
+                                        getInitials(selectedTraveler.traveler_name)
+                                    )}
+                                </div>
+                                <div>
+                                    <span className="tv-profile-kicker">Traveler Profile</span>
+                                    <h3>{selectedTraveler.traveler_name}</h3>
+                                    <p>{selectedTraveler.destination} · {fmtDate(selectedTraveler.trip_start)} – {fmtDate(selectedTraveler.trip_end)}</p>
+                                </div>
+                            </div>
+                            <span className={`tv-badge ${STATUS_MAP[selectedTraveler.status]?.badge || STATUS_MAP.pending.badge}`}>
+                                {STATUS_MAP[selectedTraveler.status]?.label || selectedTraveler.status}
+                            </span>
+                        </div>
+
+                        <div className="tv-profile-grid">
+                            <div className="tv-profile-card">
+                                <span className="tv-profile-label">Travel style</span>
+                                <strong>{selectedTraveler.traveler_travel_style || 'Not added yet'}</strong>
+                            </div>
+                            <div className="tv-profile-card">
+                                <span className="tv-profile-label">Email</span>
+                                <strong>{selectedTraveler.traveler_email || 'Available after acceptance'}</strong>
+                            </div>
+                            <div className="tv-profile-card">
+                                <span className="tv-profile-label">Phone</span>
+                                <strong>{selectedTraveler.traveler_phone || 'Available after acceptance'}</strong>
+                            </div>
+                            <div className="tv-profile-card">
+                                <span className="tv-profile-label">Address</span>
+                                <strong>{selectedTraveler.traveler_address || 'Not added yet'}</strong>
+                            </div>
+                        </div>
+
+                        <div className="tv-profile-section">
+                            <span className="tv-profile-section-label">About traveler</span>
+                            <p>{selectedTraveler.traveler_bio || 'This traveler has not added a bio yet.'}</p>
+                        </div>
+
+                        <div className="tv-profile-section">
+                            <span className="tv-profile-section-label">Preferred destinations</span>
+                            {selectedTraveler.traveler_preferred_destinations?.length ? (
+                                <div className="tv-profile-tags">
+                                    {selectedTraveler.traveler_preferred_destinations.map((destination) => (
+                                        <span key={destination} className="tv-profile-tag">{destination}</span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p>No destination preferences shared yet.</p>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
 

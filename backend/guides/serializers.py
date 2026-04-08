@@ -182,6 +182,10 @@ class BookingSerializer(serializers.ModelSerializer):
     guide_name = serializers.CharField(source='guide.full_name', read_only=True)
     traveler_email = serializers.SerializerMethodField()
     traveler_phone = serializers.SerializerMethodField()
+    traveler_address = serializers.SerializerMethodField()
+    traveler_bio = serializers.SerializerMethodField()
+    traveler_travel_style = serializers.SerializerMethodField()
+    traveler_preferred_destinations = serializers.SerializerMethodField()
     can_review = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
     can_view_chat = serializers.SerializerMethodField()
@@ -194,6 +198,7 @@ class BookingSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'guide', 'guide_name', 'traveler_user',
             'traveler_name', 'traveler_email', 'traveler_phone',
+            'traveler_address', 'traveler_bio', 'traveler_travel_style', 'traveler_preferred_destinations',
             'destination', 'trip_start', 'trip_end',
             'status', 'notes', 'avatar', 'itinerary',
             'can_review', 'review',
@@ -225,10 +230,21 @@ class BookingSerializer(serializers.ModelSerializer):
         return obj.status in {'accepted', 'active'}
 
     def get_traveler_email(self, obj):
-        return obj.traveler_email if self._can_share_contact_details(obj) else ''
+        if not self._can_share_contact_details(obj):
+            return ''
+        if obj.traveler_email:
+            return obj.traveler_email
+        if obj.traveler_user and obj.traveler_user.email:
+            return obj.traveler_user.email
+        return ''
 
     def get_traveler_phone(self, obj):
-        return obj.traveler_phone if self._can_share_contact_details(obj) else ''
+        if not self._can_share_contact_details(obj):
+            return ''
+        if obj.traveler_phone:
+            return obj.traveler_phone
+        profile = getattr(obj.traveler_user, 'traveler_profile', None) if obj.traveler_user else None
+        return profile.phone if profile and profile.phone else ''
 
     def get_can_review(self, obj):
         request = self.context.get('request')
@@ -244,6 +260,22 @@ class BookingSerializer(serializers.ModelSerializer):
         if not hasattr(obj, 'review'):
             return None
         return ReviewSummarySerializer(obj.review, context=self.context).data
+
+    def get_traveler_address(self, obj):
+        profile = getattr(obj.traveler_user, 'traveler_profile', None) if obj.traveler_user else None
+        return profile.address if profile and profile.address else ''
+
+    def get_traveler_bio(self, obj):
+        profile = getattr(obj.traveler_user, 'traveler_profile', None) if obj.traveler_user else None
+        return profile.bio if profile and profile.bio else ''
+
+    def get_traveler_travel_style(self, obj):
+        profile = getattr(obj.traveler_user, 'traveler_profile', None) if obj.traveler_user else None
+        return profile.travel_style if profile and profile.travel_style else ''
+
+    def get_traveler_preferred_destinations(self, obj):
+        profile = getattr(obj.traveler_user, 'traveler_profile', None) if obj.traveler_user else None
+        return profile.preferred_destinations if profile and profile.preferred_destinations else []
 
     def get_can_view_chat(self, obj):
         return obj.status in {'accepted', 'active', 'completed'}

@@ -216,6 +216,10 @@
     animation: tvFadeUp 0.5s ease both;
 }
 
+.tv-card-clickable {
+    cursor: pointer;
+}
+
 .tv-card:nth-child(1)  { animation-delay: 0.06s; }
 .tv-card:nth-child(2)  { animation-delay: 0.12s; }
 .tv-card:nth-child(3)  { animation-delay: 0.18s; }
@@ -484,6 +488,10 @@
     background: var(--bg-primary);
 }
 
+.tv-card-head-clickable {
+    cursor: pointer;
+}
+
 .tv-avatar {
     width: 40px;
     height: 40px;
@@ -509,6 +517,18 @@
 .tv-name-block {
     flex: 1;
     min-width: 0;
+}
+
+.tv-profile-link {
+    margin-left: auto;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    transition: color 0.18s ease;
+}
+
+.tv-card-head-clickable:hover .tv-profile-link {
+    color: #4f7cff;
 }
 
 .tv-name {
@@ -758,6 +778,167 @@
     font-weight: 600;
     letter-spacing: -0.01em;
     text-align: center;
+}
+
+.tv-profile-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(15, 23, 42, 0.52);
+    backdrop-filter: blur(10px);
+}
+
+.tv-profile-modal {
+    position: relative;
+    width: min(720px, 100%);
+    max-height: min(86vh, 820px);
+    overflow: auto;
+    border-radius: 24px;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+    box-shadow: 0 28px 70px rgba(15, 23, 42, 0.28);
+    padding: 28px;
+}
+
+.tv-profile-close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.tv-profile-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    padding-right: 64px;
+    padding-bottom: 22px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.tv-profile-identity {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.tv-profile-avatar {
+    width: 74px;
+    height: 74px;
+    border-radius: 999px;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, rgba(79, 124, 255, 0.18), rgba(124, 58, 237, 0.14));
+    color: #3158d5;
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+
+.tv-profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.tv-profile-kicker {
+    display: inline-flex;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(79, 124, 255, 0.1);
+    color: #4f7cff;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+}
+
+.tv-profile-head h3 {
+    margin: 0 0 6px;
+    color: var(--text-primary);
+    font-size: 28px;
+    letter-spacing: -0.03em;
+}
+
+.tv-profile-head p {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.tv-profile-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 22px;
+}
+
+.tv-profile-card {
+    padding: 16px 18px;
+    border-radius: 18px;
+    border: 1px solid var(--border-light);
+    background: rgba(255, 255, 255, 0.72);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tv-profile-label,
+.tv-profile-section-label {
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.tv-profile-card strong {
+    color: var(--text-primary);
+    font-size: 0.98rem;
+}
+
+.tv-profile-section {
+    margin-top: 22px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-light);
+}
+
+.tv-profile-section p {
+    margin: 10px 0 0;
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+.tv-profile-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.tv-profile-tag {
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(79, 124, 255, 0.1);
+    color: #4f7cff;
+    font-size: 0.84rem;
+    font-weight: 700;
 }
 
 /* ── Empty State ─────────────────────────────────────────────────────────────── */
