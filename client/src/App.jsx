@@ -27,6 +27,8 @@ import AdminUsers from "./admin/Users";
 import AdminGuides from "./admin/Guides";
 import AdminBookings from "./admin/Bookings";
 import AdminItineraries from "./admin/Itineraries";
+import AdminReviews from "./admin/Reviews";
+import AdminSupport from "./admin/Support";
 import { adminCheckAuth, getAdminToken, getStoredAuthMeta, storeAuthMeta } from "./services/adminApi";
 import { AUTH_CHANGED_EVENT, clearAllAuthState } from "./utils/smartAuth";
 import "./admin/admin.css";
@@ -182,6 +184,8 @@ function App() {
             <Route path="/admin/guides" element={<AdminGuides />} />
             <Route path="/admin/bookings" element={<AdminBookings />} />
             <Route path="/admin/itineraries" element={<AdminItineraries />} />
+            <Route path="/admin/reviews" element={<AdminReviews />} />
+            <Route path="/admin/support" element={<AdminSupport />} />
           </Route>
         </Route>
       </Routes>
