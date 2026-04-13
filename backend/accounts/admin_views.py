@@ -5,6 +5,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
 from django.core.paginator import EmptyPage, Paginator
 from django.db.models import Count, Q
+from datetime import timedelta
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.utils.encoding import force_bytes
@@ -38,8 +39,14 @@ def _bad_request(message):
 
 
 def _paginate(queryset, request, serializer):
-    page = max(int(request.query_params.get("page", 1) or 1), 1)
-    page_size = min(max(int(request.query_params.get("page_size", 12) or 12), 1), 100)
+    try:
+        page = max(int(request.query_params.get("page", 1) or 1), 1)
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        page_size = min(max(int(request.query_params.get("page_size", 12) or 12), 1), 100)
+    except (TypeError, ValueError):
+        page_size = 12
     paginator = Paginator(queryset, page_size)
 
     try:
@@ -266,6 +273,60 @@ def _serialize_chat_thread(booking):
         "last_message": latest.message if latest else "",
         "last_message_at": latest.created_at if latest else None,
     }
+
+
+def _build_daily_series(days, label_builder, querysets):
+    today = timezone.now().date()
+    timeline = []
+    buckets = {}
+    for offset in range(days - 1, -1, -1):
+        point_date = today - timedelta(days=offset)
+        key = point_date.isoformat()
+        buckets[key] = {"date": key, "label": label_builder(point_date)}
+        for series_name in querysets:
+            buckets[key][series_name] = 0
+        timeline.append(buckets[key])
+
+    for series_name, queryset in querysets.items():
+        for item in queryset:
+            point = item["day"]
+            if not point:
+                continue
+            key = point.isoformat()
+            if key in buckets:
+                buckets[key][series_name] = item["count"]
+
+    return timeline
+
+
+def _apply_created_at_filters(queryset, request, field_name="created_at"):
+    date_from = request.query_params.get("date_from", "").strip()
+    date_to = request.query_params.get("date_to", "").strip()
+
+    if date_from:
+        parsed = parse_date(date_from)
+        if parsed:
+            queryset = queryset.filter(**{f"{field_name}__date__gte": parsed})
+    if date_to:
+        parsed = parse_date(date_to)
+        if parsed:
+            queryset = queryset.filter(**{f"{field_name}__date__lte": parsed})
+    return queryset
+
+
+def _apply_trip_date_filters(queryset, request):
+    trip_start_from = request.query_params.get("trip_start_from", "").strip()
+    trip_end_to = request.query_params.get("trip_end_to", "").strip()
+
+    if trip_start_from:
+        parsed = parse_date(trip_start_from)
+        if parsed:
+            queryset = queryset.filter(trip_start__gte=parsed)
+    if trip_end_to:
+        parsed = parse_date(trip_end_to)
+        if parsed:
+            queryset = queryset.filter(trip_end__lte=parsed)
+    return queryset
 
 
 def _ensure_traveler_profile(user):
@@ -671,6 +732,73 @@ def admin_dashboard(request):
     recent_signups = User.objects.order_by("-date_joined")[:6]
     recent_reviews = Review.objects.select_related("guide", "guide__user", "traveler", "booking").order_by("-created_at")[:5]
     booking_breakdown = list(Booking.objects.values("status").annotate(count=Count("id")).order_by("status"))
+    review_breakdown = list(Review.objects.values("rating").annotate(count=Count("id")).order_by("-rating"))
+    top_destinations = list(
+        SavedItinerary.objects.values("destination")
+        .annotate(count=Count("id"))
+        .exclude(destination="")
+        .order_by("-count", "destination")[:6]
+    )
+
+    user_growth = (
+        User.objects.filter(date_joined__date__gte=today - timedelta(days=29))
+        .extra(select={"day": "date(date_joined)"})
+        .values("day")
+        .annotate(count=Count("id"))
+        .order_by("day")
+    )
+    guide_growth = (
+        GuideProfile.objects.filter(created_at__date__gte=today - timedelta(days=29))
+        .extra(select={"day": "date(created_at)"})
+        .values("day")
+        .annotate(count=Count("id"))
+        .order_by("day")
+    )
+    booking_trend = (
+        Booking.objects.filter(created_at__date__gte=today - timedelta(days=29))
+        .extra(select={"day": "date(created_at)"})
+        .values("day")
+        .annotate(count=Count("id"))
+        .order_by("day")
+    )
+    contact_trend = (
+        Contact.objects.filter(created_at__date__gte=today - timedelta(days=29))
+        .extra(select={"day": "date(created_at)"})
+        .values("day")
+        .annotate(count=Count("id"))
+        .order_by("day")
+    )
+    chat_trend = (
+        ChatMessage.objects.filter(created_at__date__gte=today - timedelta(days=29))
+        .extra(select={"day": "date(created_at)"})
+        .values("day")
+        .annotate(count=Count("id"))
+        .order_by("day")
+    )
+
+    activity_timeline = _build_daily_series(
+        30,
+        lambda point_date: point_date.strftime("%b %d"),
+        {
+            "bookings": booking_trend,
+            "contacts": contact_trend,
+            "chats": chat_trend,
+        },
+    )
+    growth_timeline = _build_daily_series(
+        30,
+        lambda point_date: point_date.strftime("%b %d"),
+        {
+            "users": user_growth,
+            "guides": guide_growth,
+        },
+    )
+
+    booking_status_map = {row["status"]: row["count"] for row in booking_breakdown}
+    total_bookings = Booking.objects.count()
+    active_count = booking_status_map.get("accepted", 0) + booking_status_map.get("active", 0)
+    completed_count = booking_status_map.get("completed", 0)
+    cancelled_count = booking_status_map.get("cancelled", 0) + booking_status_map.get("rejected", 0) + booking_status_map.get("auto_rejected", 0)
 
     return Response(
         {
@@ -686,6 +814,20 @@ def admin_dashboard(request):
                 "total_contacts": Contact.objects.count(),
             },
             "booking_breakdown": booking_breakdown,
+            "analytics": {
+                "booking_status_chart": booking_breakdown,
+                "booking_trend": activity_timeline,
+                "growth_trend": growth_timeline,
+                "top_destinations": top_destinations,
+                "review_distribution": review_breakdown,
+                "activity_volume": activity_timeline,
+                "platform_health": {
+                    "active": active_count,
+                    "completed": completed_count,
+                    "cancelled": cancelled_count,
+                    "total": total_bookings,
+                },
+            },
             "recent_signups": [_serialize_user(user) for user in recent_signups],
             "recent_booking_activity": [_serialize_booking(booking) for booking in recent_bookings],
             "recent_reviews": [_serialize_review(review) for review in recent_reviews],
@@ -735,6 +877,7 @@ def admin_users(request):
     elif role == "admin":
         users = users.filter(Q(is_superuser=True) | Q(is_staff=True))
 
+    users = _apply_created_at_filters(users, request, "date_joined")
     users = users.order_by(ordering)
     return _paginate(users, request, _serialize_user)
 
@@ -819,6 +962,7 @@ def admin_guides(request):
     if availability:
         guides = guides.filter(availability=availability)
 
+    guides = _apply_created_at_filters(guides, request)
     guides = guides.order_by(ordering)
     return _paginate(guides, request, _serialize_guide)
 
@@ -881,6 +1025,8 @@ def admin_bookings(request):
     if traveler_id:
         bookings = bookings.filter(traveler_user_id=traveler_id)
 
+    bookings = _apply_created_at_filters(bookings, request)
+    bookings = _apply_trip_date_filters(bookings, request)
     bookings = bookings.order_by(ordering)
     return _paginate(bookings, request, _serialize_booking)
 
@@ -958,6 +1104,7 @@ def admin_itineraries(request):
             | Q(traveler__username__icontains=query)
         )
 
+    itineraries = _apply_created_at_filters(itineraries, request)
     itineraries = itineraries.order_by(ordering)
     return _paginate(itineraries, request, _serialize_itinerary)
 
@@ -996,6 +1143,7 @@ def admin_reviews(request):
 
     query = request.query_params.get("q", "").strip()
     rating = request.query_params.get("rating", "").strip()
+    ordering = request.query_params.get("ordering", "-created_at")
 
     reviews = Review.objects.select_related("guide", "guide__user", "traveler", "booking").all()
     if query:
@@ -1008,7 +1156,8 @@ def admin_reviews(request):
     if rating:
         reviews = reviews.filter(rating=rating)
 
-    reviews = reviews.order_by("-created_at")
+    reviews = _apply_created_at_filters(reviews, request)
+    reviews = reviews.order_by(ordering)
     return _paginate(reviews, request, _serialize_review)
 
 
@@ -1040,6 +1189,7 @@ def admin_contacts(request):
 
     query = request.query_params.get("q", "").strip()
     status_value = request.query_params.get("status", "").strip()
+    ordering = request.query_params.get("ordering", "-created_at")
 
     contacts = Contact.objects.all()
     if query:
@@ -1051,7 +1201,8 @@ def admin_contacts(request):
         )
     if status_value:
         contacts = contacts.filter(status=status_value)
-    contacts = contacts.order_by("-created_at")
+    contacts = _apply_created_at_filters(contacts, request)
+    contacts = contacts.order_by(ordering)
     return _paginate(contacts, request, _serialize_contact)
 
 
@@ -1088,6 +1239,7 @@ def admin_chat_threads(request):
 
     query = request.query_params.get("q", "").strip()
     status_value = request.query_params.get("status", "").strip()
+    ordering = request.query_params.get("ordering", "-updated_at")
 
     bookings = Booking.objects.select_related("guide", "guide__user").prefetch_related("chat_messages").filter(chat_messages__isnull=False).distinct()
     if query:
@@ -1098,7 +1250,9 @@ def admin_chat_threads(request):
         )
     if status_value:
         bookings = bookings.filter(status=status_value)
-    bookings = bookings.order_by("-updated_at")
+    bookings = _apply_created_at_filters(bookings, request)
+    bookings = _apply_trip_date_filters(bookings, request)
+    bookings = bookings.order_by(ordering)
     return _paginate(bookings, request, _serialize_chat_thread)
 
 

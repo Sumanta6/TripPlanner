@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, Power, RefreshCcw, Trash2 } from "lucide-react";
+import toast from "react-hot-toast";
 import {
   createAdminUser,
   deleteAdminUser,
@@ -12,9 +13,11 @@ import {
   AdminCard,
   AdminDrawer,
   AdminEmptyState,
+  AdminLoadingSkeleton,
   AdminPagination,
   AdminSectionHeader,
   AdminStatusBadge,
+  AdminTableMeta,
   AdminToolbar,
   ConfirmDialog,
   formatDate,
@@ -37,6 +40,9 @@ const EMPTY_FORM = {
 export default function Users() {
   const [query, setQuery] = useState("");
   const [role, setRole] = useState("");
+  const [ordering, setOrdering] = useState("-date_joined");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState({ results: [], pagination: null });
   const [loading, setLoading] = useState(true);
@@ -52,18 +58,26 @@ export default function Users() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetchAdminUsers({ q: query, role, page: targetPage });
+      const response = await fetchAdminUsers({
+        q: query,
+        role,
+        ordering,
+        date_from: dateFrom,
+        date_to: dateTo,
+        page: targetPage,
+      });
       setData(response);
     } catch (err) {
       setError(err.message || "Unable to load users.");
     } finally {
       setLoading(false);
     }
-  }, [page, query, role]);
+  }, [dateFrom, dateTo, ordering, page, query, role]);
 
   useEffect(() => {
     setPage(1);
-  }, [query, role]);
+    setSelected([]);
+  }, [query, role, ordering, dateFrom, dateTo]);
 
   useEffect(() => {
     loadUsers(page);
@@ -71,7 +85,6 @@ export default function Users() {
 
   const rows = data.results || [];
   const allSelected = rows.length > 0 && selected.length === rows.length;
-
   const selectedSummary = useMemo(() => `${selected.length} selected`, [selected]);
 
   const toggleSelect = (id) => {
@@ -88,6 +101,7 @@ export default function Users() {
     try {
       const detail = await fetchAdminUserDetail(id);
       setEditingUser(detail);
+      setDrawerUser(detail);
       setForm({
         role: detail.role || "traveler",
         email: detail.email || "",
@@ -110,8 +124,10 @@ export default function Users() {
     try {
       if (editingUser) {
         await updateAdminUser(editingUser.id, form);
+        toast.success("User updated.");
       } else {
         await createAdminUser(form);
+        toast.success("User created.");
       }
       setFormOpen(false);
       setForm(EMPTY_FORM);
@@ -124,6 +140,7 @@ export default function Users() {
   const handleToggleActive = async (row) => {
     try {
       await updateAdminUser(row.id, { is_active: !row.is_active });
+      toast.success(row.is_active ? "User deactivated." : "User reactivated.");
       await loadUsers();
     } catch (err) {
       setError(err.message || "Unable to update user.");
@@ -133,6 +150,7 @@ export default function Users() {
   const handleDelete = async (id) => {
     try {
       await deleteAdminUser(id);
+      toast.success("User deleted.");
       setConfirm(null);
       setDrawerUser(null);
       await loadUsers();
@@ -144,7 +162,7 @@ export default function Users() {
   const handleResetPassword = async (id) => {
     try {
       const result = await triggerAdminUserResetPassword(id);
-      setError(result.message || "Password reset flow triggered.");
+      toast.success(result.message || "Password reset flow triggered.");
     } catch (err) {
       setError(err.message || "Unable to trigger reset.");
     }
@@ -172,17 +190,26 @@ export default function Users() {
                 <option value="guide">Guide</option>
                 <option value="admin">Admin</option>
               </select>
+              <select value={ordering} onChange={(event) => setOrdering(event.target.value)}>
+                <option value="-date_joined">Newest first</option>
+                <option value="date_joined">Oldest first</option>
+                <option value="email">Email A-Z</option>
+                <option value="-last_login">Last login</option>
+              </select>
+              <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} max={dateTo || undefined} />
+              <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} min={dateFrom || undefined} />
             </>
           }
           actions={<div className="tp-admin-bulk-note">{selectedSummary}</div>}
         />
 
         {error ? <div className="tp-admin-inline-error">{error}</div> : null}
-        {loading ? <div className="tp-admin-loading">Loading users…</div> : null}
+        {loading ? <AdminLoadingSkeleton /> : null}
         {!loading && rows.length === 0 ? <AdminEmptyState title="No users found" description="Try another search or create a new account." /> : null}
 
         {!loading && rows.length > 0 ? (
           <>
+            <AdminTableMeta pagination={data.pagination} label="Matching users" />
             <div className="tp-admin-table-wrap">
               <table className="tp-admin-table">
                 <thead>
@@ -213,7 +240,7 @@ export default function Users() {
                           <button type="button" className="tp-admin-icon-btn" onClick={() => openEdit(row.id)}><Pencil size={16} /></button>
                           <button type="button" className="tp-admin-icon-btn" onClick={() => handleToggleActive(row)}><Power size={16} /></button>
                           <button type="button" className="tp-admin-icon-btn" onClick={() => handleResetPassword(row.id)}><RefreshCcw size={16} /></button>
-                          <button type="button" className="tp-admin-icon-btn is-danger" onClick={() => setConfirm({ type: "delete", payload: row })}><Trash2 size={16} /></button>
+                          <button type="button" className="tp-admin-icon-btn is-danger" onClick={() => setConfirm({ payload: row })}><Trash2 size={16} /></button>
                         </div>
                       </td>
                     </tr>
@@ -226,12 +253,7 @@ export default function Users() {
         ) : null}
       </AdminCard>
 
-      <AdminDrawer
-        open={Boolean(drawerUser)}
-        title={drawerUser?.full_name || drawerUser?.email || "User details"}
-        subtitle={drawerUser?.email || ""}
-        onClose={() => setDrawerUser(null)}
-      >
+      <AdminDrawer open={Boolean(drawerUser)} title={drawerUser?.full_name || drawerUser?.email || "User details"} subtitle={drawerUser?.email || ""} onClose={() => setDrawerUser(null)}>
         {drawerUser ? (
           <div className="tp-admin-detail-grid">
             <Detail label="Username" value={drawerUser.username} />
@@ -245,12 +267,7 @@ export default function Users() {
         ) : null}
       </AdminDrawer>
 
-      <AdminDrawer
-        open={formOpen}
-        title={editingUser ? "Edit user" : "Create user"}
-        subtitle="Maintain user identities and roles safely."
-        onClose={() => setFormOpen(false)}
-      >
+      <AdminDrawer open={formOpen} title={editingUser ? "Edit user" : "Create user"} subtitle="Maintain user identities and roles safely." onClose={() => setFormOpen(false)}>
         <div className="tp-admin-form-grid">
           <label><span>Role</span><select value={form.role} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}><option value="traveler">Traveler</option><option value="guide">Guide</option><option value="admin">Admin</option></select></label>
           <label><span>Email</span><input value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} /></label>

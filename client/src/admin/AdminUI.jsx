@@ -40,6 +40,30 @@ export function AdminEmptyState({ title, description }) {
   );
 }
 
+export function AdminLoadingSkeleton({ rows = 5 }) {
+  return (
+    <div className="tp-admin-skeleton-list" aria-hidden="true">
+      {Array.from({ length: rows }).map((_, index) => (
+        <div key={index} className="tp-admin-skeleton-row">
+          <span className="tp-admin-skeleton-block is-wide" />
+          <span className="tp-admin-skeleton-block" />
+          <span className="tp-admin-skeleton-block is-short" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function AdminTableMeta({ pagination, label }) {
+  if (!pagination) return null;
+  return (
+    <div className="tp-admin-table-meta">
+      <span>{label}</span>
+      <strong>{pagination.total}</strong>
+    </div>
+  );
+}
+
 export function AdminPagination({ pagination, onPageChange }) {
   if (!pagination || pagination.pages <= 1) return null;
 
@@ -124,4 +148,13 @@ export function formatRole(row) {
   return [row.is_superuser || row.is_staff ? "Admin" : null, row.is_guide ? "Guide" : null, row.is_traveler ? "Traveler" : null]
     .filter(Boolean)
     .join(", ");
+}
+
+export function formatDateInput(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }

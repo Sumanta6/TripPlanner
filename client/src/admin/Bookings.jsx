@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { CalendarPlus2, Eye, Trash2 } from "lucide-react";
+import toast from "react-hot-toast";
 import { createAdminBooking, deleteAdminBooking, fetchAdminBookingDetail, fetchAdminBookings, updateAdminBooking, updateAdminBookingStatus } from "../services/adminApi";
-import { AdminCard, AdminDrawer, AdminEmptyState, AdminPagination, AdminSectionHeader, AdminStatusBadge, AdminToolbar, ConfirmDialog, formatDate } from "./AdminUI";
+import { AdminCard, AdminDrawer, AdminEmptyState, AdminLoadingSkeleton, AdminPagination, AdminSectionHeader, AdminStatusBadge, AdminTableMeta, AdminToolbar, ConfirmDialog, formatDate } from "./AdminUI";
 
 const STATUSES = ["pending", "accepted", "active", "completed", "cancelled", "rejected", "auto_rejected"];
 const EMPTY_FORM = {
@@ -20,6 +21,9 @@ const EMPTY_FORM = {
 export default function Bookings() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
+  const [ordering, setOrdering] = useState("-created_at");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState({ results: [], pagination: null });
   const [loading, setLoading] = useState(true);
@@ -34,16 +38,23 @@ export default function Bookings() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetchAdminBookings({ q: query, status, page: targetPage });
+      const response = await fetchAdminBookings({
+        q: query,
+        status,
+        ordering,
+        trip_start_from: dateFrom,
+        trip_end_to: dateTo,
+        page: targetPage,
+      });
       setData(response);
     } catch (err) {
       setError(err.message || "Unable to load bookings.");
     } finally {
       setLoading(false);
     }
-  }, [page, query, status]);
+  }, [dateFrom, dateTo, ordering, page, query, status]);
 
-  useEffect(() => setPage(1), [query, status]);
+  useEffect(() => setPage(1), [query, status, ordering, dateFrom, dateTo]);
   useEffect(() => {
     loadBookings(page);
   }, [loadBookings, page]);
@@ -82,8 +93,10 @@ export default function Bookings() {
     try {
       if (editingBooking) {
         await updateAdminBooking(editingBooking.id, form);
+        toast.success("Booking updated.");
       } else {
         await createAdminBooking(form);
+        toast.success("Booking created.");
       }
       setFormOpen(false);
       await loadBookings();
@@ -95,6 +108,7 @@ export default function Bookings() {
   const handleDelete = async () => {
     try {
       await deleteAdminBooking(confirm.payload.id);
+      toast.success("Booking deleted.");
       setConfirm(null);
       setDrawerBooking(null);
       await loadBookings();
@@ -106,6 +120,7 @@ export default function Bookings() {
   const handleStatusChange = async (id, nextStatus) => {
     try {
       await updateAdminBookingStatus(id, nextStatus);
+      toast.success("Booking status updated.");
       await loadBookings();
     } catch (err) {
       setError(err.message || "Unable to update booking status.");
@@ -127,17 +142,28 @@ export default function Bookings() {
           onSearchChange={setQuery}
           searchPlaceholder="Search traveler, guide, or destination"
           filters={
-            <select value={status} onChange={(event) => setStatus(event.target.value)}>
-              <option value="">All statuses</option>
-              {STATUSES.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
+            <>
+              <select value={status} onChange={(event) => setStatus(event.target.value)}>
+                <option value="">All statuses</option>
+                {STATUSES.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+              <select value={ordering} onChange={(event) => setOrdering(event.target.value)}>
+                <option value="-created_at">Newest created</option>
+                <option value="created_at">Oldest created</option>
+                <option value="-trip_start">Latest trip start</option>
+                <option value="trip_start">Soonest trip start</option>
+              </select>
+              <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} max={dateTo || undefined} />
+              <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} min={dateFrom || undefined} />
+            </>
           }
         />
         {error ? <div className="tp-admin-inline-error">{error}</div> : null}
-        {loading ? <div className="tp-admin-loading">Loading bookings…</div> : null}
+        {loading ? <AdminLoadingSkeleton /> : null}
         {!loading && rows.length === 0 ? <AdminEmptyState title="No bookings found" description="Adjust filters or create a new booking record." /> : null}
         {!loading && rows.length > 0 ? (
           <>
+            <AdminTableMeta pagination={data.pagination} label="Matching bookings" />
             <div className="tp-admin-table-wrap">
               <table className="tp-admin-table">
                 <thead>

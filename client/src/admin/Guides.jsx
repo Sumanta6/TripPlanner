@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Pencil, Plus, Power, Trash2 } from "lucide-react";
+import toast from "react-hot-toast";
 import { createAdminGuide, deleteAdminGuide, fetchAdminGuides, updateAdminGuide } from "../services/adminApi";
-import { AdminCard, AdminDrawer, AdminEmptyState, AdminPagination, AdminSectionHeader, AdminStatusBadge, AdminToolbar, ConfirmDialog, formatDate } from "./AdminUI";
+import { AdminCard, AdminDrawer, AdminEmptyState, AdminLoadingSkeleton, AdminPagination, AdminSectionHeader, AdminStatusBadge, AdminTableMeta, AdminToolbar, ConfirmDialog, formatDate } from "./AdminUI";
 
 const EMPTY_FORM = {
   email: "",
@@ -19,6 +20,7 @@ const EMPTY_FORM = {
 export default function Guides() {
   const [query, setQuery] = useState("");
   const [availability, setAvailability] = useState("");
+  const [ordering, setOrdering] = useState("-created_at");
   const [page, setPage] = useState(1);
   const [data, setData] = useState({ results: [], pagination: null });
   const [error, setError] = useState("");
@@ -33,16 +35,16 @@ export default function Guides() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetchAdminGuides({ q: query, availability, page: targetPage });
+      const response = await fetchAdminGuides({ q: query, availability, ordering, page: targetPage });
       setData(response);
     } catch (err) {
       setError(err.message || "Unable to load guides.");
     } finally {
       setLoading(false);
     }
-  }, [availability, page, query]);
+  }, [availability, ordering, page, query]);
 
-  useEffect(() => setPage(1), [query, availability]);
+  useEffect(() => setPage(1), [query, availability, ordering]);
   useEffect(() => {
     loadGuides(page);
   }, [loadGuides, page]);
@@ -82,8 +84,10 @@ export default function Guides() {
     try {
       if (editingGuide) {
         await updateAdminGuide(editingGuide.id, normalize());
+        toast.success("Guide updated.");
       } else {
         await createAdminGuide({ ...normalize(), role: "guide" });
+        toast.success("Guide created.");
       }
       setFormOpen(false);
       await loadGuides();
@@ -95,6 +99,7 @@ export default function Guides() {
   const toggleActive = async (guide) => {
     try {
       await updateAdminGuide(guide.id, { user_active: !guide.user_active });
+      toast.success(guide.user_active ? "Guide suspended." : "Guide reactivated.");
       await loadGuides();
     } catch (err) {
       setError(err.message || "Unable to update guide.");
@@ -104,6 +109,7 @@ export default function Guides() {
   const handleDelete = async () => {
     try {
       await deleteAdminGuide(confirm.payload.id);
+      toast.success("Guide deleted.");
       setConfirm(null);
       setDrawerGuide(null);
       await loadGuides();
@@ -127,18 +133,27 @@ export default function Guides() {
           onSearchChange={setQuery}
           searchPlaceholder="Search guides, destinations, or email"
           filters={
-            <select value={availability} onChange={(event) => setAvailability(event.target.value)}>
-              <option value="">All availability</option>
-              <option value="available">Available</option>
-              <option value="busy">Busy</option>
-            </select>
+            <>
+              <select value={availability} onChange={(event) => setAvailability(event.target.value)}>
+                <option value="">All availability</option>
+                <option value="available">Available</option>
+                <option value="busy">Busy</option>
+              </select>
+              <select value={ordering} onChange={(event) => setOrdering(event.target.value)}>
+                <option value="-created_at">Newest first</option>
+                <option value="created_at">Oldest first</option>
+                <option value="-rating">Highest rating</option>
+                <option value="-tours_completed">Most tours</option>
+              </select>
+            </>
           }
         />
         {error ? <div className="tp-admin-inline-error">{error}</div> : null}
-        {loading ? <div className="tp-admin-loading">Loading guides…</div> : null}
+        {loading ? <AdminLoadingSkeleton /> : null}
         {!loading && rows.length === 0 ? <AdminEmptyState title="No guides found" description="Try another filter or add a guide profile." /> : null}
         {!loading && rows.length > 0 ? (
           <>
+            <AdminTableMeta pagination={data.pagination} label="Matching guides" />
             <div className="tp-admin-table-wrap">
               <table className="tp-admin-table">
                 <thead>

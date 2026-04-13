@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { FilePlus2, Pencil, Trash2 } from "lucide-react";
+import toast from "react-hot-toast";
 import { createAdminItinerary, deleteAdminItinerary, fetchAdminItineraries, updateAdminItinerary } from "../services/adminApi";
-import { AdminCard, AdminDrawer, AdminEmptyState, AdminPagination, AdminSectionHeader, AdminToolbar, ConfirmDialog, formatDate } from "./AdminUI";
+import { AdminCard, AdminDrawer, AdminEmptyState, AdminLoadingSkeleton, AdminPagination, AdminSectionHeader, AdminTableMeta, AdminToolbar, ConfirmDialog, formatDate } from "./AdminUI";
 
 const EMPTY_FORM = {
   traveler_id: "",
@@ -18,6 +19,7 @@ const EMPTY_FORM = {
 
 export default function Itineraries() {
   const [query, setQuery] = useState("");
+  const [ordering, setOrdering] = useState("-created_at");
   const [page, setPage] = useState(1);
   const [data, setData] = useState({ results: [], pagination: null });
   const [loading, setLoading] = useState(true);
@@ -32,16 +34,16 @@ export default function Itineraries() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetchAdminItineraries({ q: query, page: targetPage });
+      const response = await fetchAdminItineraries({ q: query, ordering, page: targetPage });
       setData(response);
     } catch (err) {
       setError(err.message || "Unable to load itineraries.");
     } finally {
       setLoading(false);
     }
-  }, [page, query]);
+  }, [ordering, page, query]);
 
-  useEffect(() => setPage(1), [query]);
+  useEffect(() => setPage(1), [query, ordering]);
   useEffect(() => {
     loadItineraries(page);
   }, [loadItineraries, page]);
@@ -79,8 +81,10 @@ export default function Itineraries() {
       };
       if (editingItinerary) {
         await updateAdminItinerary(editingItinerary.id, payload);
+        toast.success("Itinerary updated.");
       } else {
         await createAdminItinerary(payload);
+        toast.success("Itinerary created.");
       }
       setFormOpen(false);
       await loadItineraries();
@@ -92,6 +96,7 @@ export default function Itineraries() {
   const handleDelete = async () => {
     try {
       await deleteAdminItinerary(confirm.payload.id);
+      toast.success("Itinerary deleted.");
       setConfirm(null);
       setDrawerItinerary(null);
       await loadItineraries();
@@ -110,12 +115,24 @@ export default function Itineraries() {
       />
 
       <AdminCard>
-        <AdminToolbar search={query} onSearchChange={setQuery} searchPlaceholder="Search destination, traveler, or origin" />
+        <AdminToolbar
+          search={query}
+          onSearchChange={setQuery}
+          searchPlaceholder="Search destination, traveler, or origin"
+          filters={
+            <select value={ordering} onChange={(event) => setOrdering(event.target.value)}>
+              <option value="-created_at">Newest first</option>
+              <option value="created_at">Oldest first</option>
+              <option value="destination">Destination A-Z</option>
+            </select>
+          }
+        />
         {error ? <div className="tp-admin-inline-error">{error}</div> : null}
-        {loading ? <div className="tp-admin-loading">Loading itineraries…</div> : null}
+        {loading ? <AdminLoadingSkeleton /> : null}
         {!loading && rows.length === 0 ? <AdminEmptyState title="No itineraries found" description="Saved trip plans will appear here." /> : null}
         {!loading && rows.length > 0 ? (
           <>
+            <AdminTableMeta pagination={data.pagination} label="Saved itineraries" />
             <div className="tp-admin-table-wrap">
               <table className="tp-admin-table">
                 <thead>

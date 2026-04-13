@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Eye, Trash2 } from "lucide-react";
+import toast from "react-hot-toast";
 import { deleteAdminContact, fetchAdminChatThreadDetail, fetchAdminChatThreads, fetchAdminContacts, updateAdminContact } from "../services/adminApi";
-import { AdminCard, AdminDrawer, AdminEmptyState, AdminPagination, AdminSectionHeader, AdminStatusBadge, AdminToolbar, ConfirmDialog, formatDate } from "./AdminUI";
+import { AdminCard, AdminDrawer, AdminEmptyState, AdminLoadingSkeleton, AdminPagination, AdminSectionHeader, AdminStatusBadge, AdminTableMeta, AdminToolbar, ConfirmDialog, formatDate } from "./AdminUI";
 
 const CONTACT_STATUSES = ["New", "In Progress", "Resolved"];
 
@@ -9,6 +10,7 @@ export default function Support() {
   const [tab, setTab] = useState("contacts");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
+  const [ordering, setOrdering] = useState("-created_at");
   const [page, setPage] = useState(1);
   const [data, setData] = useState({ results: [], pagination: null });
   const [loading, setLoading] = useState(true);
@@ -21,17 +23,17 @@ export default function Support() {
     setError("");
     try {
       const response = tab === "contacts"
-        ? await fetchAdminContacts({ q: query, status, page: targetPage })
-        : await fetchAdminChatThreads({ q: query, status, page: targetPage });
+        ? await fetchAdminContacts({ q: query, status, ordering, page: targetPage })
+        : await fetchAdminChatThreads({ q: query, status, ordering, page: targetPage });
       setData(response);
     } catch (err) {
       setError(err.message || "Unable to load support data.");
     } finally {
       setLoading(false);
     }
-  }, [page, query, status, tab]);
+  }, [ordering, page, query, status, tab]);
 
-  useEffect(() => setPage(1), [tab, query, status]);
+  useEffect(() => setPage(1), [tab, query, status, ordering]);
   useEffect(() => {
     load(page);
   }, [load, page]);
@@ -50,6 +52,7 @@ export default function Support() {
   const handleContactStatus = async (contact, nextStatus) => {
     try {
       await updateAdminContact(contact.id, { status: nextStatus });
+      toast.success("Contact status updated.");
       await load();
     } catch (err) {
       setError(err.message || "Unable to update contact.");
@@ -59,6 +62,7 @@ export default function Support() {
   const handleDeleteContact = async () => {
     try {
       await deleteAdminContact(confirm.payload.id);
+      toast.success("Contact deleted.");
       setConfirm(null);
       setDrawerContent(null);
       await load();
@@ -86,20 +90,28 @@ export default function Support() {
           onSearchChange={setQuery}
           searchPlaceholder={tab === "contacts" ? "Search contacts and support messages" : "Search traveler, guide, or destination"}
           filters={
-            <select value={status} onChange={(event) => setStatus(event.target.value)}>
-              <option value="">All statuses</option>
-              {(tab === "contacts" ? CONTACT_STATUSES : ["pending", "accepted", "active", "completed", "cancelled"]).map((value) => (
-                <option key={value} value={value}>{value}</option>
-              ))}
-            </select>
+            <>
+              <select value={status} onChange={(event) => setStatus(event.target.value)}>
+                <option value="">All statuses</option>
+                {(tab === "contacts" ? CONTACT_STATUSES : ["pending", "accepted", "active", "completed", "cancelled"]).map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+              <select value={ordering} onChange={(event) => setOrdering(event.target.value)}>
+                <option value="-created_at">Newest first</option>
+                <option value="created_at">Oldest first</option>
+                {tab === "chats" ? <option value="-updated_at">Latest activity</option> : null}
+              </select>
+            </>
           }
         />
         {error ? <div className="tp-admin-inline-error">{error}</div> : null}
-        {loading ? <div className="tp-admin-loading">Loading oversight data…</div> : null}
+        {loading ? <AdminLoadingSkeleton /> : null}
         {!loading && rows.length === 0 ? <AdminEmptyState title="Nothing to review" description="This queue is currently empty." /> : null}
 
         {!loading && rows.length > 0 && tab === "contacts" ? (
           <>
+            <AdminTableMeta pagination={data.pagination} label="Support inbox" />
             <div className="tp-admin-table-wrap">
               <table className="tp-admin-table">
                 <thead>
@@ -144,6 +156,7 @@ export default function Support() {
 
         {!loading && rows.length > 0 && tab === "chats" ? (
           <>
+            <AdminTableMeta pagination={data.pagination} label="Chat oversight threads" />
             <div className="tp-admin-table-wrap">
               <table className="tp-admin-table">
                 <thead>
