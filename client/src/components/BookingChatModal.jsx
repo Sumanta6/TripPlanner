@@ -1,6 +1,13 @@
 import { useEffect, useRef } from "react";
 import { BadgeCheck, MessageCircle, SendHorizontal, X } from "lucide-react";
+import { isCurrentUsersMessage } from "../utils/chatIdentity";
 import "./BookingChatModal.css";
+
+const CLOSED_CHAT_STATUSES = new Set(["completed", "cancelled", "expired"]);
+
+function isClosedBookingStatus(status) {
+  return CLOSED_CHAT_STATUSES.has(status);
+}
 
 function formatChatTimestamp(value) {
   if (!value) return "";
@@ -20,6 +27,10 @@ function getStatusLabel(status) {
       return "Active";
     case "completed":
       return "Completed";
+    case "cancelled":
+      return "Cancelled";
+    case "expired":
+      return "Expired";
     default:
       return status || "Booking";
   }
@@ -35,58 +46,20 @@ function getInitials(name) {
     .join("") || "U";
 }
 
-function isOwnMessage(message, currentUserId, viewerRole, thread) {
-  const senderId = message?.sender_id;
-
-  if (senderId != null && currentUserId != null) {
-    const ownById = String(senderId) === String(currentUserId);
-    if (process.env.NODE_ENV !== "production") {
-      console.debug("Traveler chat ownership", {
-        viewerRole,
-        currentUserId,
-        messageId: message?.id,
-        senderId,
-        senderName: message?.sender_name,
-        senderRole: message?.sender_role,
-        isMine: ownById,
-      });
-    }
-    return ownById;
+function Avatar({ name, image, className }) {
+  if (image) {
+    return <img src={image} alt={name} className={className} />;
   }
-
-  if (message?.sender_role && viewerRole) {
-    const ownByRole = String(message.sender_role) === String(viewerRole);
-    if (process.env.NODE_ENV !== "production") {
-      console.debug("Traveler chat ownership role fallback", {
-        viewerRole,
-        currentUserId,
-        messageId: message?.id,
-        senderId,
-        senderName: message?.sender_name,
-        senderRole: message?.sender_role,
-        isMine: ownByRole,
-      });
-    }
-    return ownByRole;
-  }
-
-  if (process.env.NODE_ENV !== "production") {
-    console.warn("Chat sender ownership could not be resolved.", {
-      currentUserId,
-      viewerRole,
-      messageId: message?.id,
-      senderId,
-      senderName: message?.sender_name,
-      senderRole: message?.sender_role,
-      senderEmail: message?.sender_email,
-    });
-  }
-
-  return false;
+  return <div className={className}>{getInitials(name)}</div>;
 }
 
-function ChatMessageBubble({ message, currentUserId, thread, viewerRole, showSender, startsGroup, endsGroup }) {
-  const ownMessage = isOwnMessage(message, currentUserId, viewerRole, thread);
+function isOwnMessage(message, currentUserId, viewerRole) {
+  return isCurrentUsersMessage(message, currentUserId);
+}
+
+function ChatMessageBubble({ message, currentUserId, viewerRole, showSender, startsGroup, endsGroup }) {
+  const ownMessage = isOwnMessage(message, currentUserId, viewerRole);
+  const senderName = message.sender_name || (message.sender_role === "guide" ? "Guide" : "Traveler");
 
   return (
     <div
@@ -97,12 +70,25 @@ function ChatMessageBubble({ message, currentUserId, thread, viewerRole, showSen
         endsGroup ? "ends-group" : "",
       ].join(" ").trim()}
     >
-      {showSender ? <div className="chat-message-group-label">{ownMessage ? "You" : message.sender_name}</div> : null}
-      <div className={`chat-message-bubble ${ownMessage ? "is-own" : "is-peer"}`}>
-        <p>{message.content ?? message.message}</p>
-      </div>
-      <div className={`chat-message-time ${ownMessage ? "is-own" : "is-peer"}`}>
-        {formatChatTimestamp(message.created_at)}
+      {!ownMessage ? (
+        <div className={`chat-message-avatar-slot ${showSender ? "is-visible" : ""}`}>
+          {showSender ? (
+            <Avatar
+              name={senderName}
+              image={message.sender_avatar}
+              className="chat-message-avatar"
+            />
+          ) : null}
+        </div>
+      ) : null}
+      <div className={`chat-message-stack ${ownMessage ? "is-own" : "is-peer"}`}>
+        {showSender && !ownMessage ? <div className="chat-message-group-label">{senderName}</div> : null}
+        <div className={`chat-message-bubble ${ownMessage ? "is-own" : "is-peer"}`}>
+          <p>{message.content ?? message.message}</p>
+        </div>
+        <div className={`chat-message-time ${ownMessage ? "is-own" : "is-peer"}`}>
+          {formatChatTimestamp(message.created_at)}
+        </div>
       </div>
     </div>
   );
@@ -123,15 +109,11 @@ export default function BookingChatModal({
   sending,
 }) {
   const endRef = useRef(null);
-  const canSend = Boolean(thread?.can_send_chat);
+  const currentUserId = currentUser?.id ?? currentUser?.user_id ?? null;
+  const bookingStatus = thread?.booking_status || booking?.status || "";
+  const isChatClosed = isClosedBookingStatus(bookingStatus);
+  const canSend = Boolean(thread?.can_send_chat) && !isChatClosed;
   const canView = Boolean(thread?.can_view_chat);
-  const currentUserId = currentUser?.id ?? currentUser?.user_id ?? thread?.current_user_id ?? null;
-
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "production" && isOpen) {
-      console.debug("Traveler chat current user", currentUser, "resolvedId", currentUserId);
-    }
-  }, [isOpen, currentUser, currentUserId]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -153,6 +135,7 @@ export default function BookingChatModal({
     viewerRole === "traveler"
       ? booking.guide_name || thread?.counterpart_name || "Your Guide"
       : thread?.counterpart_name || booking.traveler_name || "Booking Chat";
+  const headerAvatar = thread?.counterpart_avatar || booking.avatar || "";
   const headerMeta =
     viewerRole === "traveler"
       ? `${booking.destination} · BOOK-${String(booking.id).padStart(4, "0")}`
@@ -168,7 +151,7 @@ export default function BookingChatModal({
         <div className="chat-modal-header">
           <div className="chat-modal-header-copy">
             <div className="chat-modal-person">
-              <div className="chat-modal-avatar">{getInitials(headerName)}</div>
+              <Avatar name={headerName} image={headerAvatar} className="chat-modal-avatar" />
               <div>
                 <span className="chat-modal-kicker">
                   <MessageCircle size={14} />
@@ -181,10 +164,10 @@ export default function BookingChatModal({
           </div>
 
           <div className="chat-modal-statuses">
-            <span className={`chat-status-badge status-${booking.status}`}>
-              {getStatusLabel(booking.status)}
+            <span className={`chat-status-badge status-${bookingStatus}`}>
+              {getStatusLabel(bookingStatus)}
             </span>
-            {booking.status === "completed" ? (
+            {isChatClosed ? (
               <span className="chat-status-muted">
                 <BadgeCheck size={14} />
                 Read-only
@@ -192,6 +175,12 @@ export default function BookingChatModal({
             ) : null}
           </div>
         </div>
+
+        {isChatClosed ? (
+          <div className="chat-modal-closed-notice">
+            This conversation is closed because the booking has ended.
+          </div>
+        ) : null}
 
         <div className="chat-modal-body">
           {loading ? (
@@ -205,18 +194,23 @@ export default function BookingChatModal({
               {thread.messages.map((message, index) => {
                 const previous = thread.messages[index - 1];
                 const next = thread.messages[index + 1];
-                const previousOwn = previous ? isOwnMessage(previous, currentUserId, viewerRole, thread) : null;
-                const currentOwn = isOwnMessage(message, currentUserId, viewerRole, thread);
-                const nextOwn = next ? isOwnMessage(next, currentUserId, viewerRole, thread) : null;
-                const senderChangedFromPrevious = !previous || previousOwn !== currentOwn;
-                const senderChangesToNext = !next || nextOwn !== currentOwn;
+                const previousOwn = previous ? isOwnMessage(previous, currentUserId, viewerRole) : null;
+                const currentOwn = isOwnMessage(message, currentUserId, viewerRole);
+                const nextOwn = next ? isOwnMessage(next, currentUserId, viewerRole) : null;
+                const senderChangedFromPrevious =
+                  !previous ||
+                  previousOwn !== currentOwn ||
+                  (!currentOwn && previous?.sender_name !== message?.sender_name);
+                const senderChangesToNext =
+                  !next ||
+                  nextOwn !== currentOwn ||
+                  (!currentOwn && next?.sender_name !== message?.sender_name);
 
                 return (
                   <ChatMessageBubble
                     key={message.id}
                     message={message}
                     currentUserId={currentUserId}
-                    thread={thread}
                     viewerRole={viewerRole}
                     showSender={senderChangedFromPrevious}
                     startsGroup={senderChangedFromPrevious}
@@ -242,17 +236,11 @@ export default function BookingChatModal({
               onKeyDown={handleKeyDown}
               placeholder="Write a message…"
             />
-            <button type="submit" className="chat-send-btn" disabled={sending || !draft.trim()}>
+            <button type="submit" className="chat-send-btn" disabled={sending || !draft.trim()} aria-label="Send message">
               <SendHorizontal size={16} />
-              {sending ? "Sending..." : "Send"}
             </button>
           </form>
-        ) : (
-          <div className="chat-modal-readonly">
-            <BadgeCheck size={16} />
-            This conversation is preserved for reference and can no longer accept new messages.
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

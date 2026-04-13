@@ -5,6 +5,17 @@ from django.core.exceptions import ObjectDoesNotExist
 from .models import GuideProfile, Booking, Activity, Review, ChatMessage
 
 
+CHAT_VIEWABLE_STATUSES = {'accepted', 'active', 'completed', 'cancelled', 'expired'}
+CHAT_SENDABLE_STATUSES = {'accepted', 'active'}
+
+
+def build_profile_image_url(request, image_field):
+    if not image_field:
+        return ''
+    image_url = image_field.url
+    return request.build_absolute_uri(image_url) if request else image_url
+
+
 def build_review_breakdown(guide):
     counts = {
         item['rating']: item['count']
@@ -278,15 +289,17 @@ class BookingSerializer(serializers.ModelSerializer):
         return profile.preferred_destinations if profile and profile.preferred_destinations else []
 
     def get_can_view_chat(self, obj):
-        return obj.status in {'accepted', 'active', 'completed'}
+        return obj.status in CHAT_VIEWABLE_STATUSES
 
     def get_can_send_chat(self, obj):
-        return obj.status in {'accepted', 'active'}
+        return obj.status in CHAT_SENDABLE_STATUSES
 
     def get_can_chat(self, obj):
         return self.get_can_send_chat(obj)
 
     def get_chat_locked_message(self, obj):
+        if self.get_can_view_chat(obj) and not self.get_can_send_chat(obj):
+            return 'This conversation is closed because the booking has ended.'
         if self.get_can_view_chat(obj):
             return ''
         return 'Chat available after acceptance'
@@ -337,17 +350,20 @@ class ReviewWriteSerializer(serializers.ModelSerializer):
 
 class ChatMessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.SerializerMethodField()
+    sender_avatar = serializers.SerializerMethodField()
     sender_id = serializers.IntegerField(read_only=True)
+    receiver_id = serializers.IntegerField(read_only=True, allow_null=True)
     sender_email = serializers.EmailField(source='sender.email', read_only=True)
     booking_id = serializers.IntegerField(read_only=True)
     content = serializers.CharField(source='message', read_only=True)
     is_own = serializers.SerializerMethodField()
+    is_current_user = serializers.SerializerMethodField()
 
     class Meta:
         model = ChatMessage
         fields = [
-            'id', 'booking', 'booking_id', 'sender_id', 'sender_email', 'sender_role', 'sender_name',
-            'message', 'content', 'is_own', 'created_at',
+            'id', 'booking', 'booking_id', 'sender_id', 'receiver_id', 'sender_email', 'sender_role', 'sender_name', 'sender_avatar',
+            'message', 'content', 'is_own', 'is_current_user', 'created_at',
         ]
         read_only_fields = fields
 
@@ -371,9 +387,30 @@ class ChatMessageSerializer(serializers.ModelSerializer):
             return traveler_profile.full_name
         return obj.sender.get_full_name() or obj.sender.username
 
+    def get_sender_avatar(self, obj):
+        request = self.context.get('request')
+
+        if obj.sender_role == 'guide':
+            try:
+                guide_profile = obj.sender.guide_profile
+            except ObjectDoesNotExist:
+                guide_profile = None
+
+            return build_profile_image_url(request, guide_profile.profile_image if guide_profile else None)
+
+        try:
+            traveler_profile = obj.sender.traveler_profile
+        except ObjectDoesNotExist:
+            traveler_profile = None
+
+        return build_profile_image_url(request, traveler_profile.profile_image if traveler_profile else None)
+
     def get_is_own(self, obj):
         request = self.context.get('request')
         return bool(request and request.user.is_authenticated and request.user.id == obj.sender_id)
+
+    def get_is_current_user(self, obj):
+        return self.get_is_own(obj)
 
 
 class ChatThreadSerializer(serializers.Serializer):
@@ -386,6 +423,7 @@ class ChatThreadSerializer(serializers.Serializer):
     booking_status = serializers.CharField()
     destination = serializers.CharField()
     counterpart_name = serializers.CharField()
+    counterpart_avatar = serializers.CharField(allow_blank=True)
     counterpart_email = serializers.CharField(allow_blank=True)
     can_view_chat = serializers.BooleanField()
     can_send_chat = serializers.BooleanField()

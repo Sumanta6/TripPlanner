@@ -18,11 +18,53 @@ from django.core.exceptions import ValidationError
 
 from .models import Trip, TravelerProfile
 from .serializers import TripSerializer, RegisterSerializer, TravelerProfileSerializer
-from .authentication import build_guide_auth_token
+from .authentication import build_admin_auth_token, build_guide_auth_token
 from guides.models import Booking
 from guides.serializers import BookingSerializer
 
 GOOGLE_CLIENT_ID = "320492427698-7se212gnd06b14a41a3jsca1sqiv4pn7.apps.googleusercontent.com"
+
+
+def build_login_payload(user):
+    if user.is_superuser or user.is_staff:
+        return {
+            "role": "admin",
+            "email": user.email,
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "role": "admin",
+                "is_superuser": user.is_superuser,
+                "is_staff": user.is_staff,
+            },
+            "admin_token": build_admin_auth_token(user),
+        }
+
+    if hasattr(user, "guide_profile"):
+        return {
+            "role": "guide",
+            "email": user.email,
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "role": "guide",
+                "is_superuser": user.is_superuser,
+                "is_staff": user.is_staff,
+            },
+            "guide_token": build_guide_auth_token(user),
+        }
+
+    return {
+        "role": "traveler",
+        "email": user.email,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "role": "traveler",
+            "is_superuser": user.is_superuser,
+            "is_staff": user.is_staff,
+        },
+    }
 
 
 # ======================
@@ -69,16 +111,9 @@ def login(request):
     print(f"DEBUG LOGIN: django_login successful for {email}. Session key: {request.session.session_key}")
     request.session.set_expiry(60 * 60 * 24 * 14 if remember_me else 0)
 
-    role = "guide" if hasattr(user, "guide_profile") else "traveler"
-    return Response(
-        {
-            "message": "Login successful",
-            "role": role,
-            "email": user.email,
-            "user": {"id": user.id, "email": user.email, "role": role},
-        },
-        status=200,
-    )
+    payload = build_login_payload(user)
+    payload["message"] = "Login successful"
+    return Response(payload, status=200)
 
 
 @csrf_exempt
@@ -147,16 +182,9 @@ def google_login(request):
     )
 
     django_login(request, user)
-    role = "guide" if hasattr(user, "guide_profile") else "traveler"
-    return Response(
-        {
-            "message": "Google login successful",
-            "role": role,
-            "email": user.email,
-            "user": {"id": user.id, "email": user.email, "role": role},
-        },
-        status=200,
-    )
+    payload = build_login_payload(user)
+    payload["message"] = "Google login successful"
+    return Response(payload, status=200)
 
 
 @csrf_exempt
@@ -306,13 +334,21 @@ def create_trip(request):
 @api_view(["GET"])
 def check_auth(request):
     if request.user.is_authenticated:
-        role = "guide" if hasattr(request.user, "guide_profile") else "traveler"
+        role = (
+            "admin"
+            if request.user.is_superuser or request.user.is_staff
+            else "guide"
+            if hasattr(request.user, "guide_profile")
+            else "traveler"
+        )
         return Response({
             "authenticated": True,
             "user": {
                 "id": request.user.id,
                 "email": request.user.email,
                 "role": role,
+                "is_superuser": request.user.is_superuser,
+                "is_staff": request.user.is_staff,
             }
         })
     return Response({"authenticated": False})

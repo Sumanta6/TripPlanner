@@ -26,7 +26,32 @@ import {
   initCsrf,
   sendBookingChatMessage
 } from "../services/api";
+import { createOptimisticChatMessage, normalizeChatMessage, normalizeChatThread } from "../utils/chatMessages";
 import "./MyTrips.css";
+
+const CLOSED_CHAT_STATUSES = new Set(["completed", "cancelled", "expired"]);
+
+function isClosedBookingStatus(status) {
+  return CLOSED_CHAT_STATUSES.has(status);
+}
+
+function syncBookingStatus(currentBookings, bookingId, nextStatus) {
+  if (!bookingId || !nextStatus) return currentBookings;
+  return currentBookings.map((booking) =>
+    booking.id === bookingId && booking.status !== nextStatus
+      ? {
+          ...booking,
+          status: nextStatus,
+          can_view_chat: true,
+          can_send_chat: !isClosedBookingStatus(nextStatus),
+          can_chat: !isClosedBookingStatus(nextStatus),
+          chat_locked_message: isClosedBookingStatus(nextStatus)
+            ? "This conversation is closed because the booking has ended."
+            : booking.chat_locked_message
+        }
+      : booking
+  );
+}
 
 const TAB_LABELS = ["Upcoming / Active", "Completed", "Declined"];
 
@@ -96,7 +121,7 @@ export default function MyTrips() {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState("");
   const [chatModalOpen, setChatModalOpen] = useState(false);
-  const [selectedChatBooking, setSelectedChatBooking] = useState(null);
+  const [activeChatBookingId, setActiveChatBookingId] = useState(null);
   const [chatThread, setChatThread] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [chatDraft, setChatDraft] = useState("");
@@ -104,6 +129,11 @@ export default function MyTrips() {
   const [chatSending, setChatSending] = useState(false);
   const [chatError, setChatError] = useState("");
   const navigate = useNavigate();
+  const activeChatBooking = useMemo(
+    () => bookings.find((booking) => String(booking.id) === String(activeChatBookingId)) || null,
+    [bookings, activeChatBookingId]
+  );
+  const isSelectedChatClosed = isClosedBookingStatus(chatThread?.booking_status || activeChatBooking?.status);
 
   useEffect(() => {
     let alive = true;
@@ -114,9 +144,6 @@ export default function MyTrips() {
         if (alive) {
           setBookings(Array.isArray(data) ? data : data.results || []);
           setCurrentUser(auth?.user || null);
-          if (process.env.NODE_ENV !== "production") {
-            console.debug("Traveler auth user", auth?.user || null);
-          }
         }
       } catch {
         if (alive) {
@@ -134,16 +161,20 @@ export default function MyTrips() {
   }, []);
 
   useEffect(() => {
-    if (!chatModalOpen || !selectedChatBooking?.id) return undefined;
+    if (!chatModalOpen || !activeChatBookingId) return undefined;
 
     let active = true;
+    const bookingId = activeChatBookingId;
 
     async function refreshChat(silent = true) {
       if (!silent) setChatLoading(true);
       try {
-        const data = await getBookingChat(selectedChatBooking.id);
+        const data = normalizeChatThread(await getBookingChat(bookingId));
         if (!active) return;
         setChatThread(data);
+        if (data?.booking_status) {
+          setBookings((current) => syncBookingStatus(current, bookingId, data.booking_status));
+        }
         setChatError("");
       } catch (err) {
         if (!active) return;
@@ -158,13 +189,19 @@ export default function MyTrips() {
     }
 
     refreshChat(false);
+    if (isSelectedChatClosed) {
+      return () => {
+        active = false;
+      };
+    }
+
     const timer = window.setInterval(() => refreshChat(true), 6000);
 
     return () => {
       active = false;
       window.clearInterval(timer);
     };
-  }, [chatModalOpen, selectedChatBooking]);
+  }, [chatModalOpen, activeChatBookingId, isSelectedChatClosed]);
 
   const recentUpdates = useMemo(() => {
     const now = new Date();
@@ -257,40 +294,71 @@ export default function MyTrips() {
       toast.error(booking?.chat_locked_message || "Chat available after acceptance.");
       return;
     }
-    setSelectedChatBooking(booking);
+    setActiveChatBookingId(booking.id);
     setChatThread(null);
     setChatDraft("");
     setChatError("");
+    setChatLoading(true);
     setChatModalOpen(true);
   };
 
   const closeChatModal = () => {
     setChatModalOpen(false);
-    setSelectedChatBooking(null);
+    setActiveChatBookingId(null);
     setChatThread(null);
     setChatDraft("");
     setChatError("");
+    setChatLoading(false);
   };
 
   const handleChatSubmit = async (event) => {
     event.preventDefault();
-    if (!selectedChatBooking?.id || !chatDraft.trim() || chatSending) return;
+    if (!activeChatBookingId || !chatDraft.trim() || chatSending || isSelectedChatClosed) return;
+
+    const content = chatDraft.trim();
+    const optimisticMessage = createOptimisticChatMessage({
+      bookingId: activeChatBookingId,
+      currentUserId: currentUser?.id ?? null,
+      senderName: "You",
+      senderRole: "traveler",
+      receiverId: chatThread?.guide_user_id ?? null,
+      message: content
+    });
 
     setChatSending(true);
     setChatError("");
+    setChatThread((current) =>
+      current
+        ? {
+            ...current,
+            messages: [...current.messages, optimisticMessage]
+          }
+        : current
+    );
+    setChatDraft("");
     try {
       await initCsrf();
-      const message = await sendBookingChatMessage(selectedChatBooking.id, chatDraft.trim());
+      const message = normalizeChatMessage(await sendBookingChatMessage(activeChatBookingId, content), optimisticMessage);
       setChatThread((current) =>
         current
           ? {
               ...current,
-              messages: [...current.messages, message]
+              messages: current.messages.map((item) =>
+                item.id === optimisticMessage.id ? message : item
+              )
             }
           : current
       );
-      setChatDraft("");
     } catch (err) {
+      setChatThread((current) =>
+        current
+          ? {
+              ...current,
+              messages: current.messages.filter((item) => item.id !== optimisticMessage.id)
+            }
+          : current
+      );
+      setChatDraft(content);
       const message =
         err.response?.data?.error ||
         err.message ||
@@ -694,9 +762,10 @@ export default function MyTrips() {
       )}
 
       <BookingChatModal
+        key={activeChatBookingId ?? "booking-chat"}
         isOpen={chatModalOpen}
         onClose={closeChatModal}
-        booking={selectedChatBooking}
+        booking={activeChatBooking}
         thread={chatThread}
         viewerRole="traveler"
         currentUser={currentUser}

@@ -5,6 +5,7 @@ import { Moon, Sun } from "lucide-react";
 import AppPopupModal from "./AppPopupModal";
 import AuthModal from "./AuthModal";
 import TripPlannerBrand from "./TripPlannerBrand";
+import { clearAllAuthState } from "../utils/smartAuth";
 import "./Navbar.css";
 
 export default function Navbar({ isLoggedIn, setIsLoggedIn, userEmail }) {
@@ -182,9 +183,7 @@ export default function Navbar({ isLoggedIn, setIsLoggedIn, userEmail }) {
       });
     } catch {}
 
-    localStorage.removeItem("isLoggedIn");
-    sessionStorage.removeItem("isLoggedIn");
-    localStorage.removeItem("userEmail");
+    clearAllAuthState();
     localStorage.removeItem("plantrip_step");
     localStorage.removeItem("plantrip_formData");
     localStorage.removeItem("plantrip_itinerary");

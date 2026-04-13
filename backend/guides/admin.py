@@ -58,7 +58,7 @@ class ActivityAdmin(admin.ModelAdmin):
 
 @admin.register(ChatMessage)
 class ChatMessageAdmin(admin.ModelAdmin):
-    list_display = ['id', 'booking', 'sender', 'sender_role', 'created_at']
+    list_display = ['id', 'booking', 'sender', 'receiver', 'sender_role', 'created_at']
     list_display_links = ['id', 'booking']
     list_filter = ['sender_role', 'created_at']
     search_fields = ['booking__traveler_name', 'booking__destination', 'message']

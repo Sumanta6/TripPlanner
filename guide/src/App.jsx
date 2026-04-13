@@ -13,7 +13,7 @@ import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import { AuthProvider } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
-import { clearGuideAuthToken } from './services/guidesService';
+import { clearGuideAuthToken, storeGuideAuthToken } from './services/guidesService';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const GUIDE_KEY = 'guideLoggedIn';
@@ -35,6 +35,28 @@ function Protected({ loggedIn, children }) {
 // ── root component ────────────────────────────────────────────────────────────
 export default function App() {
     const [loggedIn, setLoggedIn] = useState(getInitialAuth);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const guideToken = params.get('guide_token');
+        const remember = params.get('remember') === '1';
+
+        if (!guideToken) return;
+
+        storeGuideAuthToken(guideToken, remember);
+        if (remember) {
+            localStorage.setItem(GUIDE_KEY, 'true');
+            sessionStorage.removeItem(GUIDE_KEY);
+        } else {
+            sessionStorage.setItem(GUIDE_KEY, 'true');
+            localStorage.removeItem(GUIDE_KEY);
+        }
+        setLoggedIn(true);
+        params.delete('guide_token');
+        params.delete('remember');
+        const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
+        window.history.replaceState({}, '', next);
+    }, []);
 
     // keep in sync across tabs
     useEffect(() => {

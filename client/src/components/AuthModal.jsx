@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import ForgotPassword from "../pages/ForgotPassword";
+import { handleUnifiedLoginSuccess } from "../utils/smartAuth";
 import "./AuthModal.css";
 
 export default function AuthModal({ close, setIsLoggedIn, mode = "login" }) {
@@ -58,19 +59,8 @@ export default function AuthModal({ close, setIsLoggedIn, mode = "login" }) {
         return;
       }
 
-      const role = data.role || data.user?.role;
-      if (role && role !== "traveler") {
-        setError("This account belongs to a guide. Please use the Guide portal.");
-        return;
-      }
-
-      localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("userEmail", data.email || "Google User");
-      sessionStorage.removeItem("isLoggedIn");
-
-      setIsLoggedIn(true);
       close();
-      navigate("/home");
+      handleUnifiedLoginSuccess(data, true, navigate, setIsLoggedIn);
     } catch {
       setError("Google login failed");
     }
@@ -149,25 +139,9 @@ export default function AuthModal({ close, setIsLoggedIn, mode = "login" }) {
         return;
       }
 
-      const role = data.role || data.user?.role;
-      if (isLogin && role && role !== "traveler") {
-        setError("This account belongs to a guide. Please use the Guide portal.");
-        return;
-      }
-
       if (isLogin) {
-        if (rememberMe) {
-          localStorage.setItem("isLoggedIn", "true");
-          sessionStorage.removeItem("isLoggedIn");
-        } else {
-          sessionStorage.setItem("isLoggedIn", "true");
-          localStorage.removeItem("isLoggedIn");
-        }
-
-        localStorage.setItem("userEmail", formData.email);
-        setIsLoggedIn(true);
         close();
-        navigate("/home");
+        handleUnifiedLoginSuccess(data, rememberMe, navigate, setIsLoggedIn);
       } else {
         alert("Registration successful. Please log in.");
         setIsLogin(true);

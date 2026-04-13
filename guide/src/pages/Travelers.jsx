@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-    FaSearch, FaFilter, FaEnvelope, FaComments, FaPaperPlane, FaTimes,
+    FaSearch, FaFilter, FaEnvelope, FaComments, FaTimes,
     FaStickyNote, FaMapMarkerAlt, FaCalendarAlt,
     FaChevronDown, FaChevronUp
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
+import { createOptimisticChatMessage, normalizeChatMessage, normalizeChatThread } from '../utils/chatMessages';
+import GuideBookingChatModal from '../components/GuideBookingChatModal';
 import {
     getMyBookings,
     updateBookingStatus,
@@ -28,6 +30,29 @@ const STATUS_MAP = {
 
 const STATUS_KEYS = ['pending', 'accepted', 'active', 'completed', 'rejected', 'auto_rejected'];
 const COMMUNICATION_ENABLED_STATUSES = new Set(['accepted', 'active']);
+const CLOSED_CHAT_STATUSES = new Set(['completed', 'cancelled', 'expired']);
+
+function isClosedBookingStatus(status) {
+    return CLOSED_CHAT_STATUSES.has(status);
+}
+
+function syncBookingStatus(currentBookings, bookingId, nextStatus) {
+    if (!bookingId || !nextStatus) return currentBookings;
+    return currentBookings.map((booking) =>
+        booking.id === bookingId && booking.status !== nextStatus
+            ? {
+                ...booking,
+                status: nextStatus,
+                can_view_chat: true,
+                can_send_chat: !isClosedBookingStatus(nextStatus),
+                can_chat: !isClosedBookingStatus(nextStatus),
+                chat_locked_message: isClosedBookingStatus(nextStatus)
+                    ? 'This conversation is closed because the booking has ended.'
+                    : booking.chat_locked_message,
+            }
+            : booking
+    );
+}
 
 /* ── Date formatter ──────────────────────────────────────────────────────────── */
 function fmtDate(dateStr) {
@@ -59,56 +84,6 @@ function getBookingStateMessage(status) {
         default:
             return '';
     }
-}
-
-function isOwnChatMessage(message, currentUserId, thread) {
-    const senderId = message?.sender_id;
-
-    if (senderId != null && currentUserId != null) {
-        const ownById = String(senderId) === String(currentUserId);
-        if (process.env.NODE_ENV !== 'production') {
-            console.debug('Guide chat ownership', {
-                viewerRole: 'guide',
-                currentUserId,
-                messageId: message?.id,
-                senderId,
-                senderName: message?.sender_name,
-                senderRole: message?.sender_role,
-                isMine: ownById,
-            });
-        }
-        return ownById;
-    }
-
-    if (message?.sender_role) {
-        const ownByRole = String(message.sender_role) === 'guide';
-        if (process.env.NODE_ENV !== 'production') {
-            console.debug('Guide chat ownership role fallback', {
-                viewerRole: 'guide',
-                currentUserId,
-                messageId: message?.id,
-                senderId,
-                senderName: message?.sender_name,
-                senderRole: message?.sender_role,
-                isMine: ownByRole,
-            });
-        }
-        return ownByRole;
-    }
-
-    if (process.env.NODE_ENV !== 'production') {
-        console.warn('Guide chat sender ownership could not be resolved.', {
-            currentUserId,
-            viewerRole: 'guide',
-            messageId: message?.id,
-            senderId,
-            senderName: message?.sender_name,
-            senderRole: message?.sender_role,
-            senderEmail: message?.sender_email,
-        });
-    }
-
-    return false;
 }
 
 /* ── Skeleton Card ───────────────────────────────────────────────────────────── */
@@ -144,7 +119,7 @@ export default function Travelers() {
     const [expandedNote, setExpandedNote] = useState(null);
     const [processing, setProcessing] = useState({});
     const [chatOpen, setChatOpen] = useState(false);
-    const [chatBooking, setChatBooking] = useState(null);
+    const [activeChatBookingId, setActiveChatBookingId] = useState(null);
     const [chatThread, setChatThread] = useState(null);
     const [chatDraft, setChatDraft] = useState('');
     const [chatLoading, setChatLoading] = useState(false);
@@ -154,12 +129,11 @@ export default function Travelers() {
     const [selectedTraveler, setSelectedTraveler] = useState(null);
     const { refreshProfile, profile } = useAuth();
     const navigate = useNavigate();
-
-    useEffect(() => {
-        if (process.env.NODE_ENV !== 'production' && chatOpen) {
-            console.debug('Guide chat current user', profile, 'resolvedId', profile?.user_id ?? chatThread?.current_user_id ?? null);
-        }
-    }, [chatOpen, profile, chatThread]);
+    const chatBooking = useMemo(
+        () => bookings.find((booking) => String(booking.id) === String(activeChatBookingId)) || null,
+        [bookings, activeChatBookingId]
+    );
+    const isSelectedChatClosed = isClosedBookingStatus(chatThread?.booking_status || chatBooking?.status);
 
     /* ── Fetch bookings ──────────────────────────────────────────────────────── */
     useEffect(() => {
@@ -181,16 +155,20 @@ export default function Travelers() {
     }, []);
 
     useEffect(() => {
-        if (!chatOpen || !chatBooking?.id) return undefined;
+        if (!chatOpen || !activeChatBookingId) return undefined;
 
         let active = true;
+        const bookingId = activeChatBookingId;
 
         async function refreshChat(silent = true) {
             if (!silent) setChatLoading(true);
             try {
-                const data = await getBookingChat(chatBooking.id);
+                const data = normalizeChatThread(await getBookingChat(bookingId));
                 if (!active) return;
                 setChatThread(data);
+                if (data?.booking_status) {
+                    setBookings((current) => syncBookingStatus(current, bookingId, data.booking_status));
+                }
                 setChatError('');
             } catch (err) {
                 if (!active) return;
@@ -201,13 +179,19 @@ export default function Travelers() {
         }
 
         refreshChat(false);
+        if (isSelectedChatClosed) {
+            return () => {
+                active = false;
+            };
+        }
+
         const timer = window.setInterval(() => refreshChat(true), 6000);
 
         return () => {
             active = false;
             window.clearInterval(timer);
         };
-    }, [chatOpen, chatBooking]);
+    }, [chatOpen, activeChatBookingId, isSelectedChatClosed]);
 
     /* ── Status change handler ───────────────────────────────────────────────── */
     const handleStatusChange = async (id, newStatus) => {
@@ -253,23 +237,25 @@ export default function Travelers() {
     }, [bookings, search, filterStatus]);
 
     const openChat = async (booking) => {
-        if (!booking?.can_chat) {
+        if (!booking?.can_view_chat) {
             toast.error(booking?.chat_locked_message || 'Chat available after acceptance.');
             return;
         }
-        setChatBooking(booking);
+        setActiveChatBookingId(booking.id);
         setChatThread(null);
         setChatDraft('');
         setChatError('');
+        setChatLoading(true);
         setChatOpen(true);
     };
 
     const closeChat = () => {
         setChatOpen(false);
-        setChatBooking(null);
+        setActiveChatBookingId(null);
         setChatThread(null);
         setChatDraft('');
         setChatError('');
+        setChatLoading(false);
     };
 
     const openTravelerProfile = (booking) => {
@@ -284,19 +270,41 @@ export default function Travelers() {
 
     const handleSendChat = async (event) => {
         event.preventDefault();
-        if (!chatBooking?.id || !chatDraft.trim() || chatSending) return;
+        if (!activeChatBookingId || !chatDraft.trim() || chatSending || isSelectedChatClosed) return;
+
+        const content = chatDraft.trim();
+        const optimisticMessage = createOptimisticChatMessage({
+            bookingId: activeChatBookingId,
+            currentUserId: profile?.user_id ?? null,
+            senderName: profile?.full_name || 'You',
+            senderRole: 'guide',
+            senderAvatar: profile?.profile_image || '',
+            receiverId: chatThread?.traveler_user_id ?? null,
+            message: content,
+        });
 
         setChatSending(true);
         setChatError('');
+        setChatThread((current) => current ? {
+            ...current,
+            messages: [...current.messages, optimisticMessage],
+        } : current);
+        setChatDraft('');
         try {
             await initCsrf();
-            const created = await sendBookingChatMessage(chatBooking.id, chatDraft.trim());
+            const created = normalizeChatMessage(await sendBookingChatMessage(activeChatBookingId, content), optimisticMessage);
             setChatThread((current) => current ? {
                 ...current,
-                messages: [...current.messages, created],
+                messages: current.messages.map((message) =>
+                    message.id === optimisticMessage.id ? created : message
+                ),
             } : current);
-            setChatDraft('');
         } catch (err) {
+            setChatThread((current) => current ? {
+                ...current,
+                messages: current.messages.filter((message) => message.id !== optimisticMessage.id),
+            } : current);
+            setChatDraft(content);
             setChatError(err.message || 'Unable to send message.');
         } finally {
             setChatSending(false);
@@ -388,6 +396,7 @@ export default function Travelers() {
                         const cfg = STATUS_MAP[t.status] || STATUS_MAP.pending;
                         const initials = (t.traveler_name || '?').charAt(0).toUpperCase();
                         const canCommunicate = Boolean(t.can_chat ?? COMMUNICATION_ENABLED_STATUSES.has(t.status));
+                        const canViewChat = Boolean(t.can_view_chat ?? (canCommunicate || isClosedBookingStatus(t.status)));
                         const bookingStateMessage = getBookingStateMessage(t.status);
                         const openProfileFromCard = () => openTravelerProfile(t);
 
@@ -489,7 +498,7 @@ export default function Travelers() {
                                                 {processing[t.id] ? '...' : '✕ Reject'}
                                             </button>
                                         </>
-                                    ) : canCommunicate ? (
+                                    ) : canViewChat ? (
                                         <>
                                             <button
                                                 type="button"
@@ -501,7 +510,7 @@ export default function Travelers() {
                                             >
                                                 <FaComments /> Chat
                                             </button>
-                                            {t.traveler_email && (
+                                            {canCommunicate && t.traveler_email && (
                                                 <a
                                                     href={`mailto:${t.traveler_email}`}
                                                     className="tv-action-btn tv-btn-email"
@@ -596,72 +605,19 @@ export default function Travelers() {
             )}
 
             {chatOpen && chatBooking && (
-                <div className="tv-chat-modal-overlay" onClick={closeChat}>
-                    <div className="tv-chat-modal" onClick={(event) => event.stopPropagation()}>
-                        <button type="button" className="tv-chat-close" onClick={closeChat} aria-label="Close chat">
-                            <FaTimes />
-                        </button>
-
-                        <div className="tv-chat-head">
-                            <div className="tv-chat-person">
-                                <div className="tv-chat-avatar">
-                                    {getInitials(chatThread?.counterpart_name || chatBooking.traveler_name)}
-                                </div>
-                                <div>
-                                    <span className="tv-chat-kicker">Booking Chat</span>
-                                    <h3>{chatThread?.counterpart_name || chatBooking.traveler_name}</h3>
-                                    <p>{chatBooking.destination} · {fmtDate(chatBooking.trip_start)} – {fmtDate(chatBooking.trip_end)}</p>
-                                </div>
-                            </div>
-                            {chatThread?.counterpart_email ? (
-                                <a className="tv-chat-email" href={`mailto:${chatThread.counterpart_email}`}>
-                                    <FaEnvelope /> Email
-                                </a>
-                            ) : null}
-                        </div>
-
-                        <div className="tv-chat-body">
-                            {chatLoading ? (
-                                <div className="tv-chat-state">Loading conversation…</div>
-                            ) : chatError ? (
-                                <div className="tv-chat-state tv-chat-state-error">{chatError}</div>
-                            ) : chatThread?.messages?.length ? (
-                                <div className="tv-chat-messages">
-                                    {chatThread.messages.map((message) => {
-                                        const currentUserId = profile?.user_id ?? chatThread?.current_user_id ?? null;
-                                        const ownMessage = isOwnChatMessage(message, currentUserId, chatThread);
-                                        return (
-                                        <div key={message.id} className={`tv-chat-row ${ownMessage ? 'own' : 'peer'}`}>
-                                            <div className={`tv-chat-message ${ownMessage ? 'own' : ''}`}>
-                                                <div className="tv-chat-message-meta">
-                                                    <strong>{ownMessage ? 'You' : message.sender_name}</strong>
-                                                </div>
-                                                <p>{message.content ?? message.message}</p>
-                                            </div>
-                                            <span className={`tv-chat-time ${ownMessage ? 'own' : ''}`}>
-                                                {new Date(message.created_at).toLocaleString()}
-                                            </span>
-                                        </div>
-                                    );})}
-                                </div>
-                            ) : (
-                                <div className="tv-chat-state">Start the conversation for this accepted booking.</div>
-                            )}
-                        </div>
-
-                        <form className="tv-chat-form" onSubmit={handleSendChat}>
-                            <textarea
-                                rows="3"
-                                value={chatDraft}
-                                onChange={(event) => setChatDraft(event.target.value)}
-                                placeholder="Write a message to the traveler…"
-                            />
-                            <button type="submit" className="tv-chat-send" disabled={chatSending || !chatDraft.trim()}>
-                                <FaPaperPlane /> {chatSending ? 'Sending…' : 'Send'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
+                <GuideBookingChatModal
+                    isOpen={chatOpen}
+                    onClose={closeChat}
+                    booking={chatBooking}
+                    thread={chatThread}
+                    currentUserId={profile?.user_id ?? null}
+                    loading={chatLoading}
+                    error={chatError}
+                    draft={chatDraft}
+                    onDraftChange={setChatDraft}
+                    onSend={handleSendChat}
+                    sending={chatSending}
+                />
             )}
         </div>
     );

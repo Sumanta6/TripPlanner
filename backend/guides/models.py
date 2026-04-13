@@ -186,6 +186,10 @@ class ChatMessage(models.Model):
     sender = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name='booking_chat_messages'
     )
+    receiver = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='received_booking_chat_messages',
+        null=True, blank=True
+    )
     sender_role = models.CharField(max_length=20, choices=SENDER_CHOICES)
     message = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)

@@ -1,14 +1,18 @@
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Count
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Activity, Booking, ChatMessage, GuideProfile, Review
+from accounts.authentication import GuideTokenAuthentication
 from .serializers import (
     ActivitySerializer,
     BookingSerializer,
+    CHAT_SENDABLE_STATUSES,
+    CHAT_VIEWABLE_STATUSES,
+    build_profile_image_url,
     ChatMessageSerializer,
     ChatThreadSerializer,
     DashboardSerializer,
@@ -29,6 +33,13 @@ def get_or_create_guide_profile(user):
         },
     )
     return profile
+
+
+def get_guide_profile_or_none(user):
+    try:
+        return user.guide_profile
+    except GuideProfile.DoesNotExist:
+        return None
 
 
 def get_chat_booking_for_user(user, pk):
@@ -54,9 +65,18 @@ def build_chat_thread_payload(booking, request):
     viewer_role = 'guide' if is_guide else 'traveler'
     counterpart_name = booking.traveler_name if is_guide else (booking.guide.full_name or booking.guide.user.username)
     counterpart_email = booking.traveler_email if is_guide else (booking.guide.email or booking.guide.user.email or '')
-    can_view_chat = booking.status in {'accepted', 'active', 'completed'}
-    can_send_chat = booking.status in {'accepted', 'active'}
-    locked_message = '' if can_view_chat else 'Chat available after acceptance'
+    counterpart_avatar = ''
+    if is_guide and booking.traveler_user_id and hasattr(booking.traveler_user, 'traveler_profile'):
+        counterpart_avatar = build_profile_image_url(request, booking.traveler_user.traveler_profile.profile_image)
+    elif not is_guide:
+        counterpart_avatar = build_profile_image_url(request, booking.guide.profile_image)
+    can_view_chat = booking.status in CHAT_VIEWABLE_STATUSES
+    can_send_chat = booking.status in CHAT_SENDABLE_STATUSES
+    locked_message = ''
+    if can_view_chat and not can_send_chat:
+        locked_message = 'This conversation is closed because the booking has ended.'
+    elif not can_view_chat:
+        locked_message = 'Chat available after acceptance'
     messages = ChatMessage.objects.select_related('sender').filter(booking=booking).order_by('created_at')
 
     return {
@@ -69,6 +89,7 @@ def build_chat_thread_payload(booking, request):
         'booking_status': booking.status,
         'destination': booking.destination,
         'counterpart_name': counterpart_name,
+        'counterpart_avatar': counterpart_avatar,
         'counterpart_email': counterpart_email,
         'can_view_chat': can_view_chat,
         'can_send_chat': can_send_chat,
@@ -249,13 +270,16 @@ def request_guide(request, pk):
 
 
 @api_view(['GET', 'PATCH'])
+@authentication_classes([GuideTokenAuthentication])
 @permission_classes([IsAuthenticated])
 def my_profile(request):
     """
     GET  /api/guides/me/  – Return the logged-in guide's profile.
     PATCH /api/guides/me/ – Partially update profile fields.
     """
-    guide = get_or_create_guide_profile(request.user)
+    guide = get_guide_profile_or_none(request.user)
+    if not guide:
+        return Response({'error': 'Guide account required.'}, status=status.HTTP_403_FORBIDDEN)
 
     if request.method == 'GET':
         serializer = GuideProfileSerializer(guide, context={'request': request})
@@ -269,13 +293,16 @@ def my_profile(request):
 
 
 @api_view(['GET'])
+@authentication_classes([GuideTokenAuthentication])
 @permission_classes([IsAuthenticated])
 def my_bookings(request):
     """
     GET /api/guides/me/bookings/
     Returns all bookings (travelers) assigned to the logged-in guide.
     """
-    guide = get_or_create_guide_profile(request.user)
+    guide = get_guide_profile_or_none(request.user)
+    if not guide:
+        return Response({'error': 'Guide account required.'}, status=status.HTTP_403_FORBIDDEN)
     bookings = guide.bookings.select_related(
         'traveler_user', 'traveler_user__traveler_profile', 'itinerary'
     ).all()
@@ -310,13 +337,16 @@ def my_booked_trips(request):
 
 
 @api_view(['GET'])
+@authentication_classes([GuideTokenAuthentication])
 @permission_classes([IsAuthenticated])
 def booking_detail(request, pk):
     """
     GET /api/guides/me/bookings/<pk>/
     Returns full details for a single booking, including the nested itinerary.
     """
-    guide = get_or_create_guide_profile(request.user)
+    guide = get_guide_profile_or_none(request.user)
+    if not guide:
+        return Response({'error': 'Guide account required.'}, status=status.HTTP_403_FORBIDDEN)
     try:
         booking = guide.bookings.get(pk=pk)
     except Booking.DoesNotExist:
@@ -330,13 +360,16 @@ def booking_detail(request, pk):
 
 
 @api_view(['PATCH'])
+@authentication_classes([GuideTokenAuthentication])
 @permission_classes([IsAuthenticated])
 def update_booking_status(request, pk):
     """
     PATCH /api/guides/me/bookings/<pk>/status/
     Update the status of a specific booking.
     """
-    guide = get_or_create_guide_profile(request.user)
+    guide = get_guide_profile_or_none(request.user)
+    if not guide:
+        return Response({'error': 'Guide account required.'}, status=status.HTTP_403_FORBIDDEN)
     try:
         booking = guide.bookings.get(pk=pk)
     except Booking.DoesNotExist:
@@ -442,8 +475,8 @@ def booking_chat(request, pk):
 
     update_outdated_booking_statuses([booking])
 
-    can_view_chat = booking.status in {'accepted', 'active', 'completed'}
-    can_send_chat = booking.status in {'accepted', 'active'}
+    can_view_chat = booking.status in CHAT_VIEWABLE_STATUSES
+    can_send_chat = booking.status in CHAT_SENDABLE_STATUSES
     if request.method == 'GET' and not can_view_chat:
         return Response(
             {'error': 'Chat available after acceptance.'},
@@ -462,15 +495,21 @@ def booking_chat(request, pk):
 
         if booking.guide.user_id == request.user.id:
             sender_role = 'guide'
+            receiver = booking.traveler_user
         elif booking.traveler_user_id == request.user.id:
             sender_role = 'traveler'
+            receiver = booking.guide.user
         else:
             return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if receiver is None:
+            return Response({'error': 'This booking chat is unavailable because the other participant account is missing.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             chat_message = ChatMessage.objects.create(
                 booking=booking,
                 sender=request.user,
+                receiver=receiver,
                 sender_role=sender_role,
                 message=message,
             )
@@ -494,13 +533,16 @@ def booking_chat(request, pk):
 
 
 @api_view(['GET'])
+@authentication_classes([GuideTokenAuthentication])
 @permission_classes([IsAuthenticated])
 def my_activity(request):
     """
     GET /api/guides/me/activity/
     Returns the recent activity feed for the logged-in guide.
     """
-    guide = get_or_create_guide_profile(request.user)
+    guide = get_guide_profile_or_none(request.user)
+    if not guide:
+        return Response({'error': 'Guide account required.'}, status=status.HTTP_403_FORBIDDEN)
     limit = int(request.query_params.get('limit', 20))
     activities = guide.activities.all()[:limit]
 
@@ -509,13 +551,16 @@ def my_activity(request):
 
 
 @api_view(['GET'])
+@authentication_classes([GuideTokenAuthentication])
 @permission_classes([IsAuthenticated])
 def my_dashboard(request):
     """
     GET /api/guides/me/dashboard/
     Returns aggregated stats for the analytics dashboard page.
     """
-    guide = get_or_create_guide_profile(request.user)
+    guide = get_guide_profile_or_none(request.user)
+    if not guide:
+        return Response({'error': 'Guide account required.'}, status=status.HTTP_403_FORBIDDEN)
     bookings = guide.bookings.all()
     total = bookings.count()
 

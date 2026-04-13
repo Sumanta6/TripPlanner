@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import axios from "axios";
+import { handleUnifiedLoginSuccess } from "../utils/smartAuth";
+import { getStoredAuthMeta } from "../services/adminApi";
 import "./Login.css";
 
 function Login() {
@@ -14,19 +16,33 @@ function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    const authMeta = getStoredAuthMeta();
+    const travelerLoggedIn =
+      localStorage.getItem("isLoggedIn") === "true" ||
+      sessionStorage.getItem("isLoggedIn") === "true";
+
+    if (authMeta?.role === "admin") {
+      navigate("/admin/dashboard", { replace: true });
+      return;
+    }
+
+    if (travelerLoggedIn) {
+      navigate("/home", { replace: true });
+    }
+  }, [navigate]);
+
   // ======================
   // GOOGLE LOGIN RESPONSE
   // ======================
   const handleGoogleResponse = useCallback(async (response) => {
     try {
-      await axios.post(
+      const { data } = await axios.post(
         "http://localhost:8000/accounts/google-login/",
         { token: response.credential },
         { withCredentials: true }
       );
-
-      localStorage.setItem("is_logged_in", "true");
-      navigate("/");
+      handleUnifiedLoginSuccess(data, true, navigate);
     } catch {
       setError("Google login failed");
     }
@@ -74,14 +90,12 @@ function Login() {
     setLoading(true);
 
     try {
-      await axios.post(
+      const { data } = await axios.post(
         "http://localhost:8000/accounts/login/",
-        form,
+        { ...form, remember_me: rememberMe },
         { withCredentials: true }
       );
-
-      localStorage.setItem("is_logged_in", "true");
-      navigate("/");
+      handleUnifiedLoginSuccess(data, rememberMe, navigate);
     } catch {
       setError("Invalid email or password");
     } finally {

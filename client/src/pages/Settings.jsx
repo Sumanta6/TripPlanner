@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { changeMyPassword, getCookie } from "../services/api";
 import AppPopupModal from "../components/AppPopupModal";
+import { clearAllAuthState } from "../utils/smartAuth";
 import "./Settings.css";
 
 function PwStrength({ pw }) {
@@ -177,9 +178,7 @@ export default function Settings() {
       // Keep client-side logout consistent even if the request fails.
     }
 
-    localStorage.removeItem("isLoggedIn");
-    sessionStorage.removeItem("isLoggedIn");
-    localStorage.removeItem("userEmail");
+    clearAllAuthState();
     localStorage.removeItem("plantrip_step");
     localStorage.removeItem("plantrip_formData");
     localStorage.removeItem("plantrip_itinerary");
