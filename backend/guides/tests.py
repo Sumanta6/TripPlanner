@@ -1,4 +1,7 @@
+import base64
+import json
 from datetime import date, timedelta
+from unittest.mock import Mock, patch
 
 from django.contrib.auth.models import User
 from django.test import override_settings
@@ -62,8 +65,11 @@ class CancelBookingApiTests(APITestCase):
     def request_url(self, guide_id):
         return f"/api/guides/{guide_id}/request/"
 
-    def confirm_payment_url(self, booking_id):
-        return f"/api/guides/bookings/{booking_id}/payment/confirm/"
+    def initiate_payment_url(self, booking_id):
+        return f"/api/guides/bookings/{booking_id}/payment/initiate/"
+
+    def verify_payment_url(self):
+        return "/api/guides/bookings/payment/verify/"
 
     def test_traveler_can_cancel_pending_booking(self):
         booking = self.create_booking(self.traveler, "pending")
@@ -295,43 +301,53 @@ class CancelBookingApiTests(APITestCase):
         self.assertTrue(response.data["requires_payment"])
         self.assertTrue(response.data["can_retry_payment"])
 
-    def test_payment_confirmation_moves_booking_to_pending(self):
+    @override_settings(
+        ESEWA_MERCHANT_ID="EPAYTEST",
+        ESEWA_SECRET_KEY="test-secret",
+        ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
+        ESEWA_SUCCESS_URL="http://localhost:3000/guides/payment/callback?status=success",
+        ESEWA_FAILURE_URL="http://localhost:3000/guides/payment/callback?status=failure",
+    )
+    def test_initiate_payment_returns_payment_url_and_form_payload(self):
         booking = self.create_booking(self.traveler, "payment_pending")
         Payment.objects.create(booking=booking, amount=220, status="pending", payment_method="esewa")
         self.client.force_authenticate(self.traveler)
 
         response = self.client.post(
-            self.confirm_payment_url(booking.id),
-            {"status": "paid", "payment_method": "esewa"},
+            self.initiate_payment_url(booking.id),
             format="json",
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         booking.refresh_from_db()
         payment = booking.payment
-        self.assertEqual(booking.status, "pending")
-        self.assertEqual(payment.status, "paid")
+        self.assertEqual(response.data["payment_url"], "https://rc-epay.esewa.com.np/api/epay/main/v2/form")
+        self.assertEqual(response.data["form_data"]["product_code"], "EPAYTEST")
+        self.assertEqual(response.data["form_data"]["signed_field_names"], "total_amount,transaction_uuid,product_code")
+        self.assertEqual(payment.status, "pending")
         self.assertTrue(payment.transaction_id)
-        self.assertEqual(response.data["booking"]["status"], "pending")
+        self.assertEqual(response.data["form_data"]["transaction_uuid"], payment.transaction_id)
 
-    def test_failed_payment_keeps_booking_retryable(self):
+    @override_settings(
+        ESEWA_MERCHANT_ID="EPAYTEST",
+        ESEWA_SECRET_KEY="",
+        ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
+        ESEWA_SUCCESS_URL="http://localhost:3000/guides/payment/callback?status=success",
+        ESEWA_FAILURE_URL="http://localhost:3000/guides/payment/callback?status=failure",
+    )
+    def test_initiate_payment_returns_clear_error_when_config_missing(self):
         booking = self.create_booking(self.traveler, "payment_pending")
         Payment.objects.create(booking=booking, amount=220, status="pending", payment_method="esewa")
         self.client.force_authenticate(self.traveler)
 
         response = self.client.post(
-            self.confirm_payment_url(booking.id),
-            {"status": "failed", "payment_method": "esewa"},
+            self.initiate_payment_url(booking.id),
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        booking.refresh_from_db()
-        payment = booking.payment
-        self.assertEqual(booking.status, "payment_pending")
-        self.assertEqual(payment.status, "failed")
-        self.assertEqual(response.data["booking"]["payment_status"], "failed")
-        self.assertTrue(response.data["booking"]["can_retry_payment"])
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "eSewa payment is not configured correctly.")
+        self.assertIn("ESEWA_SECRET_KEY", response.data["missing_fields"])
 
     def test_duplicate_paid_confirmation_is_rejected(self):
         booking = self.create_booking(self.traveler, "payment_pending")
@@ -345,13 +361,86 @@ class CancelBookingApiTests(APITestCase):
         self.client.force_authenticate(self.traveler)
 
         response = self.client.post(
-            self.confirm_payment_url(booking.id),
-            {"status": "paid", "payment_method": "esewa"},
+            self.initiate_payment_url(booking.id),
             format="json",
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["error"], "This booking has already been paid.")
+
+    @override_settings(
+        ESEWA_MERCHANT_ID="EPAYTEST",
+        ESEWA_SECRET_KEY="test-secret",
+        ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
+        ESEWA_SUCCESS_URL="http://localhost:3000/guides/payment/callback?status=success",
+        ESEWA_FAILURE_URL="http://localhost:3000/guides/payment/callback?status=failure",
+    )
+    @patch("guides.views.requests.get")
+    def test_verify_payment_moves_booking_to_pending(self, mock_get):
+        booking = self.create_booking(self.traveler, "payment_pending")
+        payment = Payment.objects.create(
+            booking=booking,
+            amount=220,
+            status="pending",
+            payment_method="esewa",
+            transaction_id="booking-1-abcdef123456",
+        )
+        self.client.force_authenticate(self.traveler)
+        mock_response = Mock()
+        mock_response.json.return_value = {"status": "COMPLETE"}
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        payload = {
+            "transaction_uuid": payment.transaction_id,
+            "total_amount": "220.00",
+            "status": "COMPLETE",
+        }
+        encoded_payload = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("utf-8")
+
+        response = self.client.post(
+            self.verify_payment_url(),
+            {"data": encoded_payload},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        booking.refresh_from_db()
+        payment.refresh_from_db()
+        self.assertEqual(booking.status, "pending")
+        self.assertEqual(payment.status, "paid")
+        self.assertEqual(response.data["booking"]["status"], "pending")
+
+    def test_verify_failed_payment_keeps_booking_retryable(self):
+        booking = self.create_booking(self.traveler, "payment_pending")
+        payment = Payment.objects.create(
+            booking=booking,
+            amount=220,
+            status="pending",
+            payment_method="esewa",
+            transaction_id="booking-1-abcdef123456",
+        )
+        self.client.force_authenticate(self.traveler)
+
+        payload = {
+            "transaction_uuid": payment.transaction_id,
+            "total_amount": "220.00",
+            "status": "FAILED",
+        }
+        encoded_payload = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("utf-8")
+
+        response = self.client.post(
+            self.verify_payment_url(),
+            {"data": encoded_payload},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        booking.refresh_from_db()
+        payment.refresh_from_db()
+        self.assertEqual(booking.status, "payment_pending")
+        self.assertEqual(payment.status, "failed")
+        self.assertEqual(response.data["status"], "failed")
 
     def test_guide_list_excludes_payment_pending_drafts(self):
         booking = self.create_booking(self.traveler, "payment_pending")

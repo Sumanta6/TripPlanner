@@ -75,6 +75,28 @@ function getAvailabilityTone(availabilityBadge = "") {
     return "limited";
 }
 
+function submitPostRedirect(paymentUrl, formData) {
+    if (!paymentUrl || !formData || typeof formData !== "object") {
+        throw new Error("Invalid payment redirect payload.");
+    }
+
+    const form = document.createElement("form");
+    form.setAttribute("method", "POST");
+    form.setAttribute("action", paymentUrl);
+    form.style.display = "none";
+
+    Object.entries(formData).forEach(([name, value]) => {
+        const input = document.createElement("input");
+        input.setAttribute("type", "hidden");
+        input.setAttribute("name", name);
+        input.setAttribute("value", value ?? "");
+        form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+}
+
 function getBookingStatusTitle(booking) {
     if (!booking) return "Booking update";
     if (booking.status === "payment_pending") {
@@ -255,6 +277,9 @@ export default function Guides() {
                     const presetGuide = data.find((guide) => String(guide.id) === String(presetGuideId));
                     if (presetGuide) {
                         handleOpenProfile(presetGuide);
+                        if (location.state?.retryBookingId) {
+                            setBookingStep("payment");
+                        }
                         if (location.state?.paymentSuccess && location.state?.confirmedBooking) {
                             setConfirmedBooking(location.state.confirmedBooking);
                             setConfirmedPaymentMethod("paid");
@@ -461,40 +486,18 @@ export default function Guides() {
 
         try {
             await initCsrf();
-            
-            // Create draft booking locally first
-            const booking = await requestGuideWithItinerary(selectedGuide.id, bookingData);
 
-            // Fetch the verified eSewa URL parameters containing HMAC signature and UUID from backend
-            const esewaData = await initiateEsewaPayment(booking.id);
+            const existingDraft =
+                selectedGuide?.current_traveler_booking?.status === "payment_pending"
+                    ? selectedGuide.current_traveler_booking
+                    : selectedGuide?.latest_traveler_booking?.status === "payment_pending"
+                        ? selectedGuide.latest_traveler_booking
+                        : null;
 
-            // Dynamically construct and submit the eSewa Sandbox Form
-            const form = document.createElement("form");
-            form.setAttribute("method", "POST");
-            form.setAttribute("action", "https://rc-epay.esewa.com.np/api/epay/main/v2/form");
+            const booking = existingDraft || await requestGuideWithItinerary(selectedGuide.id, bookingData);
+            const paymentRedirect = await initiateEsewaPayment(booking.id);
 
-            const addField = (name, value) => {
-                const hiddenField = document.createElement("input");
-                hiddenField.setAttribute("type", "hidden");
-                hiddenField.setAttribute("name", name);
-                hiddenField.setAttribute("value", value);
-                form.appendChild(hiddenField);
-            };
-
-            addField("amount", esewaData.amount);
-            addField("tax_amount", esewaData.tax_amount);
-            addField("total_amount", esewaData.total_amount);
-            addField("transaction_uuid", esewaData.transaction_uuid);
-            addField("product_code", esewaData.product_code);
-            addField("product_service_charge", esewaData.product_service_charge);
-            addField("product_delivery_charge", esewaData.product_delivery_charge);
-            addField("success_url", esewaData.success_url);
-            addField("failure_url", esewaData.failure_url);
-            addField("signed_field_names", esewaData.signed_field_names);
-            addField("signature", esewaData.signature);
-
-            document.body.appendChild(form);
-            form.submit();
+            submitPostRedirect(paymentRedirect.payment_url, paymentRedirect.form_data);
         } catch (err) {
             setBookingProcessing(false);
             const msg = err.response?.data?.detail || err.response?.data?.error || err.message || "Unable to initiate payment.";
@@ -1422,7 +1425,7 @@ export default function Guides() {
 
                                                     <div className="bsp-security-note">
                                                         <ShieldCheck size={16} />
-                                                        <span>Secure payment processed within TripPlanner.</span>
+                                                        <span>You will be redirected to eSewa sandbox to complete payment securely.</span>
                                                     </div>
                                                 </div>
 

@@ -182,7 +182,18 @@ GEOAPIFY_API_KEY = os.environ.get("GEOAPIFY_API_KEY", "")
 # ======================
 # ESEWA (Sandbox / Production)
 # ======================
-ESEWA_SECRET_KEY = os.environ.get("ESEWA_SECRET_KEY", "8gBm/:&EnhH.1/q")
-ESEWA_MERCHANT_CODE = os.environ.get("ESEWA_MERCHANT_CODE", "EPAYTEST")
-ESEWA_FRONTEND_SUCCESS_URL = os.environ.get("ESEWA_FRONTEND_SUCCESS_URL", "http://localhost:3000/guides/payment/callback?status=success")
-ESEWA_FRONTEND_FAILURE_URL = os.environ.get("ESEWA_FRONTEND_FAILURE_URL", "http://localhost:3000/guides/payment/callback?status=failure")
+ESEWA_MERCHANT_ID = os.environ.get("ESEWA_MERCHANT_ID", "EPAYTEST").strip()
+ESEWA_MERCHANT_CODE = ESEWA_MERCHANT_ID
+ESEWA_SECRET_KEY = os.environ.get("ESEWA_SECRET_KEY", "").strip()
+ESEWA_PAYMENT_URL = os.environ.get(
+    "ESEWA_PAYMENT_URL",
+    "https://rc-epay.esewa.com.np/api/epay/main/v2/form",
+).strip()
+ESEWA_SUCCESS_URL = os.environ.get(
+    "ESEWA_SUCCESS_URL",
+    "http://localhost:3000/guides/payment/callback?status=success",
+).strip()
+ESEWA_FAILURE_URL = os.environ.get(
+    "ESEWA_FAILURE_URL",
+    "http://localhost:3000/guides/payment/callback?status=failure",
+).strip()

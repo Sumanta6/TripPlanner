@@ -99,7 +99,7 @@ function getStatusDisplay(status) {
 
 function getStatusActionLabel(booking) {
   if (!booking) return "View Guide";
-  if (booking.status === "payment_pending") return "Complete Payment";
+  if (booking.status === "payment_pending") return "View Profile";
   if (booking.status === "cancelled") return "Request Again";
   if (booking.status === "completed") return "Rebook";
   return "View Profile";
@@ -415,6 +415,7 @@ export default function MyTrips() {
     navigate("/guides", {
       state: {
         selectedGuideId: booking.guide,
+        retryBookingId: booking.id,
         destination: booking.destination,
         trip_start: booking.trip_start,
         trip_end: booking.trip_end,
@@ -828,16 +829,16 @@ export default function MyTrips() {
                             <>
                               {canRetryPayment && (
                                 <button type="button" className="mt-btn-primary" onClick={() => handleRetryPayment(booking)}>
-                                  {booking.payment_status === "failed" ? "Retry Payment" : "Pay Now"}
+                                  {booking.payment_status === "failed" ? "Retry Payment" : "Complete Payment"}
                                 </button>
                               )}
                               {canCancelBooking && (
                                 <button type="button" className="mt-btn-danger" onClick={() => openCancelModal(booking)}>
-                                  Cancel Booking
+                                  {booking.status === "payment_pending" ? "Cancel Draft" : "Cancel Booking"}
                                 </button>
                               )}
-                              <button type="button" className="mt-btn-outline" onClick={() => navigate("/guides")}>
-                                Browse Guides
+                              <button type="button" className="mt-btn-outline" onClick={() => openGuidesForTrip(booking)}>
+                                View Profile
                               </button>
                             </>
                           )}
