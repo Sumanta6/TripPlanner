@@ -1,3 +1,11 @@
+import base64
+import hashlib
+import hmac
+import json
+import requests
+import uuid
+
+from django.conf import settings
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Count
 from rest_framework import status
@@ -5,7 +13,7 @@ from rest_framework.decorators import api_view, permission_classes, authenticati
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Activity, Booking, ChatMessage, GuideProfile, Review
+from .models import Activity, Booking, ChatMessage, GuideProfile, Payment, Review, build_booking_pricing
 from accounts.authentication import GuideTokenAuthentication
 from .serializers import (
     ActivitySerializer,
@@ -23,10 +31,11 @@ from .serializers import (
 )
 
 
-TRAVELER_CANCELLABLE_STATUSES = {'pending', 'accepted'}
+TRAVELER_CANCELLABLE_STATUSES = {'payment_pending', 'pending', 'accepted'}
 GUIDE_CANCELLABLE_STATUSES = {'accepted', 'active'}
 GUIDE_REJECTABLE_STATUSES = {'pending'}
 STATUS_REASON_CODES = {choice[0] for choice in Booking.STATUS_REASON_CHOICES}
+PAYMENT_CONFIRMABLE_STATUSES = {'payment_pending'}
 
 
 def _coerce_scalar(value):
@@ -239,7 +248,7 @@ def guide_reviews(request, pk):
 def request_guide(request, pk):
     """
     POST /api/guides/<id>/request/
-    Create a new Booking (request) for the specified guide.
+    Create a new payment-pending Booking draft for the specified guide.
     """
     try:
         guide = GuideProfile.objects.get(pk=pk)
@@ -305,7 +314,7 @@ def request_guide(request, pk):
         ).exists()
         if traveler_overlap:
             return Response(
-                {'error': 'You already have an active or pending booking with this guide for the selected dates.'},
+                {'error': 'You already have a payment, active, or pending booking with this guide for the selected dates.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -327,15 +336,164 @@ def request_guide(request, pk):
             save_kwargs['itinerary'] = linked_itinerary
 
         booking = serializer.save(**save_kwargs)
-        Activity.objects.create(
-            guide=guide,
-            activity_type='request',
-            message=f"New guide request from {booking.traveler_name}",
-            highlight=f"To {booking.destination}",
-            sub=f"{booking.trip_start} to {booking.trip_end}"
+        booking.status = 'payment_pending'
+        booking.save(update_fields=['status', 'updated_at'])
+
+        pricing = build_booking_pricing(guide, booking.trip_start, booking.trip_end)
+        Payment.objects.create(
+            booking=booking,
+            amount=pricing['total_amount'],
+            status='pending',
+            payment_method='esewa',
         )
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        response_serializer = BookingSerializer(booking, context={'request': request})
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def initiate_esewa_payment(request, pk):
+    """
+    POST /api/guides/bookings/<id>/payment/initiate/
+    Generates the payload and HMAC signature for eSewa sandbox form submission.
+    """
+    try:
+        booking = Booking.objects.select_related('payment').get(pk=pk, traveler_user=request.user)
+    except Booking.DoesNotExist:
+        return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    payment = getattr(booking, 'payment', None)
+    if not payment:
+        return Response({'error': 'Payment record not found for this booking.'}, status=status.HTTP_404_NOT_FOUND)
+
+    refresh_guide_booking_state(booking.guide)
+    booking.refresh_from_db(fields=['status'])
+
+    if booking.status not in PAYMENT_CONFIRMABLE_STATUSES:
+        return Response(
+            {'error': 'This booking is no longer waiting for payment.', 'status': booking.status},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if payment.status == 'paid':
+        return Response({'error': 'This booking has already been paid.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Generate transaction UUID based on payment id + timestamp to make it unique per retry
+    transaction_uuid = f"booking-{booking.id}-{uuid.uuid4().hex[:6]}"
+    
+    amount = str(float(payment.amount))
+    product_code = getattr(settings, 'ESEWA_MERCHANT_CODE', 'EPAYTEST')
+    secret_key = getattr(settings, 'ESEWA_SECRET_KEY', '8gBm/:&EnhH.1/q')
+
+    # eSewa v2 signature requirement: total_amount,transaction_uuid,product_code
+    message = f"total_amount={amount},transaction_uuid={transaction_uuid},product_code={product_code}"
+    
+    # Generate HMAC SHA256 signature
+    hash_digest = hmac.new(
+        secret_key.encode('utf-8'),
+        message.encode('utf-8'),
+        hashlib.sha256
+    ).digest()
+    
+    signature = base64.b64encode(hash_digest).decode('utf-8')
+    
+    payment.payment_method = 'esewa'
+    payment.transaction_id = transaction_uuid
+    payment.save(update_fields=['payment_method', 'transaction_id', 'updated_at'])
+    
+    return Response({
+        'amount': amount,
+        'tax_amount': "0",
+        'total_amount': amount,
+        'transaction_uuid': transaction_uuid,
+        'product_code': product_code,
+        'product_service_charge': "0",
+        'product_delivery_charge': "0",
+        'success_url': getattr(settings, 'ESEWA_FRONTEND_SUCCESS_URL', 'http://localhost:3000/guides/payment/callback?status=success'),
+        'failure_url': getattr(settings, 'ESEWA_FRONTEND_FAILURE_URL', 'http://localhost:3000/guides/payment/callback?status=failure'),
+        'signed_field_names': "total_amount,transaction_uuid,product_code",
+        'signature': signature,
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verify_esewa_payment(request):
+    """
+    POST /api/guides/bookings/payment/verify/
+    Verify the payment based on the base64 encoded data parameter returned by eSewa URL redirect.
+    """
+    data_b64 = request.data.get('data')
+    if not data_b64:
+        return Response({'error': 'No data payload provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    try:
+        decoded_bytes = base64.b64decode(data_b64)
+        decoded_data = json.loads(decoded_bytes.decode('utf-8'))
+    except Exception:
+        return Response({'error': 'Invalid data payload.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    transaction_uuid = decoded_data.get('transaction_uuid')
+    total_amount = decoded_data.get('total_amount')
+    esewa_status = decoded_data.get('status')
+    
+    if not transaction_uuid:
+        return Response({'error': 'Missing transaction UUID.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    try:
+        # e.g., booking-123-abc123
+        booking_id = int(transaction_uuid.split('-')[1])
+        booking = Booking.objects.select_related('payment', 'guide').get(pk=booking_id, traveler_user=request.user)
+    except (IndexError, ValueError, Booking.DoesNotExist):
+        return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+    payment = getattr(booking, 'payment', None)
+    if not payment or payment.transaction_id != transaction_uuid:
+         return Response({'error': 'Transaction mismatch.'}, status=status.HTTP_400_BAD_REQUEST)
+         
+    if esewa_status != 'COMPLETE':
+         payment.status = 'failed'
+         payment.save(update_fields=['status', 'updated_at'])
+         return Response({'error': 'Payment was not marked complete by eSewa.', 'status': 'failed'}, status=status.HTTP_400_BAD_REQUEST)
+         
+    # Perform backend verification server-to-server call to eSewa to strictly verify
+    product_code = getattr(settings, 'ESEWA_MERCHANT_CODE', 'EPAYTEST')
+    amount_str = str(total_amount).replace(',', '')  # Sometimes eSewa adds commas
+    
+    verification_url = f"https://rc-epay.esewa.com.np/api/epay/transaction/status/?product_code={product_code}&total_amount={amount_str}&transaction_uuid={transaction_uuid}"
+    
+    try:
+        verify_response = requests.get(verification_url, timeout=10)
+        verify_data = verify_response.json()
+    except Exception:
+        return Response({'error': 'eSewa verification request failed.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    if verify_data.get('status') == 'COMPLETE':
+        payment.status = 'paid'
+        payment.save(update_fields=['status', 'updated_at'])
+        
+        if booking.status == 'payment_pending':
+            booking.status = 'pending'
+            booking.save(update_fields=['status', 'updated_at'])
+            
+            Activity.objects.create(
+                guide=booking.guide,
+                activity_type='request',
+                message=f"New guide request from {booking.traveler_name}",
+                highlight=f"To {booking.destination}",
+                sub=f"{booking.trip_start} to {booking.trip_end}"
+            )
+            
+        serializer = BookingSerializer(booking, context={'request': request})
+        return Response({'booking': serializer.data, 'payment_status': payment.status}, status=status.HTTP_200_OK)
+        
+    else:
+        payment.status = 'failed'
+        payment.save(update_fields=['status', 'updated_at'])
+        return Response({'error': 'Payment verification failed.', 'esewa_ref': verify_data}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET', 'PATCH'])
@@ -373,8 +531,8 @@ def my_bookings(request):
     if not guide:
         return Response({'error': 'Guide account required.'}, status=status.HTTP_403_FORBIDDEN)
     bookings = guide.bookings.select_related(
-        'traveler_user', 'traveler_user__traveler_profile', 'itinerary'
-    ).all()
+        'traveler_user', 'traveler_user__traveler_profile', 'itinerary', 'payment'
+    ).exclude(status='payment_pending')
     update_outdated_booking_statuses(bookings)
 
     status_filter = request.query_params.get('status')
@@ -397,7 +555,7 @@ def my_booked_trips(request):
     Returns all bookings made by the logged-in traveler.
     """
     bookings = Booking.objects.select_related(
-        'guide', 'guide__user', 'itinerary', 'review'
+        'guide', 'guide__user', 'itinerary', 'review', 'payment'
     ).filter(traveler_user=request.user).order_by('-created_at')
     update_outdated_booking_statuses(bookings)
 
@@ -410,7 +568,7 @@ def my_booked_trips(request):
 def cancel_booking(request, pk):
     """
     POST /api/guides/bookings/<pk>/cancel/
-    Allow a traveler to cancel their own pending or accepted booking.
+    Allow a traveler to cancel their own payment-pending, pending, or accepted booking.
     """
     try:
         booking = Booking.objects.select_related('guide').get(pk=pk, traveler_user=request.user)
@@ -427,7 +585,7 @@ def cancel_booking(request, pk):
     if booking.status not in TRAVELER_CANCELLABLE_STATUSES:
         return Response(
             {
-                'error': 'Only pending or accepted bookings can be cancelled by the traveler.',
+                'error': 'Only payment-pending, pending, or accepted bookings can be cancelled by the traveler.',
                 'status': booking.status,
             },
             status=status.HTTP_400_BAD_REQUEST,
@@ -459,7 +617,7 @@ def booking_detail(request, pk):
     if not guide:
         return Response({'error': 'Guide account required.'}, status=status.HTTP_403_FORBIDDEN)
     try:
-        booking = guide.bookings.get(pk=pk)
+        booking = guide.bookings.exclude(status='payment_pending').get(pk=pk)
     except Booking.DoesNotExist:
         return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -482,7 +640,7 @@ def update_booking_status(request, pk):
     if not guide:
         return Response({'error': 'Guide account required.'}, status=status.HTTP_403_FORBIDDEN)
     try:
-        booking = guide.bookings.get(pk=pk)
+        booking = guide.bookings.exclude(status='payment_pending').get(pk=pk)
     except Booking.DoesNotExist:
         return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -709,7 +867,7 @@ def my_dashboard(request):
     guide = get_guide_profile_or_none(request.user)
     if not guide:
         return Response({'error': 'Guide account required.'}, status=status.HTTP_403_FORBIDDEN)
-    bookings = guide.bookings.all()
+    bookings = guide.bookings.exclude(status='payment_pending')
     total = bookings.count()
 
     counts = {item['status']: item['count'] for item in bookings.values('status').annotate(count=Count('status'))}

@@ -124,6 +124,8 @@ function normalizeBudget(value) {
 
 function getTripStatusLabel(status) {
   switch (status) {
+    case "payment_pending":
+      return "Payment pending";
     case "accepted":
     case "active":
       return "Trip in progress";
@@ -147,11 +149,13 @@ function buildActivity(itineraries, guideRequests, trips) {
   const guideActivity = guideRequests.slice(0, 2).map((request) => ({
     id: `req-${request.id}`,
     title:
-      request.status === "accepted"
+      request.status === "payment_pending"
+        ? `Payment started for ${request.destination || "your trip"}`
+        : request.status === "accepted"
         ? `Guide accepted for ${request.destination || "your trip"}`
         : `Guide request sent for ${request.destination || "your trip"}`,
     meta: request.created_at,
-    type: request.status === "accepted" ? "Guide confirmed" : "Guide request",
+    type: request.status === "payment_pending" ? "Payment pending" : request.status === "accepted" ? "Guide confirmed" : "Guide request",
   }));
 
   const tripActivity = trips.slice(0, 2).map((trip) => ({

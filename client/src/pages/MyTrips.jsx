@@ -76,6 +76,8 @@ function formatDate(dateString) {
 
 function getStatusDisplay(status) {
   switch (status) {
+    case "payment_pending":
+      return { label: "Payment Pending", icon: <Bell size={14} />, className: "pending" };
     case "pending":
       return { label: "Pending Response", icon: <Clock size={14} />, className: "pending" };
     case "accepted":
@@ -97,6 +99,7 @@ function getStatusDisplay(status) {
 
 function getStatusActionLabel(booking) {
   if (!booking) return "View Guide";
+  if (booking.status === "payment_pending") return "Complete Payment";
   if (booking.status === "cancelled") return "Request Again";
   if (booking.status === "completed") return "Rebook";
   return "View Profile";
@@ -255,7 +258,7 @@ export default function MyTrips() {
 
   const groupedTrips = useMemo(() => {
     const upcomingActive = bookings.filter((booking) =>
-      ["pending", "accepted", "active"].includes(booking.status)
+      ["payment_pending", "pending", "accepted", "active"].includes(booking.status)
     );
     const completed = bookings.filter((booking) => booking.status === "completed");
     const declined = bookings.filter((booking) =>
@@ -406,6 +409,17 @@ export default function MyTrips() {
     } finally {
       setCancelSubmitting(false);
     }
+  };
+
+  const handleRetryPayment = (booking) => {
+    navigate("/guides", {
+      state: {
+        selectedGuideId: booking.guide,
+        destination: booking.destination,
+        trip_start: booking.trip_start,
+        trip_end: booking.trip_end,
+      }
+    });
   };
 
   const handleChatSubmit = async (event) => {
@@ -651,6 +665,7 @@ export default function MyTrips() {
                     const canSubmitReview = Boolean(booking.can_review);
                     const canViewChat = Boolean(booking.can_view_chat);
                     const canCancelBooking = Boolean(booking.can_cancel);
+                    const canRetryPayment = Boolean(booking.can_retry_payment);
 
                     return (
                       <article key={booking.id} className="mt-trip-card">
@@ -704,6 +719,16 @@ export default function MyTrips() {
                               <div className="mt-status-note">
                                 <span className="mt-note-label">{getStatusReasonHeading(booking)}</span>
                                 <p className="is-expanded">{booking.status_reason_display}</p>
+                              </div>
+                            )}
+
+                            {booking.payment && (
+                              <div className="mt-payment-note">
+                                <span className="mt-note-label">Payment Status</span>
+                                <div className="mt-payment-row">
+                                  <strong>{booking.payment.status}</strong>
+                                  <span>{booking.payment.payment_method === "esewa" ? "Paid with eSewa" : booking.payment.payment_method}</span>
+                                </div>
                               </div>
                             )}
 
@@ -799,8 +824,13 @@ export default function MyTrips() {
                             </button>
                           )}
 
-                          {["pending", "accepted", "active"].includes(booking.status) && (
+                          {["payment_pending", "pending", "accepted", "active"].includes(booking.status) && (
                             <>
+                              {canRetryPayment && (
+                                <button type="button" className="mt-btn-primary" onClick={() => handleRetryPayment(booking)}>
+                                  {booking.payment_status === "failed" ? "Retry Payment" : "Pay Now"}
+                                </button>
+                              )}
                               {canCancelBooking && (
                                 <button type="button" className="mt-btn-danger" onClick={() => openCancelModal(booking)}>
                                   Cancel Booking

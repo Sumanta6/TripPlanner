@@ -15,6 +15,7 @@ import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import DestinationDetails from "./pages/DestinationDetails";
 import Guides from "./pages/Guides";
+import PaymentCallback from "./pages/PaymentCallback";
 import SavedTrips from "./pages/SavedTrips";
 import MyTrips from "./pages/MyTrips";
 import TripDetail from "./pages/TripDetail";
@@ -168,6 +169,7 @@ function App() {
           <Route path="/trips/:id" element={<TripDetail />} />
           <Route path="/plan-trip" element={<Plantrip />} />
           <Route path="/guides" element={<Guides />} />
+          <Route path="/guides/payment/callback" element={<PaymentCallback />} />
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/how-it-works" element={<HowItWorks />} />

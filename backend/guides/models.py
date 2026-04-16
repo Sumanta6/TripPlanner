@@ -2,6 +2,16 @@ from django.db import models
 from django.contrib.auth.models import User
 
 
+def build_booking_pricing(guide, trip_start, trip_end):
+    duration_days = max((trip_end - trip_start).days + 1, 1)
+    return {
+        'currency': 'NPR',
+        'duration_days': duration_days,
+        'booking_fee': 1000,
+        'total_amount': 1000,
+    }
+
+
 class GuideProfile(models.Model):
     """Extended profile for a guide user."""
 
@@ -68,6 +78,7 @@ class Booking(models.Model):
     ]
 
     STATUS_CHOICES = [
+        ('payment_pending', 'Payment Pending'),
         ('pending',       'Pending'),
         ('accepted',      'Accepted'),
         ('active',        'Active'),
@@ -136,6 +147,36 @@ class Booking(models.Model):
         if not self.status_reason_code:
             return ''
         return dict(self.STATUS_REASON_CHOICES).get(self.status_reason_code, '')
+
+
+class Payment(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('paid', 'Paid'),
+        ('failed', 'Failed'),
+    ]
+
+    METHOD_CHOICES = [
+        ('esewa', 'eSewa'),
+    ]
+
+    booking = models.OneToOneField(
+        Booking, on_delete=models.CASCADE, related_name='payment'
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    payment_method = models.CharField(max_length=30, choices=METHOD_CHOICES, default='esewa')
+    transaction_id = models.CharField(max_length=80, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Payment'
+        verbose_name_plural = 'Payments'
+
+    def __str__(self):
+        return f"Payment {self.booking_id} ({self.status})"
 
 
 class Activity(models.Model):

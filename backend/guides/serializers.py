@@ -2,7 +2,7 @@ from django.db.models import Count
 from rest_framework import serializers
 from django.core.exceptions import ObjectDoesNotExist
 
-from .models import GuideProfile, Booking, Activity, Review, ChatMessage
+from .models import GuideProfile, Booking, Payment, Activity, Review, ChatMessage, build_booking_pricing
 
 
 CHAT_VIEWABLE_STATUSES = {'accepted', 'active', 'completed', 'cancelled', 'expired'}
@@ -28,13 +28,16 @@ def build_status_reason_display(obj):
 def serialize_booking_snapshot(booking):
     if not booking:
         return None
+    payment = getattr(booking, 'payment', None)
     return {
         'id': booking.id,
         'destination': booking.destination,
         'trip_start': booking.trip_start,
         'trip_end': booking.trip_end,
         'status': booking.status,
-        'can_cancel': booking.status in {'pending', 'accepted'},
+        'can_cancel': booking.status in {'payment_pending', 'pending', 'accepted'},
+        'payment_status': payment.status if payment else '',
+        'can_retry_payment': bool(payment and payment.status in {'pending', 'failed'} and booking.status == 'payment_pending'),
         'status_reason_label': booking.get_status_reason_label(),
         'status_reason_note': booking.status_reason_note,
         'status_reason_display': build_status_reason_display(booking),
@@ -130,6 +133,7 @@ class GuideProfileSerializer(serializers.ModelSerializer):
     latest_traveler_booking = serializers.SerializerMethodField()
     can_request_now = serializers.SerializerMethodField()
     request_state_message = serializers.SerializerMethodField()
+    pricing_preview = serializers.SerializerMethodField()
     rating = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
     rating_breakdown = serializers.SerializerMethodField()
@@ -143,13 +147,13 @@ class GuideProfileSerializer(serializers.ModelSerializer):
             'languages', 'specialization', 'destinations',
             'experience_years', 'rating', 'review_count', 'rating_breakdown',
             'recent_reviews', 'current_traveler_booking', 'latest_traveler_booking',
-            'can_request_now', 'request_state_message', 'tours_completed',
+            'can_request_now', 'request_state_message', 'pricing_preview', 'tours_completed',
             'availability', 'availability_badge', 'booked_ranges', 'created_at', 'updated_at',
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at',
             'availability_badge', 'booked_ranges', 'current_traveler_booking',
-            'latest_traveler_booking', 'can_request_now', 'request_state_message',
+            'latest_traveler_booking', 'can_request_now', 'request_state_message', 'pricing_preview',
             'rating', 'review_count', 'rating_breakdown', 'recent_reviews',
         ]
 
@@ -233,6 +237,8 @@ class GuideProfileSerializer(serializers.ModelSerializer):
         user = self._get_authenticated_user()
         blocking_booking, latest_booking = self._get_traveler_booking_state(obj)
         if blocking_booking:
+            if blocking_booking.status == 'payment_pending':
+                return 'Your booking draft is waiting for payment confirmation before it can be sent to the guide.'
             if blocking_booking.status == 'pending':
                 return 'You already have a pending request with this guide for these dates.'
             if blocking_booking.status == 'accepted':
@@ -254,6 +260,12 @@ class GuideProfileSerializer(serializers.ModelSerializer):
             return 'Your previous booking was cancelled. You can send a new request if this guide is available.'
 
         return 'You can send a new request when your trip details are ready.'
+
+    def get_pricing_preview(self, obj):
+        request_start, request_end = get_request_window(self.context.get('request'))
+        if not request_start or not request_end:
+            return None
+        return build_booking_pricing(obj, request_start, request_end)
 
     def _get_authenticated_user(self):
         request = self.context.get('request')
@@ -356,6 +368,10 @@ class BookingSerializer(serializers.ModelSerializer):
     can_send_chat = serializers.SerializerMethodField()
     can_chat = serializers.SerializerMethodField()
     chat_locked_message = serializers.SerializerMethodField()
+    payment = serializers.SerializerMethodField()
+    payment_status = serializers.SerializerMethodField()
+    can_retry_payment = serializers.SerializerMethodField()
+    requires_payment = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -367,6 +383,7 @@ class BookingSerializer(serializers.ModelSerializer):
             'status', 'status_reason_code', 'status_reason_label', 'status_reason_note',
             'status_reason_display', 'status_updated_by_role', 'notes', 'avatar', 'itinerary',
             'can_review', 'review', 'can_cancel',
+            'payment', 'payment_status', 'can_retry_payment', 'requires_payment',
             'can_view_chat', 'can_send_chat', 'can_chat', 'chat_locked_message',
             'created_at', 'updated_at',
         ]
@@ -374,6 +391,7 @@ class BookingSerializer(serializers.ModelSerializer):
             'id', 'guide', 'status_reason_code', 'status_reason_label', 'status_reason_note',
             'status_reason_display', 'status_updated_by_role', 'avatar', 'itinerary',
             'can_review', 'review', 'can_cancel',
+            'payment', 'payment_status', 'can_retry_payment', 'requires_payment',
             'can_view_chat', 'can_send_chat', 'can_chat', 'chat_locked_message',
             'created_at', 'updated_at',
         ]
@@ -433,7 +451,7 @@ class BookingSerializer(serializers.ModelSerializer):
             return False
         return (
             obj.traveler_user_id == request.user.id and
-            obj.status in {'pending', 'accepted'}
+            obj.status in {'payment_pending', 'pending', 'accepted'}
         )
 
     def get_status_reason_label(self, obj):
@@ -470,9 +488,41 @@ class BookingSerializer(serializers.ModelSerializer):
     def get_chat_locked_message(self, obj):
         if self.get_can_view_chat(obj) and not self.get_can_send_chat(obj):
             return 'This conversation is closed because the booking has ended.'
+        if obj.status == 'payment_pending':
+            return 'Complete payment to send this request to the guide.'
         if self.get_can_view_chat(obj):
             return ''
         return 'Chat available after acceptance'
+
+    def get_payment(self, obj):
+        payment = getattr(obj, 'payment', None)
+        if not payment:
+            return None
+        pricing = build_booking_pricing(obj.guide, obj.trip_start, obj.trip_end)
+        return {
+            'amount': payment.amount,
+            'status': payment.status,
+            'payment_method': payment.payment_method,
+            'transaction_id': payment.transaction_id,
+            'created_at': payment.created_at,
+            'updated_at': payment.updated_at,
+            'currency': pricing['currency'],
+            'booking_fee': pricing['booking_fee'],
+            'total_amount': pricing['total_amount'],
+        }
+
+    def get_payment_status(self, obj):
+        payment = getattr(obj, 'payment', None)
+        return payment.status if payment else ''
+
+    def get_can_retry_payment(self, obj):
+        payment = getattr(obj, 'payment', None)
+        return bool(
+            payment and obj.status == 'payment_pending' and payment.status in {'pending', 'failed'}
+        )
+
+    def get_requires_payment(self, obj):
+        return obj.status == 'payment_pending'
 
 
 # ── Reviews ───────────────────────────────────────────────────────────────────

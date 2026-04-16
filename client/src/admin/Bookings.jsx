@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { createAdminBooking, deleteAdminBooking, fetchAdminBookingDetail, fetchAdminBookings, updateAdminBooking, updateAdminBookingStatus } from "../services/adminApi";
 import { AdminCard, AdminDrawer, AdminEmptyState, AdminLoadingSkeleton, AdminPagination, AdminSectionHeader, AdminStatusBadge, AdminTableMeta, AdminToolbar, ConfirmDialog, formatDate } from "./AdminUI";
 
-const STATUSES = ["pending", "accepted", "active", "completed", "cancelled", "rejected", "auto_rejected"];
+const STATUSES = ["payment_pending", "pending", "accepted", "active", "completed", "cancelled", "rejected", "auto_rejected"];
 const EMPTY_FORM = {
   guide_id: "",
   traveler_user_id: "",

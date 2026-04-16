@@ -5,7 +5,7 @@ from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from guides.models import Booking, GuideProfile
+from guides.models import Booking, GuideProfile, Payment
 
 
 @override_settings(ALLOWED_HOSTS=["localhost", "127.0.0.1", "testserver"])
@@ -61,6 +61,9 @@ class CancelBookingApiTests(APITestCase):
 
     def request_url(self, guide_id):
         return f"/api/guides/{guide_id}/request/"
+
+    def confirm_payment_url(self, booking_id):
+        return f"/api/guides/bookings/{booking_id}/payment/confirm/"
 
     def test_traveler_can_cancel_pending_booking(self):
         booking = self.create_booking(self.traveler, "pending")
@@ -246,7 +249,8 @@ class CancelBookingApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Booking.objects.filter(traveler_user=self.traveler, guide=self.guide).count(), 2)
-        self.assertEqual(response.data["status"], "pending")
+        self.assertEqual(response.data["status"], "payment_pending")
+        self.assertEqual(response.data["payment_status"], "pending")
 
     def test_request_endpoint_blocks_overlapping_pending_booking(self):
         self.create_booking(self.traveler, "pending")
@@ -265,5 +269,96 @@ class CancelBookingApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
             response.data["error"],
-            "You already have an active or pending booking with this guide for the selected dates.",
+            "You already have a payment, active, or pending booking with this guide for the selected dates.",
         )
+
+    def test_request_endpoint_creates_payment_pending_booking(self):
+        self.client.force_authenticate(self.traveler)
+
+        response = self.client.post(
+            self.request_url(self.guide.id),
+            {
+                "destination": "Pokhara",
+                "trip_start": self.base_start.isoformat(),
+                "trip_end": self.base_end.isoformat(),
+                "notes": "Please help with the route.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        booking = Booking.objects.get(pk=response.data["id"])
+        payment = Payment.objects.get(booking=booking)
+        self.assertEqual(booking.status, "payment_pending")
+        self.assertEqual(payment.status, "pending")
+        self.assertEqual(response.data["payment_status"], "pending")
+        self.assertTrue(response.data["requires_payment"])
+        self.assertTrue(response.data["can_retry_payment"])
+
+    def test_payment_confirmation_moves_booking_to_pending(self):
+        booking = self.create_booking(self.traveler, "payment_pending")
+        Payment.objects.create(booking=booking, amount=220, status="pending", payment_method="esewa")
+        self.client.force_authenticate(self.traveler)
+
+        response = self.client.post(
+            self.confirm_payment_url(booking.id),
+            {"status": "paid", "payment_method": "esewa"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        booking.refresh_from_db()
+        payment = booking.payment
+        self.assertEqual(booking.status, "pending")
+        self.assertEqual(payment.status, "paid")
+        self.assertTrue(payment.transaction_id)
+        self.assertEqual(response.data["booking"]["status"], "pending")
+
+    def test_failed_payment_keeps_booking_retryable(self):
+        booking = self.create_booking(self.traveler, "payment_pending")
+        Payment.objects.create(booking=booking, amount=220, status="pending", payment_method="esewa")
+        self.client.force_authenticate(self.traveler)
+
+        response = self.client.post(
+            self.confirm_payment_url(booking.id),
+            {"status": "failed", "payment_method": "esewa"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        booking.refresh_from_db()
+        payment = booking.payment
+        self.assertEqual(booking.status, "payment_pending")
+        self.assertEqual(payment.status, "failed")
+        self.assertEqual(response.data["booking"]["payment_status"], "failed")
+        self.assertTrue(response.data["booking"]["can_retry_payment"])
+
+    def test_duplicate_paid_confirmation_is_rejected(self):
+        booking = self.create_booking(self.traveler, "payment_pending")
+        Payment.objects.create(
+            booking=booking,
+            amount=220,
+            status="paid",
+            payment_method="esewa",
+            transaction_id="TP-ESW-PAID123",
+        )
+        self.client.force_authenticate(self.traveler)
+
+        response = self.client.post(
+            self.confirm_payment_url(booking.id),
+            {"status": "paid", "payment_method": "esewa"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "This booking has already been paid.")
+
+    def test_guide_list_excludes_payment_pending_drafts(self):
+        booking = self.create_booking(self.traveler, "payment_pending")
+        Payment.objects.create(booking=booking, amount=220, status="pending", payment_method="esewa")
+        self.client.force_authenticate(self.guide_user)
+
+        response = self.client.get("/api/guides/me/bookings/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])

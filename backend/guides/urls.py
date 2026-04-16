@@ -8,6 +8,8 @@ urlpatterns = [
     path('<int:pk>/reviews/', views.guide_reviews, name='guide-reviews'),
     path('<int:pk>/request/', views.request_guide, name='request-guide'),
     path('bookings/<int:pk>/cancel/', views.cancel_booking, name='cancel-booking'),
+    path('bookings/<int:pk>/payment/initiate/', views.initiate_esewa_payment, name='initiate-esewa-payment'),
+    path('bookings/payment/verify/', views.verify_esewa_payment, name='verify-esewa-payment'),
     path('bookings/<int:pk>/chat/', views.booking_chat, name='booking-chat'),
 
     # Authenticated – /api/guides/me/...

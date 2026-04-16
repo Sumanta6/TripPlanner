@@ -18,7 +18,7 @@ export default function BookingCancellationModal({
   eyebrow = "Traveler Action",
   description = "This will release your guide booking immediately. You can request the same guide again later if the dates are still available.",
   warningTitle = "Before you confirm",
-  warningText = "Pending and accepted bookings can be cancelled by the traveler. Completed, rejected, and already cancelled bookings cannot be reopened from this action.",
+  warningText = "Payment-pending, pending, and accepted bookings can be cancelled by the traveler. Completed, rejected, and already cancelled bookings cannot be reopened from this action.",
   confirmLabel = "Confirm Cancellation",
   loadingLabel = "Cancelling...",
   cancelLabel = "Keep Booking",

@@ -109,6 +109,18 @@ export async function requestGuideWithItinerary(guideId, bookingData) {
     return data;
 }
 
+/** POST /api/guides/bookings/:id/payment/initiate/ – initiate eSewa payment */
+export async function initiateEsewaPayment(bookingId) {
+    const { data } = await api.post(`/api/guides/bookings/${bookingId}/payment/initiate/`);
+    return data;
+}
+
+/** POST /api/guides/bookings/payment/verify/ – verify eSewa payment */
+export async function verifyEsewaPayment(base64Data) {
+    const { data } = await api.post(`/api/guides/bookings/payment/verify/`, { data: base64Data });
+    return data;
+}
+
 /** POST /api/guides/bookings/:id/cancel/ – cancel the current traveler's booking */
 export async function cancelTravelerBooking(bookingId, payload = {}) {
     const { data } = await api.post(`/api/guides/bookings/${bookingId}/cancel/`, payload);

@@ -1,17 +1,28 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { getGuides, getGuideById, requestGuideWithItinerary, initCsrf, cancelTravelerBooking } from "../services/api";
+import {
+    getGuides,
+    getGuideById,
+    requestGuideWithItinerary,
+    initCsrf,
+    cancelTravelerBooking,
+    initiateEsewaPayment,
+} from "../services/api";
 import {
     AlertTriangle,
+    ArrowLeft,
     BadgeCheck,
     BriefcaseBusiness,
     CalendarDays,
     CheckCircle,
+    CheckCircle2,
     ChevronRight,
     Clock3,
     Compass,
+    CreditCard,
     Filter,
     Globe2,
     Languages,
+    LoaderCircle,
     MapPin,
     Mountain,
     Search,
@@ -19,6 +30,7 @@ import {
     Sparkles,
     Star,
     TrendingUp,
+    Wallet,
     X,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -65,6 +77,9 @@ function getAvailabilityTone(availabilityBadge = "") {
 
 function getBookingStatusTitle(booking) {
     if (!booking) return "Booking update";
+    if (booking.status === "payment_pending") {
+        return booking.payment_status === "failed" ? "Payment retry required" : "Awaiting payment";
+    }
     if (booking.status === "cancelled") {
         if (booking.status_updated_by_role === "traveler") return "Cancelled by you";
         if (booking.status_updated_by_role === "guide") return "Cancelled by guide";
@@ -136,6 +151,11 @@ export default function Guides() {
     const [bookingCancelling, setBookingCancelling] = useState(false);
     const [bookingCancelReasonCode, setBookingCancelReasonCode] = useState("");
     const [bookingCancelReasonNote, setBookingCancelReasonNote] = useState("");
+    const [bookingStep, setBookingStep] = useState("details");
+    const [bookingProcessing, setBookingProcessing] = useState(false);
+    const [confirmedBooking, setConfirmedBooking] = useState(null);
+    const [confirmedPaymentMethod, setConfirmedPaymentMethod] = useState("");
+    const [paymentError, setPaymentError] = useState("");
 
     const [bookingData, setBookingData] = useState({
         destination: "",
@@ -144,7 +164,6 @@ export default function Guides() {
         notes: "",
         itinerary_id: null,
     });
-    const [submitting, setSubmitting] = useState(false);
     const [successMessage, setSuccessMessage] = useState("");
     const [modalError, setModalError] = useState("");
     const [searchTerm, setSearchTerm] = useState("");
@@ -236,6 +255,13 @@ export default function Guides() {
                     const presetGuide = data.find((guide) => String(guide.id) === String(presetGuideId));
                     if (presetGuide) {
                         handleOpenProfile(presetGuide);
+                        if (location.state?.paymentSuccess && location.state?.confirmedBooking) {
+                            setConfirmedBooking(location.state.confirmedBooking);
+                            setConfirmedPaymentMethod("paid");
+                            setBookingStep("confirmation");
+                            // Clean history state so refresh doesn't trigger it again
+                            window.history.replaceState({}, document.title);
+                        }
                     }
                 }
             } catch {
@@ -277,6 +303,10 @@ export default function Guides() {
         setSuccessMessage("");
         setBookingCancelTarget(null);
         setBookingCancelError("");
+        setBookingStep("details");
+        setBookingProcessing(false);
+        setConfirmedBooking(null);
+        setConfirmedPaymentMethod("");
     };
 
     const openCancelModal = (booking) => {
@@ -293,6 +323,7 @@ export default function Guides() {
         setBookingCancelReasonCode("");
         setBookingCancelReasonNote("");
     };
+
 
     const handleInputChange = (event) => {
         const { name, value } = event.target;
@@ -419,30 +450,82 @@ export default function Guides() {
             return;
         }
 
-        setSubmitting(true);
         setModalError("");
+        setBookingStep("payment");
+    };
+
+    const handlePayNow = async () => {
+        if (!selectedGuide) return;
+        setBookingProcessing(true);
+        setPaymentError("");
 
         try {
             await initCsrf();
-            await requestGuideWithItinerary(selectedGuide.id, bookingData);
-            await fetchGuides({ silent: true });
-            await fetchGuideProfile(selectedGuide.id);
-            setSuccessMessage("Request sent successfully. The guide will review your trip shortly.");
-            toast.success("Booking request sent.");
-            setTimeout(() => {
-                handleCloseModal();
-            }, 2200);
+            
+            // Create draft booking locally first
+            const booking = await requestGuideWithItinerary(selectedGuide.id, bookingData);
+
+            // Fetch the verified eSewa URL parameters containing HMAC signature and UUID from backend
+            const esewaData = await initiateEsewaPayment(booking.id);
+
+            // Dynamically construct and submit the eSewa Sandbox Form
+            const form = document.createElement("form");
+            form.setAttribute("method", "POST");
+            form.setAttribute("action", "https://rc-epay.esewa.com.np/api/epay/main/v2/form");
+
+            const addField = (name, value) => {
+                const hiddenField = document.createElement("input");
+                hiddenField.setAttribute("type", "hidden");
+                hiddenField.setAttribute("name", name);
+                hiddenField.setAttribute("value", value);
+                form.appendChild(hiddenField);
+            };
+
+            addField("amount", esewaData.amount);
+            addField("tax_amount", esewaData.tax_amount);
+            addField("total_amount", esewaData.total_amount);
+            addField("transaction_uuid", esewaData.transaction_uuid);
+            addField("product_code", esewaData.product_code);
+            addField("product_service_charge", esewaData.product_service_charge);
+            addField("product_delivery_charge", esewaData.product_delivery_charge);
+            addField("success_url", esewaData.success_url);
+            addField("failure_url", esewaData.failure_url);
+            addField("signed_field_names", esewaData.signed_field_names);
+            addField("signature", esewaData.signature);
+
+            document.body.appendChild(form);
+            form.submit();
         } catch (err) {
-            const msg =
-                err.response?.data?.detail ||
-                err.response?.data?.error ||
-                "Failed to send request. Please try again.";
-            setModalError(msg);
+            setBookingProcessing(false);
+            const msg = err.response?.data?.detail || err.response?.data?.error || err.message || "Unable to initiate payment.";
+            setPaymentError(msg);
             toast.error(msg);
-        } finally {
-            setSubmitting(false);
         }
     };
+
+    const handlePayLater = async () => {
+        if (!selectedGuide) return;
+        setBookingProcessing(true);
+        setPaymentError("");
+
+        try {
+            await initCsrf();
+            const booking = await requestGuideWithItinerary(selectedGuide.id, bookingData);
+            setConfirmedBooking(booking);
+            setConfirmedPaymentMethod("later");
+            setBookingStep("confirmation");
+            await fetchGuides({ silent: true });
+            if (selectedGuideId) await fetchGuideProfile(selectedGuideId);
+            toast.success("Booking saved. You can pay anytime.");
+        } catch (err) {
+            const msg = err.response?.data?.detail || err.response?.data?.error || err.message || "Unable to create booking.";
+            setPaymentError(msg);
+            toast.error(msg);
+        } finally {
+            setBookingProcessing(false);
+        }
+    };
+
 
     const handleCancelBooking = async () => {
         if (!bookingCancelTarget?.id) return;
@@ -550,10 +633,12 @@ export default function Guides() {
                             const availabilityTone = getAvailabilityTone(guide.availability_badge);
                             const travelerBooking = guide.current_traveler_booking;
                             const latestTravelerBooking = guide.latest_traveler_booking;
+                            const draftBooking = latestTravelerBooking?.status === "payment_pending" ? latestTravelerBooking : null;
+                            const isDraft = Boolean(draftBooking);
                             const hasBlockingBooking = Boolean(travelerBooking);
                             const hasCancellableBooking = Boolean(travelerBooking?.can_cancel);
                             const historyBooking =
-                                latestTravelerBooking && (!travelerBooking || latestTravelerBooking.id !== travelerBooking.id)
+                                latestTravelerBooking && (!travelerBooking || latestTravelerBooking.id !== travelerBooking.id) && !isDraft
                                     ? latestTravelerBooking
                                     : null;
                             const canRequestAgain = Boolean(guide.can_request_now && historyBooking?.status === "cancelled");
@@ -633,7 +718,46 @@ export default function Guides() {
                                             </p>
                                         )}
 
-                                        {hasBlockingBooking ? (
+                                        {isDraft ? (
+                                            <>
+                                                <div className="guide-draft-note">
+                                                    <AlertTriangle size={14} />
+                                                    <span>
+                                                        Unpaid Draft: You have a pending booking draft. Please complete payment or cancel to release it.
+                                                    </span>
+                                                </div>
+                                                <div className="guide-cta-row" style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)' }}>
+                                                    <button
+                                                        type="button"
+                                                        className="btn-cancel-draft"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            openCancelModal(draftBooking);
+                                                        }}
+                                                    >
+                                                        Cancel Draft
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="btn-primary guide-cta guide-cta-split"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            handleOpenProfile(guide);
+                                                            setBookingData({
+                                                                destination: draftBooking.destination,
+                                                                trip_start: draftBooking.trip_start,
+                                                                trip_end: draftBooking.trip_end,
+                                                                notes: "",
+                                                                itinerary_id: null,
+                                                            });
+                                                            setBookingStep("payment");
+                                                        }}
+                                                    >
+                                                        {draftBooking.payment_status === "failed" ? "Retry Payment" : "Complete Payment"}
+                                                    </button>
+                                                </div>
+                                            </>
+                                        ) : hasBlockingBooking ? (
                                             <>
                                                 <div className="guide-booking-note">
                                                     <AlertTriangle size={14} />
@@ -653,7 +777,7 @@ export default function Guides() {
                                                         View Profile
                                                         <ChevronRight size={16} />
                                                     </button>
-                                                    {hasCancellableBooking ? (
+                                                    {hasCancellableBooking && (
                                                         <button
                                                             type="button"
                                                             className="guide-cancel-inline"
@@ -664,7 +788,7 @@ export default function Guides() {
                                                         >
                                                             Cancel Booking
                                                         </button>
-                                                    ) : null}
+                                                    )}
                                                 </div>
                                             </>
                                         ) : (
@@ -987,72 +1111,119 @@ export default function Guides() {
 
                                     <aside className="guide-profile-aside">
                                         <div className="booking-sticky-card">
-                                            <div className="booking-sticky-head">
-                                                <h3>
-                                                    {selectedGuideHasBlockingBooking
-                                                        ? "Booking Status"
-                                                        : latestTravelerBooking?.status === "cancelled"
-                                                            ? "Request This Guide Again"
-                                                            : "Request This Guide"}
-                                                </h3>
-                                                <p>
-                                                    {selectedGuideHasBlockingBooking
-                                                        ? selectedGuide?.request_state_message || "This guide already has a live booking with you for the selected dates."
-                                                        : "Send a professional trip brief directly from this profile."}
-                                                </p>
-                                            </div>
-
-                                            {bookingData.itinerary_id && (
-                                                <div className="booking-itinerary-pill">
-                                                    <Sparkles size={16} />
-                                                    AI itinerary attached
+                                            {/* ── Stepper indicator ── */}
+                                            {!selectedGuideHasBlockingBooking && !successMessage && (
+                                                <div className="booking-stepper">
+                                                    {["details", "payment", "confirmation"].map((step, idx) => {
+                                                        const stepLabels = ["Details", "Payment", "Confirmation"];
+                                                        const stepOrder = { details: 0, payment: 1, confirmation: 2 };
+                                                        const currentOrder = stepOrder[bookingStep] ?? 0;
+                                                        const isActive = idx === currentOrder;
+                                                        const isCompleted = idx < currentOrder;
+                                                        return (
+                                                            <div key={step} className={`booking-stepper-item ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""}`}>
+                                                                <span className="booking-stepper-dot">
+                                                                    {isCompleted ? <CheckCircle size={16} /> : idx + 1}
+                                                                </span>
+                                                                <span className="booking-stepper-label">{stepLabels[idx]}</span>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
 
+                                            {/* ── Blocking booking state ── */}
                                             {successMessage ? (
                                                 <div className="booking-success-panel">
                                                     <CheckCircle size={42} />
                                                     <h4>{successMessage}</h4>
                                                 </div>
                                             ) : selectedGuideHasBlockingBooking ? (
-                                                <div className="booking-active-state">
-                                                    <div className="booking-active-state-head">
-                                                        <span className="booking-active-state-badge">Current Booking</span>
-                                                        <strong>{getBookingStatusTitle(currentTravelerBooking)}</strong>
-                                                    </div>
-                                                    <div className="booking-active-state-card">
-                                                        <div className="booking-summary-row">
-                                                            <span>Destination</span>
-                                                            <strong>{currentTravelerBooking.destination}</strong>
-                                                        </div>
-                                                        <div className="booking-summary-row">
-                                                            <span>Dates</span>
-                                                            <strong>{formatDateLabel(currentTravelerBooking.trip_start)} to {formatDateLabel(currentTravelerBooking.trip_end)}</strong>
-                                                        </div>
-                                                        <div className="booking-summary-row">
-                                                            <span>Reference</span>
-                                                            <strong>BOOK-{String(currentTravelerBooking.id).padStart(4, "0")}</strong>
-                                                        </div>
-                                                    </div>
-                                                    <p className="booking-active-state-copy">
-                                                        {selectedGuide?.request_state_message || "This guide is already attached to your current booking for the selected dates."}
-                                                    </p>
-                                                    {selectedGuideHasCancellableBooking ? (
-                                                        <button
-                                                            type="button"
-                                                            className="guide-cancel-primary"
-                                                            onClick={() => openCancelModal(currentTravelerBooking)}
-                                                        >
-                                                            Cancel Booking
-                                                        </button>
-                                                    ) : null}
-                                                </div>
-                                            ) : (
                                                 <>
+                                                    <div className="booking-sticky-head">
+                                                        <h3>Booking Status</h3>
+                                                        <p>{selectedGuide?.request_state_message || "This guide already has a live booking with you for the selected dates."}</p>
+                                                    </div>
+                                                    <div className="booking-active-state">
+                                                        <div className="booking-active-state-head">
+                                                            <span className="booking-active-state-badge">Current Booking</span>
+                                                            <strong>{getBookingStatusTitle(currentTravelerBooking)}</strong>
+                                                        </div>
+                                                        <div className="booking-active-state-card">
+                                                            <div className="booking-summary-row">
+                                                                <span>Destination</span>
+                                                                <strong>{currentTravelerBooking.destination}</strong>
+                                                            </div>
+                                                            <div className="booking-summary-row">
+                                                                <span>Dates</span>
+                                                                <strong>{formatDateLabel(currentTravelerBooking.trip_start)} to {formatDateLabel(currentTravelerBooking.trip_end)}</strong>
+                                                            </div>
+                                                            <div className="booking-summary-row">
+                                                                <span>Reference</span>
+                                                                <strong>BOOK-{String(currentTravelerBooking.id).padStart(4, "0")}</strong>
+                                                            </div>
+                                                            {currentTravelerBooking.payment_status ? (
+                                                                <div className="booking-summary-row">
+                                                                    <span>Payment</span>
+                                                                    <strong>{currentTravelerBooking.payment_status}</strong>
+                                                                </div>
+                                                            ) : null}
+                                                        </div>
+                                                        <p className="booking-active-state-copy">
+                                                            {selectedGuide?.request_state_message || "This guide is already attached to your current booking for the selected dates."}
+                                                        </p>
+                                                        {currentTravelerBooking.status === "payment_pending" ? (
+                                                            <button
+                                                                type="button"
+                                                                className="btn-primary guide-profile-submit"
+                                                                onClick={() => {
+                                                                    setBookingData({
+                                                                        destination: currentTravelerBooking.destination,
+                                                                        trip_start: currentTravelerBooking.trip_start,
+                                                                        trip_end: currentTravelerBooking.trip_end,
+                                                                        notes: bookingData.notes,
+                                                                        itinerary_id: bookingData.itinerary_id,
+                                                                    });
+                                                                    setBookingStep("payment");
+                                                                }}
+                                                            >
+                                                                {currentTravelerBooking.payment_status === "failed" ? "Retry Payment" : "Complete Payment"}
+                                                            </button>
+                                                        ) : selectedGuideHasCancellableBooking ? (
+                                                            <button
+                                                                type="button"
+                                                                className="guide-cancel-primary"
+                                                                onClick={() => openCancelModal(currentTravelerBooking)}
+                                                            >
+                                                                Cancel Booking
+                                                            </button>
+                                                        ) : null}
+                                                    </div>
+                                                </>
+
+                                            /* ── Step 1: Booking Details ── */
+                                            ) : bookingStep === "details" ? (
+                                                <>
+                                                    <div className="booking-sticky-head">
+                                                        <h3>
+                                                            {latestTravelerBooking?.status === "cancelled"
+                                                                ? "Request This Guide Again"
+                                                                : "Booking Details"}
+                                                        </h3>
+                                                        <p>Enter your trip details to continue.</p>
+                                                    </div>
+
+                                                    {bookingData.itinerary_id && (
+                                                        <div className="booking-itinerary-pill">
+                                                            <Sparkles size={16} />
+                                                            AI itinerary attached
+                                                        </div>
+                                                    )}
+
                                                     {selectedGuideHistoryOnly ? (
                                                         <div className="booking-history-panel">
                                                             <div className="booking-active-state-head">
-                                                                <span className="booking-active-state-badge">Previous Booking History</span>
+                                                                <span className="booking-active-state-badge">Previous Booking</span>
                                                                 <strong>{getBookingStatusTitle(latestTravelerBooking)}</strong>
                                                             </div>
                                                             <div className="booking-active-state-card">
@@ -1064,118 +1235,259 @@ export default function Guides() {
                                                                     <span>Dates</span>
                                                                     <strong>{formatDateLabel(latestTravelerBooking.trip_start)} to {formatDateLabel(latestTravelerBooking.trip_end)}</strong>
                                                                 </div>
-                                                                <div className="booking-summary-row">
-                                                                    <span>Status</span>
-                                                                    <strong>{latestTravelerBooking.status}</strong>
-                                                                </div>
-                                                                <div className="booking-summary-row">
-                                                                    <span>Updated by</span>
-                                                                    <strong>{latestTravelerBooking.status_updated_by_role || "system"}</strong>
-                                                                </div>
                                                             </div>
                                                             {latestTravelerBooking.status_reason_display ? (
                                                                 <div className="booking-status-readonly">
                                                                     <span>
-                                                                        {latestTravelerBooking.status === "cancelled" ? "Cancellation Reason" : "Booking Note"}
+                                                                        {latestTravelerBooking.status === "cancelled" ? "Cancellation Reason" : "Note"}
                                                                     </span>
                                                                     <strong>{latestTravelerBooking.status_reason_display}</strong>
                                                                 </div>
                                                             ) : null}
                                                             <p className="booking-history-message">
-                                                                {selectedGuide?.request_state_message || "Your previous booking was cancelled. You can send a new request if this guide is available."}
+                                                                {selectedGuide?.request_state_message || "Your previous booking was cancelled. You can send a new request."}
                                                             </p>
                                                         </div>
                                                     ) : null}
+
                                                     <form className="booking-form" onSubmit={handleSubmitBooking}>
-                                                    {modalError && <div className="alert-error">{modalError}</div>}
-                                                    {conflictWarning && !modalError && (
-                                                        <div className="alert-warning">
-                                                            <span>⚠️</span>
-                                                            <span>{conflictWarning}</span>
-                                                        </div>
-                                                    )}
+                                                        {modalError && <div className="alert-error">{modalError}</div>}
+                                                        {conflictWarning && !modalError && (
+                                                            <div className="alert-warning">
+                                                                <span>⚠️</span>
+                                                                <span>{conflictWarning}</span>
+                                                            </div>
+                                                        )}
 
-                                                    <div className="booking-summary-row">
-                                                        <span>Guide status</span>
-                                                        <strong>{selectedGuide?.availability_badge || "Check profile"}</strong>
-                                                    </div>
-                                                    <div className="booking-summary-row">
-                                                        <span>Coverage</span>
-                                                        <strong>{formatList(selectedGuide?.destinations, "Flexible")}</strong>
-                                                    </div>
-
-                                                    <div className="form-group">
-                                                        <label>Destination <span className="text-danger">*</span></label>
-                                                        <input
-                                                            type="text"
-                                                            name="destination"
-                                                            required
-                                                            className="edit-input w-full"
-                                                            placeholder="e.g. Kathmandu Valley"
-                                                            value={bookingData.destination}
-                                                            onChange={handleInputChange}
-                                                        />
-                                                    </div>
-
-                                                    <div className="booking-form-grid">
                                                         <div className="form-group">
-                                                            <label>Start Date <span className="text-danger">*</span></label>
+                                                            <label>Destination <span className="text-danger">*</span></label>
                                                             <input
-                                                                type="date"
-                                                                name="trip_start"
+                                                                type="text"
+                                                                name="destination"
                                                                 required
                                                                 className="edit-input w-full"
-                                                                value={bookingData.trip_start}
+                                                                placeholder="e.g. Kathmandu Valley"
+                                                                value={bookingData.destination}
                                                                 onChange={handleInputChange}
-                                                                min={new Date().toISOString().split("T")[0]}
                                                             />
                                                         </div>
+
+                                                        <div className="booking-form-grid">
+                                                            <div className="form-group">
+                                                                <label>Start Date <span className="text-danger">*</span></label>
+                                                                <input
+                                                                    type="date"
+                                                                    name="trip_start"
+                                                                    required
+                                                                    className="edit-input w-full"
+                                                                    value={bookingData.trip_start}
+                                                                    onChange={handleInputChange}
+                                                                    min={new Date().toISOString().split("T")[0]}
+                                                                />
+                                                            </div>
+                                                            <div className="form-group">
+                                                                <label>End Date <span className="text-danger">*</span></label>
+                                                                <input
+                                                                    type="date"
+                                                                    name="trip_end"
+                                                                    required
+                                                                    className="edit-input w-full"
+                                                                    value={bookingData.trip_end}
+                                                                    onChange={handleInputChange}
+                                                                    min={bookingData.trip_start || new Date().toISOString().split("T")[0]}
+                                                                />
+                                                            </div>
+                                                        </div>
+
                                                         <div className="form-group">
-                                                            <label>End Date <span className="text-danger">*</span></label>
-                                                            <input
-                                                                type="date"
-                                                                name="trip_end"
-                                                                required
+                                                            <label>Trip Notes</label>
+                                                            <textarea
+                                                                name="notes"
+                                                                rows="3"
                                                                 className="edit-input w-full"
-                                                                value={bookingData.trip_end}
+                                                                placeholder="Share trip goals, interests, or special requirements..."
+                                                                value={bookingData.notes}
                                                                 onChange={handleInputChange}
-                                                                min={bookingData.trip_start || new Date().toISOString().split("T")[0]}
                                                             />
+                                                        </div>
+
+                                                        <button
+                                                            type="submit"
+                                                            className={`btn-primary guide-profile-submit ${conflictWarning ? "btn-disabled" : ""}`}
+                                                            disabled={Boolean(conflictWarning)}
+                                                        >
+                                                            Next
+                                                            <ChevronRight size={18} />
+                                                        </button>
+
+                                                        {!isLoggedIn() && (
+                                                            <p className="booking-login-hint">
+                                                                You can view profiles freely. Log in when you're ready to book.
+                                                            </p>
+                                                        )}
+                                                    </form>
+                                                </>
+
+                                            /* ── Step 2: Payment ── */
+                                            ) : bookingStep === "payment" ? (
+                                                <div className="booking-step-payment">
+                                                    <div className="booking-sticky-head">
+                                                        <h3>Payment</h3>
+                                                        <p>Review your booking summary and choose a payment option.</p>
+                                                    </div>
+
+                                                    <div className="bsp-summary-card">
+                                                        <div className="bsp-guide-row">
+                                                            <div className="bsp-guide-avatar">
+                                                                {selectedGuide?.profile_image ? (
+                                                                    <img src={selectedGuide.profile_image} alt={selectedGuide.full_name} />
+                                                                ) : (
+                                                                    getInitials(selectedGuide?.full_name)
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <strong>{selectedGuide?.full_name}</strong>
+                                                                <span>{selectedGuide?.specialization || "Private Local Guide"}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="bsp-detail-rows">
+                                                            <div className="booking-summary-row">
+                                                                <span>Destination</span>
+                                                                <strong>{bookingData.destination}</strong>
+                                                            </div>
+                                                            <div className="booking-summary-row">
+                                                                <span>Dates</span>
+                                                                <strong>{formatDateLabel(bookingData.trip_start)} — {formatDateLabel(bookingData.trip_end)}</strong>
+                                                            </div>
+                                                            {bookingData.notes ? (
+                                                                <div className="booking-summary-row bsp-notes-row">
+                                                                    <span>Notes</span>
+                                                                    <strong>{bookingData.notes}</strong>
+                                                                </div>
+                                                            ) : null}
                                                         </div>
                                                     </div>
 
-                                                    <div className="form-group">
-                                                        <label>Trip Notes</label>
-                                                        <textarea
-                                                            name="notes"
-                                                            rows="4"
-                                                            className="edit-input w-full"
-                                                            placeholder="Share trip goals, interests, pace, or special requirements..."
-                                                            value={bookingData.notes}
-                                                            onChange={handleInputChange}
-                                                        />
+                                                    <div className="bsp-pricing-card">
+                                                        <div className="bsp-pricing-row">
+                                                            <span>Booking Fee</span>
+                                                            <strong>NPR 1,000</strong>
+                                                        </div>
+                                                        <div className="bsp-pricing-row bsp-pricing-total">
+                                                            <span>Total</span>
+                                                            <strong>NPR 1,000</strong>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="bsp-brand-chip">
+                                                        <Wallet size={16} />
+                                                        Pay with eSewa
+                                                    </div>
+
+                                                    {paymentError && <div className="alert-error">{paymentError}</div>}
+
+                                                    <div className="bsp-actions">
+                                                        <button
+                                                            type="button"
+                                                            className="btn-primary guide-profile-submit"
+                                                            onClick={handlePayNow}
+                                                            disabled={bookingProcessing}
+                                                        >
+                                                            {bookingProcessing ? (
+                                                                <><LoaderCircle size={18} className="spin" /> Processing...</>
+                                                            ) : (
+                                                                <><CreditCard size={18} /> Pay Now</>
+                                                            )}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="bsp-pay-later-btn"
+                                                            onClick={handlePayLater}
+                                                            disabled={bookingProcessing}
+                                                        >
+                                                            Pay Later
+                                                        </button>
                                                     </div>
 
                                                     <button
-                                                        type="submit"
-                                                        className={`btn-primary guide-profile-submit ${conflictWarning ? "btn-disabled" : ""}`}
-                                                        disabled={submitting || Boolean(conflictWarning)}
+                                                        type="button"
+                                                        className="bsp-back-link"
+                                                        onClick={() => { setBookingStep("details"); setPaymentError(""); }}
+                                                        disabled={bookingProcessing}
                                                     >
-                                                        {submitting
-                                                            ? "Sending Request..."
-                                                            : latestTravelerBooking?.status === "cancelled"
-                                                                ? "Request Again"
-                                                                : "Request This Guide"}
+                                                        <ArrowLeft size={16} />
+                                                        Back to Details
                                                     </button>
 
-                                                    {!isLoggedIn() && (
-                                                        <p className="booking-login-hint">
-                                                            You can view profiles freely. Log in when you’re ready to send the request.
-                                                        </p>
+                                                    <div className="bsp-security-note">
+                                                        <ShieldCheck size={16} />
+                                                        <span>Secure payment processed within TripPlanner.</span>
+                                                    </div>
+                                                </div>
+
+                                            /* ── Step 3: Confirmation ── */
+                                            ) : bookingStep === "confirmation" ? (
+                                                <div className="booking-step-confirmation">
+                                                    <div className="bsc-icon-wrap">
+                                                        <CheckCircle2 size={56} />
+                                                    </div>
+                                                    <h3 className="bsc-title">
+                                                        {confirmedPaymentMethod === "paid" ? "Booking Confirmed" : "Booking Saved"}
+                                                    </h3>
+                                                    <p className="bsc-message">
+                                                        {confirmedPaymentMethod === "paid"
+                                                            ? "Payment confirmed. Your guide request is now pending approval."
+                                                            : "Booking saved. You can complete payment anytime from My Trips."}
+                                                    </p>
+
+                                                    {confirmedBooking && (
+                                                        <div className="bsc-summary-card">
+                                                            <div className="booking-summary-row">
+                                                                <span>Reference</span>
+                                                                <strong>BOOK-{String(confirmedBooking.id).padStart(4, "0")}</strong>
+                                                            </div>
+                                                            <div className="booking-summary-row">
+                                                                <span>Status</span>
+                                                                <strong className={confirmedPaymentMethod === "paid" ? "bsc-status-paid" : "bsc-status-pending"}>
+                                                                    {confirmedPaymentMethod === "paid" ? "Pending Approval" : "Payment Pending"}
+                                                                </strong>
+                                                            </div>
+                                                            <div className="booking-summary-row">
+                                                                <span>Destination</span>
+                                                                <strong>{confirmedBooking.destination || bookingData.destination}</strong>
+                                                            </div>
+                                                            <div className="booking-summary-row">
+                                                                <span>Dates</span>
+                                                                <strong>{formatDateLabel(confirmedBooking.trip_start || bookingData.trip_start)} — {formatDateLabel(confirmedBooking.trip_end || bookingData.trip_end)}</strong>
+                                                            </div>
+                                                            {confirmedPaymentMethod === "paid" && (
+                                                                <div className="booking-summary-row">
+                                                                    <span>Amount Paid</span>
+                                                                    <strong>NPR 1,000</strong>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     )}
-                                                    </form>
-                                                </>
-                                            )}
+
+                                                    <div className="bsc-actions">
+                                                        <button
+                                                            type="button"
+                                                            className="btn-primary guide-profile-submit"
+                                                            onClick={() => navigate("/my-trips")}
+                                                        >
+                                                            View My Trips
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="bsp-back-link"
+                                                            onClick={handleCloseModal}
+                                                        >
+                                                            Close
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : null}
                                         </div>
                                     </aside>
                                 </div>
@@ -1199,6 +1511,8 @@ export default function Guides() {
                 onClose={closeCancelModal}
                 onConfirm={handleCancelBooking}
             />
+
+
         </div>
     );
 }

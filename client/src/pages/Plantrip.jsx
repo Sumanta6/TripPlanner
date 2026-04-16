@@ -2,8 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./Plantrip.css";
 import MapView from "../components/MapView";
 import AppPopupModal from "../components/AppPopupModal";
-import { generateItinerary, getGuides, getPlannerDestinations, saveItinerary, requestGuideWithItinerary, updateMyProfile } from '../services/api';
+import {
+  generateItinerary,
+  getGuides,
+  getPlannerDestinations,
+  saveItinerary,
+  updateMyProfile,
+} from '../services/api';
 import { useNavigate } from "react-router-dom";
+
 
 const TRAVEL_STYLES = [
   { id: "trekking", label: "Trekking", icon: "🥾" },
@@ -445,7 +452,7 @@ function Plantrip() {
   // Real guides state
   const [guides, setGuides] = useState([]);
   const [savedItineraryId, setSavedItineraryId] = useState(null);
-  const [bookedGuideIds, setBookedGuideIds] = useState([]);
+  const [bookedGuideIds] = useState([]);
 
   // Booking modal state
   const [bookingModal, setBookingModal] = useState({
@@ -895,36 +902,16 @@ function Plantrip() {
   };
 
   const submitGuideRequest = async () => {
-    setBookingModal(prev => ({ ...prev, isSubmitting: true, error: null }));
-    try {
-      const payload = {
-        guide: bookingModal.guide.id,
-        itinerary_id: savedItineraryId,
+    navigate("/guides", {
+      state: {
+        selectedGuideId: bookingModal.guide.id,
+        itineraryId: savedItineraryId,
         destination: itinerary?.destination || formData.destination,
         trip_start: formData.startDate,
         trip_end: calculatedEndDate,
         notes: bookingModal.notes
-      };
-      await requestGuideWithItinerary(bookingModal.guide.id, payload);
-
-      setBookedGuideIds(prev => [...prev, bookingModal.guide.id]);
-      setBookingModal(prev => ({
-        ...prev,
-        isSubmitting: false,
-        success: "Requirement sent successfully! The guide will review your request and get back to you soon."
-      }));
-
-      // Auto-close after 3 seconds
-      setTimeout(() => {
-        setBookingModal({ isOpen: false, guide: null, notes: "", isSubmitting: false, error: null, success: null });
-      }, 3000);
-    } catch (err) {
-      let msg = err.message || "Failed to request guide. Please try again.";
-      if (err.statusCode === 401 || err.statusCode === 403) {
-        msg = "You must be logged in to request a guide.";
       }
-      setBookingModal(prev => ({ ...prev, isSubmitting: false, error: msg }));
-    }
+    });
   };
 
   const [isSaving, setIsSaving] = useState(false);
@@ -2073,13 +2060,14 @@ function Plantrip() {
                   onClick={submitGuideRequest}
                   disabled={bookingModal.isSubmitting}
                 >
-                  {bookingModal.isSubmitting ? <><span className="spinner" style={{ marginRight: '8px', width: '16px', height: '16px' }}></span> Sending...</> : "Send Request"}
+                  {bookingModal.isSubmitting ? <><span className="spinner" style={{ marginRight: '8px', width: '16px', height: '16px' }}></span> Preparing payment...</> : "Continue to Payment"}
                 </button>
               </div>
             )}
           </div>
         </div>
       )}
+
 
       <AppPopupModal
         isOpen={popupModal.isOpen}

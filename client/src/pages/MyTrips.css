@@ -394,6 +394,27 @@
   border: 1px solid rgba(15, 23, 42, 0.06);
 }
 
+.mt-payment-note {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(47, 127, 143, 0.07);
+  border: 1px solid rgba(47, 127, 143, 0.12);
+}
+
+.mt-payment-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: #475569;
+}
+
+.mt-payment-row strong {
+  color: #102542;
+  text-transform: capitalize;
+}
+
 .mt-history-hint {
   margin-top: 14px;
   padding: 14px 16px;

@@ -178,3 +178,11 @@ GEMINI_API_KEY = "AIzaSyApn5XibywuDUeTHIMN-iugzNYneGtlFfg"
 # GEOAPIFY (Destinations)
 # ======================
 GEOAPIFY_API_KEY = os.environ.get("GEOAPIFY_API_KEY", "")
+
+# ======================
+# ESEWA (Sandbox / Production)
+# ======================
+ESEWA_SECRET_KEY = os.environ.get("ESEWA_SECRET_KEY", "8gBm/:&EnhH.1/q")
+ESEWA_MERCHANT_CODE = os.environ.get("ESEWA_MERCHANT_CODE", "EPAYTEST")
+ESEWA_FRONTEND_SUCCESS_URL = os.environ.get("ESEWA_FRONTEND_SUCCESS_URL", "http://localhost:3000/guides/payment/callback?status=success")
+ESEWA_FRONTEND_FAILURE_URL = os.environ.get("ESEWA_FRONTEND_FAILURE_URL", "http://localhost:3000/guides/payment/callback?status=failure")
