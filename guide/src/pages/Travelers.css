@@ -188,6 +188,7 @@
 .tv-chip-accepted   { background: var(--green-bg); color: #166534; }
 .tv-chip-active     { background: var(--teal-bg); color: #0e7490; }
 .tv-chip-completed  { background: var(--purple-bg); color: #6b21a8; }
+.tv-chip-cancelled  { background: rgba(239, 68, 68, 0.1); color: #b91c1c; }
 .tv-chip-rejected   { background: var(--red-bg); color: #991b1b; }
 .tv-chip-auto_rejected { background: var(--pink-bg); color: #9d174d; }
 
@@ -195,6 +196,7 @@
 [data-theme="dark"] .tv-chip-accepted   { color: var(--green); }
 [data-theme="dark"] .tv-chip-active     { color: var(--teal); }
 [data-theme="dark"] .tv-chip-completed  { color: var(--purple); }
+[data-theme="dark"] .tv-chip-cancelled  { color: var(--red); }
 [data-theme="dark"] .tv-chip-rejected   { color: var(--red); }
 [data-theme="dark"] .tv-chip-auto_rejected { color: var(--pink); }
 
@@ -609,6 +611,7 @@
 .tv-badge-accepted   { background: var(--green-bg); color: #166534; }
 .tv-badge-active     { background: var(--teal-bg); color: #0e7490; }
 .tv-badge-completed  { background: var(--purple-bg); color: #6b21a8; }
+.tv-badge-cancelled  { background: rgba(239, 68, 68, 0.1); color: #b91c1c; }
 .tv-badge-rejected   { background: var(--red-bg); color: #991b1b; }
 .tv-badge-auto_rejected { background: var(--pink-bg); color: #9d174d; }
 
@@ -616,6 +619,7 @@
 [data-theme="dark"] .tv-badge-accepted   { color: var(--green); }
 [data-theme="dark"] .tv-badge-active     { color: var(--teal); }
 [data-theme="dark"] .tv-badge-completed  { color: var(--purple); }
+[data-theme="dark"] .tv-badge-cancelled  { color: var(--red); }
 [data-theme="dark"] .tv-badge-rejected   { color: var(--red); }
 [data-theme="dark"] .tv-badge-auto_rejected { color: var(--pink); }
 
@@ -707,6 +711,30 @@
     white-space: pre-wrap;
 }
 
+.tv-status-note {
+    margin: 0 16px 12px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.04);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.tv-status-note-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.tv-status-note p {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
 .tv-communication-locked {
     display: flex;
     align-items: center;
@@ -794,6 +822,17 @@
     box-shadow: none;
     cursor: not-allowed;
     transform: none;
+}
+
+.tv-btn-release {
+    background: rgba(239, 68, 68, 0.1);
+    color: #b91c1c;
+    border: 1px solid rgba(239, 68, 68, 0.14);
+}
+
+.tv-btn-release:hover {
+    background: #ef4444;
+    color: #fff;
 }
 
 .tv-btn-chat {

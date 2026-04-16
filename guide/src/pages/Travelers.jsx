@@ -7,6 +7,7 @@ import {
 import toast from 'react-hot-toast';
 import { createOptimisticChatMessage, normalizeChatMessage, normalizeChatThread } from '../utils/chatMessages';
 import GuideBookingChatModal from '../components/GuideBookingChatModal';
+import BookingStatusActionModal from '../components/BookingStatusActionModal';
 import {
     getMyBookings,
     updateBookingStatus,
@@ -24,13 +25,22 @@ const STATUS_MAP = {
     accepted:      { label: 'Accepted',      badge: 'tv-badge-accepted',  chip: 'tv-chip-accepted',  emoji: '✅' },
     active:        { label: 'Active',        badge: 'tv-badge-active',    chip: 'tv-chip-active',    emoji: '🚀' },
     completed:     { label: 'Completed',     badge: 'tv-badge-completed', chip: 'tv-chip-completed', emoji: '🏆' },
+    cancelled:     { label: 'Cancelled',     badge: 'tv-badge-cancelled', chip: 'tv-chip-cancelled', emoji: '🛑' },
     rejected:      { label: 'Rejected',      badge: 'tv-badge-rejected',  chip: 'tv-chip-rejected',  emoji: '❌' },
     auto_rejected: { label: 'Auto Rejected', badge: 'tv-badge-auto_rejected', chip: 'tv-chip-auto_rejected', emoji: '⚡' },
 };
 
-const STATUS_KEYS = ['pending', 'accepted', 'active', 'completed', 'rejected', 'auto_rejected'];
+const STATUS_KEYS = ['pending', 'accepted', 'active', 'completed', 'cancelled', 'rejected', 'auto_rejected'];
 const COMMUNICATION_ENABLED_STATUSES = new Set(['accepted', 'active']);
 const CLOSED_CHAT_STATUSES = new Set(['completed', 'cancelled', 'expired']);
+const STATUS_REASON_OPTIONS = [
+    { value: 'change_of_plans', label: 'Change of plans' },
+    { value: 'found_another_option', label: 'Found another option' },
+    { value: 'schedule_conflict', label: 'Schedule conflict' },
+    { value: 'price_issue', label: 'Price issue' },
+    { value: 'personal_reason', label: 'Personal reason' },
+    { value: 'other', label: 'Other', requiresNote: true },
+];
 
 function isClosedBookingStatus(status) {
     return CLOSED_CHAT_STATUSES.has(status);
@@ -75,6 +85,8 @@ function getBookingStateMessage(status) {
     switch (status) {
         case 'pending':
             return 'Waiting for guide confirmation';
+        case 'cancelled':
+            return 'This booking has been cancelled';
         case 'rejected':
             return 'This request was not accepted';
         case 'auto_rejected':
@@ -84,6 +96,24 @@ function getBookingStateMessage(status) {
         default:
             return '';
     }
+}
+
+function getStatusPresentation(booking) {
+    if (booking?.status === 'cancelled' && booking?.status_updated_by_role === 'traveler') {
+        return { ...STATUS_MAP.cancelled, label: 'Cancelled by Traveler' };
+    }
+    return STATUS_MAP[booking?.status] || STATUS_MAP.pending;
+}
+
+function getStatusReasonTitle(booking) {
+    if (!booking?.status_reason_display) return '';
+    if (booking.status === 'cancelled') {
+        return booking.status_updated_by_role === 'traveler' ? 'Cancellation Reason' : 'Release Reason';
+    }
+    if (booking.status === 'rejected' || booking.status === 'auto_rejected') {
+        return 'Decision Reason';
+    }
+    return 'Status Note';
 }
 
 /* ── Skeleton Card ───────────────────────────────────────────────────────────── */
@@ -125,6 +155,10 @@ export default function Travelers() {
     const [chatLoading, setChatLoading] = useState(false);
     const [chatSending, setChatSending] = useState(false);
     const [chatError, setChatError] = useState('');
+    const [actionModal, setActionModal] = useState({ isOpen: false, booking: null, nextStatus: '' });
+    const [actionReasonCode, setActionReasonCode] = useState('');
+    const [actionReasonNote, setActionReasonNote] = useState('');
+    const [actionError, setActionError] = useState('');
     const [profileOpen, setProfileOpen] = useState(false);
     const [selectedTraveler, setSelectedTraveler] = useState(null);
     const { refreshProfile, profile } = useAuth();
@@ -194,13 +228,25 @@ export default function Travelers() {
     }, [chatOpen, activeChatBookingId, isSelectedChatClosed]);
 
     /* ── Status change handler ───────────────────────────────────────────────── */
-    const handleStatusChange = async (id, newStatus) => {
+    const handleStatusChange = async (id, newStatus, payload = {}, options = {}) => {
+        const { rethrow = false } = options;
         if (processing[id]) return;
         setProcessing(prev => ({ ...prev, [id]: true }));
         try {
             await initCsrf();
-            const updated = await updateBookingStatus(id, newStatus);
+            const updated = await updateBookingStatus(id, newStatus, payload);
             setBookings(prev => prev.map(b => b.id === id ? updated : b));
+            setSelectedTraveler((current) => current && current.id === id ? updated : current);
+            if (activeChatBookingId === id) {
+                setChatThread((current) => current ? {
+                    ...current,
+                    booking_status: updated.status,
+                    can_send_chat: !isClosedBookingStatus(updated.status),
+                    can_chat: !isClosedBookingStatus(updated.status),
+                    can_view_chat: true,
+                    locked_message: updated.chat_locked_message || 'This conversation is closed because the booking has ended.',
+                } : current);
+            }
             await refreshProfile();
 
             if (newStatus === 'accepted') {
@@ -208,11 +254,43 @@ export default function Travelers() {
                 navigate('/itineraries', { state: { autoOpenBookingId: id } });
             } else if (newStatus === 'rejected') {
                 toast.success('Booking rejected.');
+            } else if (newStatus === 'cancelled') {
+                toast.success('Booking released.');
             }
         } catch (err) {
             toast.error(err.message || 'Failed to update status');
+            if (rethrow) throw err;
         } finally {
             setProcessing(prev => ({ ...prev, [id]: false }));
+        }
+    };
+
+    const openActionModal = (booking, nextStatus) => {
+        setActionModal({ isOpen: true, booking, nextStatus });
+        setActionReasonCode('');
+        setActionReasonNote('');
+        setActionError('');
+    };
+
+    const closeActionModal = () => {
+        const bookingId = actionModal.booking?.id;
+        if (bookingId && processing[bookingId]) return;
+        setActionModal({ isOpen: false, booking: null, nextStatus: '' });
+        setActionReasonCode('');
+        setActionReasonNote('');
+        setActionError('');
+    };
+
+    const submitActionModal = async () => {
+        if (!actionModal.booking?.id || !actionModal.nextStatus) return;
+        try {
+            await handleStatusChange(actionModal.booking.id, actionModal.nextStatus, {
+                reason_code: actionReasonCode,
+                reason_note: actionReasonNote.trim(),
+            }, { rethrow: true });
+            closeActionModal();
+        } catch (err) {
+            setActionError(err.message || 'Failed to update booking');
         }
     };
 
@@ -343,6 +421,7 @@ export default function Travelers() {
                         <option value="accepted">Accepted</option>
                         <option value="active">Active</option>
                         <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
                         <option value="rejected">Rejected</option>
                         <option value="auto_rejected">Auto Rejected</option>
                     </select>
@@ -393,10 +472,11 @@ export default function Travelers() {
             ) : (
                 <div className="tv-grid">
                     {filtered.map(t => {
-                        const cfg = STATUS_MAP[t.status] || STATUS_MAP.pending;
+                        const cfg = getStatusPresentation(t);
                         const initials = (t.traveler_name || '?').charAt(0).toUpperCase();
                         const canCommunicate = Boolean(t.can_chat ?? COMMUNICATION_ENABLED_STATUSES.has(t.status));
                         const canViewChat = Boolean(t.can_view_chat ?? (canCommunicate || isClosedBookingStatus(t.status)));
+                        const canRelease = ['accepted', 'active'].includes(t.status);
                         const bookingStateMessage = getBookingStateMessage(t.status);
                         const openProfileFromCard = () => openTravelerProfile(t);
 
@@ -473,6 +553,13 @@ export default function Travelers() {
                                     </>
                                 )}
 
+                                {t.status_reason_display && (
+                                    <div className="tv-status-note">
+                                        <span className="tv-status-note-label">{getStatusReasonTitle(t)}</span>
+                                        <p>{t.status_reason_display}</p>
+                                    </div>
+                                )}
+
                                 {/* Actions */}
                                 <div className="tv-card-actions">
                                     {t.status === 'pending' ? (
@@ -491,7 +578,7 @@ export default function Travelers() {
                                                 className="tv-action-btn tv-btn-reject"
                                                 onClick={(event) => {
                                                     event.stopPropagation();
-                                                    handleStatusChange(t.id, 'rejected');
+                                                    openActionModal(t, 'rejected');
                                                 }}
                                                 disabled={processing[t.id]}
                                             >
@@ -518,6 +605,19 @@ export default function Travelers() {
                                                 >
                                                     <FaEnvelope /> Email
                                                 </a>
+                                            )}
+                                            {canRelease && (
+                                                <button
+                                                    type="button"
+                                                    className="tv-action-btn tv-btn-release"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        openActionModal(t, 'cancelled');
+                                                    }}
+                                                    disabled={processing[t.id]}
+                                                >
+                                                    Release
+                                                </button>
                                             )}
                                         </>
                                     ) : bookingStateMessage ? (
@@ -559,8 +659,8 @@ export default function Travelers() {
                                     <p>{selectedTraveler.destination} · {fmtDate(selectedTraveler.trip_start)} – {fmtDate(selectedTraveler.trip_end)}</p>
                                 </div>
                             </div>
-                            <span className={`tv-badge ${STATUS_MAP[selectedTraveler.status]?.badge || STATUS_MAP.pending.badge}`}>
-                                {STATUS_MAP[selectedTraveler.status]?.label || selectedTraveler.status}
+                            <span className={`tv-badge ${getStatusPresentation(selectedTraveler).badge}`}>
+                                {getStatusPresentation(selectedTraveler).label}
                             </span>
                         </div>
 
@@ -600,6 +700,13 @@ export default function Travelers() {
                                 <p>No destination preferences shared yet.</p>
                             )}
                         </div>
+
+                        {selectedTraveler.status_reason_display && (
+                            <div className="tv-profile-section">
+                                <span className="tv-profile-section-label">{getStatusReasonTitle(selectedTraveler)}</span>
+                                <p>{selectedTraveler.status_reason_display}</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -619,6 +726,32 @@ export default function Travelers() {
                     sending={chatSending}
                 />
             )}
+
+            <BookingStatusActionModal
+                isOpen={actionModal.isOpen}
+                booking={actionModal.booking}
+                title={actionModal.nextStatus === 'rejected' ? 'Reject Booking Request' : 'Release Booking'}
+                description={
+                    actionModal.nextStatus === 'rejected'
+                        ? 'Add a short explanation so the traveler understands why this request could not be accepted.'
+                        : 'Add a cancellation reason so the traveler receives a clear, professional explanation and the booking is released cleanly.'
+                }
+                warningText={
+                    actionModal.nextStatus === 'rejected'
+                        ? 'This will mark the request as rejected and the traveler will see your explanation on their side.'
+                        : 'This will end the accepted or active booking. The traveler will keep read-only access to chat history and the guide will become available again if no other overlapping booking exists.'
+                }
+                confirmLabel={actionModal.nextStatus === 'rejected' ? 'Confirm Rejection' : 'Confirm Release'}
+                reasons={STATUS_REASON_OPTIONS}
+                reasonCode={actionReasonCode}
+                reasonNote={actionReasonNote}
+                loading={Boolean(actionModal.booking?.id && processing[actionModal.booking.id])}
+                error={actionError}
+                onReasonCodeChange={setActionReasonCode}
+                onReasonNoteChange={setActionReasonNote}
+                onClose={closeActionModal}
+                onConfirm={submitActionModal}
+            />
         </div>
     );
 }

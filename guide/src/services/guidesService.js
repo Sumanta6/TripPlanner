@@ -127,12 +127,13 @@ export async function getMyBookings(statusFilter = null) {
 }
 
 /**
- * PATCH /api/guides/me/bookings/<id>/status/ – accept or reject a booking
+ * PATCH /api/guides/me/bookings/<id>/status/ – update booking status
  * @param {number} id – booking ID
- * @param {string} status – new status (e.g., 'active', 'rejected')
+ * @param {string} status – new status (e.g., 'accepted', 'rejected', 'cancelled')
+ * @param {Object} payload – optional status reason payload
  */
-export async function updateBookingStatus(id, status) {
-    const { data } = await api.patch(`me/bookings/${id}/status/`, { status });
+export async function updateBookingStatus(id, status, payload = {}) {
+    const { data } = await api.patch(`me/bookings/${id}/status/`, { status, ...payload });
     return data;
 }
 

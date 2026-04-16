@@ -386,6 +386,24 @@
   margin-top: 16px;
 }
 
+.mt-status-note {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.mt-history-hint {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(47, 127, 143, 0.08);
+  border: 1px solid rgba(47, 127, 143, 0.14);
+  color: #1f6877;
+  line-height: 1.65;
+}
+
 .mt-note-label {
   display: block;
   margin-bottom: 8px;
@@ -590,7 +608,8 @@
 }
 
 .mt-btn-primary,
-.mt-btn-outline {
+.mt-btn-outline,
+.mt-btn-danger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -615,6 +634,19 @@
 .mt-btn-primary:hover {
   transform: translateY(-1px);
   box-shadow: 0 16px 34px rgba(47, 127, 143, 0.28);
+  color: #fff;
+}
+
+.mt-btn-danger {
+  border: none;
+  background: linear-gradient(135deg, #b91c1c 0%, #ef4444 100%);
+  color: #fff;
+  box-shadow: 0 12px 28px rgba(239, 68, 68, 0.2);
+}
+
+.mt-btn-danger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 34px rgba(239, 68, 68, 0.26);
   color: #fff;
 }
 

@@ -19,6 +19,7 @@ from rest_framework.response import Response
 from accounts.authentication import AdminTokenAuthentication, build_admin_auth_token
 from contacts.models import Contact
 from guides.models import Booking, ChatMessage, GuideProfile, Review
+from guides.serializers import build_status_reason_display
 from itinerary.models import SavedItinerary
 
 
@@ -177,6 +178,11 @@ def _serialize_booking(booking):
         "id": booking.id,
         "destination": booking.destination,
         "status": booking.status,
+        "status_reason_code": booking.status_reason_code,
+        "status_reason_label": booking.get_status_reason_label(),
+        "status_reason_note": booking.status_reason_note,
+        "status_reason_display": build_status_reason_display(booking),
+        "status_updated_by_role": booking.status_updated_by_role,
         "traveler_name": booking.traveler_name,
         "traveler_email": booking.traveler_email,
         "traveler_phone": booking.traveler_phone,
@@ -1073,8 +1079,21 @@ def admin_booking_status(request, pk):
     if next_status not in valid_statuses:
         return Response({"error": "Invalid booking status."}, status=status.HTTP_400_BAD_REQUEST)
 
+    reason_code = str(request.data.get("reason_code", "") or "").strip()
+    reason_note = str(request.data.get("reason_note", "") or "").strip()
+    valid_reason_codes = {choice[0] for choice in Booking.STATUS_REASON_CHOICES}
+    if reason_code and reason_code not in valid_reason_codes:
+        return Response({"error": "Invalid status reason."}, status=status.HTTP_400_BAD_REQUEST)
+    if reason_code == "other" and not reason_note:
+        return Response({"error": "Please provide a custom reason when selecting Other."}, status=status.HTTP_400_BAD_REQUEST)
+    if not reason_code and reason_note:
+        return Response({"error": "A reason option must be selected before adding notes."}, status=status.HTTP_400_BAD_REQUEST)
+
     booking.status = next_status
-    booking.save(update_fields=["status", "updated_at"])
+    booking.status_reason_code = reason_code
+    booking.status_reason_note = reason_note
+    booking.status_updated_by_role = "admin" if reason_code or reason_note or next_status in {"rejected", "cancelled"} else ""
+    booking.save(update_fields=["status", "status_reason_code", "status_reason_note", "status_updated_by_role", "updated_at"])
     return Response(_serialize_booking(booking))
 
 

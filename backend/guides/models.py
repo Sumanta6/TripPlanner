@@ -51,6 +51,22 @@ class GuideProfile(models.Model):
 class Booking(models.Model):
     """A traveler booking / assignment linked to a guide."""
 
+    STATUS_ACTOR_CHOICES = [
+        ('traveler', 'Traveler'),
+        ('guide', 'Guide'),
+        ('admin', 'Admin'),
+        ('system', 'System'),
+    ]
+
+    STATUS_REASON_CHOICES = [
+        ('change_of_plans', 'Change of plans'),
+        ('found_another_option', 'Found another option'),
+        ('schedule_conflict', 'Schedule conflict'),
+        ('price_issue', 'Price issue'),
+        ('personal_reason', 'Personal reason'),
+        ('other', 'Other'),
+    ]
+
     STATUS_CHOICES = [
         ('pending',       'Pending'),
         ('accepted',      'Accepted'),
@@ -90,6 +106,19 @@ class Booking(models.Model):
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default='pending'
     )
+    status_reason_code = models.CharField(
+        max_length=40,
+        choices=STATUS_REASON_CHOICES,
+        blank=True,
+        default='',
+    )
+    status_reason_note = models.TextField(blank=True)
+    status_updated_by_role = models.CharField(
+        max_length=20,
+        choices=STATUS_ACTOR_CHOICES,
+        blank=True,
+        default='',
+    )
     notes = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -102,6 +131,11 @@ class Booking(models.Model):
 
     def __str__(self):
         return f"{self.traveler_name} → {self.destination} ({self.status})"
+
+    def get_status_reason_label(self):
+        if not self.status_reason_code:
+            return ''
+        return dict(self.STATUS_REASON_CHOICES).get(self.status_reason_code, '')
 
 
 class Activity(models.Model):

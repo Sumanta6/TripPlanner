@@ -23,6 +23,52 @@ from .serializers import (
 )
 
 
+TRAVELER_CANCELLABLE_STATUSES = {'pending', 'accepted'}
+GUIDE_CANCELLABLE_STATUSES = {'accepted', 'active'}
+GUIDE_REJECTABLE_STATUSES = {'pending'}
+STATUS_REASON_CODES = {choice[0] for choice in Booking.STATUS_REASON_CHOICES}
+
+
+def _coerce_scalar(value):
+    if isinstance(value, list):
+        return value[0] if value else ''
+    return value
+
+
+def extract_status_reason_payload(data, *, required=False):
+    reason_code = str(_coerce_scalar(data.get('reason_code', '')) or '').strip()
+    reason_note = str(_coerce_scalar(data.get('reason_note', '')) or '').strip()
+
+    if required and not reason_code:
+        return None, Response({'error': 'A cancellation reason is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if reason_code and reason_code not in STATUS_REASON_CODES:
+        return None, Response({'error': 'Invalid cancellation reason.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if reason_code == 'other' and not reason_note:
+        return None, Response({'error': 'Please provide a custom reason when selecting Other.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not reason_code and reason_note:
+        return None, Response({'error': 'A reason option must be selected before adding notes.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    return {
+        'status_reason_code': reason_code,
+        'status_reason_note': reason_note,
+    }, None
+
+
+def apply_booking_status_metadata(booking, *, actor_role='', reason_code='', reason_note=''):
+    booking.status_updated_by_role = actor_role
+    booking.status_reason_code = reason_code
+    booking.status_reason_note = reason_note
+
+
+def clear_booking_status_metadata(booking):
+    booking.status_updated_by_role = ''
+    booking.status_reason_code = ''
+    booking.status_reason_note = ''
+
+
 def get_or_create_guide_profile(user):
     """Return the GuideProfile for a user, creating one if it doesn't exist."""
     profile, _ = GuideProfile.objects.get_or_create(
@@ -118,6 +164,15 @@ def update_outdated_booking_statuses(bookings):
         Booking.objects.bulk_update(updated, ['status'])
 
 
+def refresh_guide_booking_state(guide):
+    """
+    Refresh booking-derived guide state after a traveler or guide action.
+    The public availability badge is derived from accepted/active bookings,
+    so updating outdated statuses is sufficient to recalculate availability.
+    """
+    update_outdated_booking_statuses(guide.bookings.all())
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def guide_list(request):
@@ -132,7 +187,7 @@ def guide_list(request):
         'reviews__booking',
     ).all()
     for guide in guides:
-        update_outdated_booking_statuses(guide.bookings.all())
+        refresh_guide_booking_state(guide)
 
     serializer = GuideProfileSerializer(guides, many=True, context={'request': request})
     return Response(serializer.data)
@@ -155,7 +210,7 @@ def guide_detail(request, pk):
     except GuideProfile.DoesNotExist:
         return Response({'error': 'Guide not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    update_outdated_booking_statuses(guide.bookings.all())
+    refresh_guide_booking_state(guide)
     serializer = GuideProfileSerializer(guide, context={'request': request})
     return Response(serializer.data)
 
@@ -239,6 +294,20 @@ def request_guide(request, pk):
     ).exists()
     if overlapping:
         return Response({'error': 'Guide is unavailable for selected dates.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.user.is_authenticated:
+        traveler_overlap = Booking.objects.filter(
+            guide=guide,
+            traveler_user=request.user,
+            status__in=['pending', 'accepted', 'active'],
+            trip_start__lte=trip_end,
+            trip_end__gte=trip_start,
+        ).exists()
+        if traveler_overlap:
+            return Response(
+                {'error': 'You already have an active or pending booking with this guide for the selected dates.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     if hasattr(request.user, 'traveler_profile'):
         traveler_profile = request.user.traveler_profile
@@ -336,6 +405,48 @@ def my_booked_trips(request):
     return Response(serializer.data)
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def cancel_booking(request, pk):
+    """
+    POST /api/guides/bookings/<pk>/cancel/
+    Allow a traveler to cancel their own pending or accepted booking.
+    """
+    try:
+        booking = Booking.objects.select_related('guide').get(pk=pk, traveler_user=request.user)
+    except Booking.DoesNotExist:
+        return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    reason_payload, error_response = extract_status_reason_payload(request.data, required=True)
+    if error_response:
+        return error_response
+
+    refresh_guide_booking_state(booking.guide)
+    booking.refresh_from_db(fields=['status', 'updated_at', 'status_reason_code', 'status_reason_note', 'status_updated_by_role'])
+
+    if booking.status not in TRAVELER_CANCELLABLE_STATUSES:
+        return Response(
+            {
+                'error': 'Only pending or accepted bookings can be cancelled by the traveler.',
+                'status': booking.status,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    booking.status = 'cancelled'
+    apply_booking_status_metadata(
+        booking,
+        actor_role='traveler',
+        reason_code=reason_payload['status_reason_code'],
+        reason_note=reason_payload['status_reason_note'],
+    )
+    booking.save(update_fields=['status', 'status_reason_code', 'status_reason_note', 'status_updated_by_role', 'updated_at'])
+    refresh_guide_booking_state(booking.guide)
+
+    serializer = BookingSerializer(booking, context={'request': request})
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 @api_view(['GET'])
 @authentication_classes([GuideTokenAuthentication])
 @permission_classes([IsAuthenticated])
@@ -379,8 +490,31 @@ def update_booking_status(request, pk):
     if new_status not in dict(Booking.STATUS_CHOICES):
         return Response({'error': 'Invalid status.'}, status=status.HTTP_400_BAD_REQUEST)
 
+    reason_required = new_status in {'rejected', 'cancelled'}
+    reason_payload, error_response = extract_status_reason_payload(request.data, required=reason_required)
+    if error_response:
+        return error_response
+
+    if new_status == 'accepted' and booking.status != 'pending':
+        return Response({'error': 'Only pending bookings can be accepted.'}, status=status.HTTP_400_BAD_REQUEST)
+    if new_status == 'rejected' and booking.status not in GUIDE_REJECTABLE_STATUSES:
+        return Response({'error': 'Only pending bookings can be rejected.'}, status=status.HTTP_400_BAD_REQUEST)
+    if new_status == 'cancelled' and booking.status not in GUIDE_CANCELLABLE_STATUSES:
+        return Response({'error': 'Only accepted or active bookings can be released.'}, status=status.HTTP_400_BAD_REQUEST)
+    if new_status == 'completed' and booking.status not in {'accepted', 'active'}:
+        return Response({'error': 'Only accepted or active bookings can be completed.'}, status=status.HTTP_400_BAD_REQUEST)
+
     booking.status = new_status
-    booking.save()
+    if new_status in {'rejected', 'cancelled'}:
+        apply_booking_status_metadata(
+            booking,
+            actor_role='guide',
+            reason_code=reason_payload['status_reason_code'],
+            reason_note=reason_payload['status_reason_note'],
+        )
+    else:
+        clear_booking_status_metadata(booking)
+    booking.save(update_fields=['status', 'status_reason_code', 'status_reason_note', 'status_updated_by_role', 'updated_at'])
 
     if new_status == 'accepted':
         overlapping = Booking.objects.filter(
@@ -393,7 +527,13 @@ def update_booking_status(request, pk):
         for overlapping_booking in overlapping:
             overlapping_booking.status = 'auto_rejected'
             overlapping_booking.notes = f"{overlapping_booking.notes}\n\n[System] Guide unavailable for selected dates."
-            overlapping_booking.save(update_fields=['status', 'notes'])
+            apply_booking_status_metadata(
+                overlapping_booking,
+                actor_role='system',
+                reason_code='schedule_conflict',
+                reason_note='Guide became unavailable for the selected dates after another booking was accepted.',
+            )
+            overlapping_booking.save(update_fields=['status', 'notes', 'status_reason_code', 'status_reason_note', 'status_updated_by_role', 'updated_at'])
             Activity.objects.create(
                 guide=guide,
                 activity_type='auto_rejected',
@@ -415,6 +555,13 @@ def update_booking_status(request, pk):
             message=f"Declined request from {booking.traveler_name}",
             highlight=f"To {booking.destination}"
         )
+    elif new_status == 'cancelled':
+        Activity.objects.create(
+            guide=guide,
+            activity_type='rejected',
+            message=f"Released booking with {booking.traveler_name}",
+            highlight=f"To {booking.destination}"
+        )
     elif new_status == 'completed':
         Activity.objects.create(
             guide=guide,
@@ -423,7 +570,8 @@ def update_booking_status(request, pk):
             highlight=f"To {booking.destination}"
         )
 
-    update_outdated_booking_statuses([booking])
+    refresh_guide_booking_state(guide)
+    booking.refresh_from_db()
     serializer = BookingSerializer(
         booking,
         context={'request': request, 'restrict_guide_communication': True},

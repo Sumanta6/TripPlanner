@@ -7,6 +7,7 @@ from .models import GuideProfile, Booking, Activity, Review, ChatMessage
 
 CHAT_VIEWABLE_STATUSES = {'accepted', 'active', 'completed', 'cancelled', 'expired'}
 CHAT_SENDABLE_STATUSES = {'accepted', 'active'}
+TRAVELER_BLOCKING_STATUSES = {'pending', 'accepted', 'active'}
 
 
 def build_profile_image_url(request, image_field):
@@ -14,6 +15,56 @@ def build_profile_image_url(request, image_field):
         return ''
     image_url = image_field.url
     return request.build_absolute_uri(image_url) if request else image_url
+
+
+def build_status_reason_display(obj):
+    label = obj.get_status_reason_label() if hasattr(obj, 'get_status_reason_label') else ''
+    note = (obj.status_reason_note or '').strip()
+    if label and note:
+        return f"{label}: {note}"
+    return label or note
+
+
+def serialize_booking_snapshot(booking):
+    if not booking:
+        return None
+    return {
+        'id': booking.id,
+        'destination': booking.destination,
+        'trip_start': booking.trip_start,
+        'trip_end': booking.trip_end,
+        'status': booking.status,
+        'can_cancel': booking.status in {'pending', 'accepted'},
+        'status_reason_label': booking.get_status_reason_label(),
+        'status_reason_note': booking.status_reason_note,
+        'status_reason_display': build_status_reason_display(booking),
+        'status_updated_by_role': booking.status_updated_by_role,
+        'created_at': booking.created_at,
+        'updated_at': booking.updated_at,
+    }
+
+
+def get_request_window(request):
+    from datetime import datetime
+
+    if not request:
+        return None, None
+
+    trip_start_str = request.GET.get('trip_start')
+    trip_end_str = request.GET.get('trip_end')
+    if not trip_start_str or not trip_end_str:
+        return None, None
+
+    try:
+        trip_start = datetime.strptime(trip_start_str, '%Y-%m-%d').date()
+        trip_end = datetime.strptime(trip_end_str, '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return None, None
+
+    if trip_end < trip_start:
+        return None, None
+
+    return trip_start, trip_end
 
 
 def build_review_breakdown(guide):
@@ -75,6 +126,10 @@ class GuideProfileSerializer(serializers.ModelSerializer):
     user_id = serializers.IntegerField(source='user.id', read_only=True)
     availability_badge = serializers.SerializerMethodField()
     booked_ranges = serializers.SerializerMethodField()
+    current_traveler_booking = serializers.SerializerMethodField()
+    latest_traveler_booking = serializers.SerializerMethodField()
+    can_request_now = serializers.SerializerMethodField()
+    request_state_message = serializers.SerializerMethodField()
     rating = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
     rating_breakdown = serializers.SerializerMethodField()
@@ -87,12 +142,14 @@ class GuideProfileSerializer(serializers.ModelSerializer):
             'profile_image', 'bio',
             'languages', 'specialization', 'destinations',
             'experience_years', 'rating', 'review_count', 'rating_breakdown',
-            'recent_reviews', 'tours_completed',
+            'recent_reviews', 'current_traveler_booking', 'latest_traveler_booking',
+            'can_request_now', 'request_state_message', 'tours_completed',
             'availability', 'availability_badge', 'booked_ranges', 'created_at', 'updated_at',
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at',
-            'availability_badge', 'booked_ranges',
+            'availability_badge', 'booked_ranges', 'current_traveler_booking',
+            'latest_traveler_booking', 'can_request_now', 'request_state_message',
             'rating', 'review_count', 'rating_breakdown', 'recent_reviews',
         ]
 
@@ -143,6 +200,99 @@ class GuideProfileSerializer(serializers.ModelSerializer):
         return list(obj.bookings.filter(
             status__in=['accepted', 'active']
         ).values('trip_start', 'trip_end'))
+
+    def get_current_traveler_booking(self, obj):
+        booking, _ = self._get_traveler_booking_state(obj)
+        return serialize_booking_snapshot(booking)
+
+    def get_latest_traveler_booking(self, obj):
+        _, latest_booking = self._get_traveler_booking_state(obj)
+        return serialize_booking_snapshot(latest_booking)
+
+    def get_can_request_now(self, obj):
+        user = self._get_authenticated_user()
+        if not user:
+            return True
+
+        blocking_booking, _ = self._get_traveler_booking_state(obj)
+        if blocking_booking:
+            return False
+
+        request_start, request_end = get_request_window(self.context.get('request'))
+        if request_start and request_end:
+            has_guide_conflict = obj.bookings.filter(
+                status__in=['accepted', 'active'],
+                trip_start__lte=request_end,
+                trip_end__gte=request_start,
+            ).exists()
+            return not has_guide_conflict
+
+        return True
+
+    def get_request_state_message(self, obj):
+        user = self._get_authenticated_user()
+        blocking_booking, latest_booking = self._get_traveler_booking_state(obj)
+        if blocking_booking:
+            if blocking_booking.status == 'pending':
+                return 'You already have a pending request with this guide for these dates.'
+            if blocking_booking.status == 'accepted':
+                return 'You already have an accepted booking with this guide for these dates.'
+            if blocking_booking.status == 'active':
+                return 'This guide is already assigned to your active trip for these dates.'
+
+        request_start, request_end = get_request_window(self.context.get('request'))
+        if request_start and request_end:
+            has_guide_conflict = obj.bookings.filter(
+                status__in=['accepted', 'active'],
+                trip_start__lte=request_end,
+                trip_end__gte=request_start,
+            ).exists()
+            if has_guide_conflict:
+                return 'This guide is unavailable for the selected dates.'
+
+        if user and latest_booking and latest_booking.status == 'cancelled':
+            return 'Your previous booking was cancelled. You can send a new request if this guide is available.'
+
+        return 'You can send a new request when your trip details are ready.'
+
+    def _get_authenticated_user(self):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated:
+            return None
+        return user
+
+    def _get_traveler_booking_state(self, obj):
+        user = self._get_authenticated_user()
+        if not user:
+            return None, None
+
+        bookings = list(
+            obj.bookings.filter(traveler_user=user).order_by('-created_at')
+        )
+        if not bookings:
+            return None, None
+
+        latest_booking = bookings[0]
+        request_start, request_end = get_request_window(self.context.get('request'))
+
+        if request_start and request_end:
+            blocking_booking = next(
+                (
+                    item for item in bookings
+                    if item.status in TRAVELER_BLOCKING_STATUSES
+                    and item.trip_start <= request_end
+                    and item.trip_end >= request_start
+                ),
+                None,
+            )
+        else:
+            blocking_booking = next(
+                (item for item in bookings if item.status in TRAVELER_BLOCKING_STATUSES),
+                None,
+            )
+
+        return blocking_booking, latest_booking
 
     def get_rating(self, obj):
         review_count = obj.reviews.count()
@@ -199,6 +349,9 @@ class BookingSerializer(serializers.ModelSerializer):
     traveler_preferred_destinations = serializers.SerializerMethodField()
     can_review = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
+    can_cancel = serializers.SerializerMethodField()
+    status_reason_label = serializers.SerializerMethodField()
+    status_reason_display = serializers.SerializerMethodField()
     can_view_chat = serializers.SerializerMethodField()
     can_send_chat = serializers.SerializerMethodField()
     can_chat = serializers.SerializerMethodField()
@@ -211,14 +364,16 @@ class BookingSerializer(serializers.ModelSerializer):
             'traveler_name', 'traveler_email', 'traveler_phone',
             'traveler_address', 'traveler_bio', 'traveler_travel_style', 'traveler_preferred_destinations',
             'destination', 'trip_start', 'trip_end',
-            'status', 'notes', 'avatar', 'itinerary',
-            'can_review', 'review',
+            'status', 'status_reason_code', 'status_reason_label', 'status_reason_note',
+            'status_reason_display', 'status_updated_by_role', 'notes', 'avatar', 'itinerary',
+            'can_review', 'review', 'can_cancel',
             'can_view_chat', 'can_send_chat', 'can_chat', 'chat_locked_message',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'id', 'guide', 'avatar', 'itinerary',
-            'can_review', 'review',
+            'id', 'guide', 'status_reason_code', 'status_reason_label', 'status_reason_note',
+            'status_reason_display', 'status_updated_by_role', 'avatar', 'itinerary',
+            'can_review', 'review', 'can_cancel',
             'can_view_chat', 'can_send_chat', 'can_chat', 'chat_locked_message',
             'created_at', 'updated_at',
         ]
@@ -271,6 +426,21 @@ class BookingSerializer(serializers.ModelSerializer):
         if not hasattr(obj, 'review'):
             return None
         return ReviewSummarySerializer(obj.review, context=self.context).data
+
+    def get_can_cancel(self, obj):
+        request = self.context.get('request')
+        if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
+            return False
+        return (
+            obj.traveler_user_id == request.user.id and
+            obj.status in {'pending', 'accepted'}
+        )
+
+    def get_status_reason_label(self, obj):
+        return obj.get_status_reason_label()
+
+    def get_status_reason_display(self, obj):
+        return build_status_reason_display(obj)
 
     def get_traveler_address(self, obj):
         profile = getattr(obj.traveler_user, 'traveler_profile', None) if obj.traveler_user else None

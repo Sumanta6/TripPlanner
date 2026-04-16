@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import BookingChatModal from "../components/BookingChatModal";
+import BookingCancellationModal from "../components/BookingCancellationModal";
 import {
   Calendar,
   MapPin,
@@ -22,6 +23,7 @@ import {
   getMyBookedTrips,
   getBookingChat,
   getAuthStatus,
+  cancelTravelerBooking,
   createGuideReview,
   initCsrf,
   sendBookingChatMessage
@@ -30,6 +32,14 @@ import { createOptimisticChatMessage, normalizeChatMessage, normalizeChatThread 
 import "./MyTrips.css";
 
 const CLOSED_CHAT_STATUSES = new Set(["completed", "cancelled", "expired"]);
+const STATUS_REASON_OPTIONS = [
+  { value: "change_of_plans", label: "Change of plans" },
+  { value: "found_another_option", label: "Found another option" },
+  { value: "schedule_conflict", label: "Schedule conflict" },
+  { value: "price_issue", label: "Price issue" },
+  { value: "personal_reason", label: "Personal reason" },
+  { value: "other", label: "Other", requiresNote: true },
+];
 
 function isClosedBookingStatus(status) {
   return CLOSED_CHAT_STATUSES.has(status);
@@ -85,6 +95,26 @@ function getStatusDisplay(status) {
   }
 }
 
+function getStatusActionLabel(booking) {
+  if (!booking) return "View Guide";
+  if (booking.status === "cancelled") return "Request Again";
+  if (booking.status === "completed") return "Rebook";
+  return "View Profile";
+}
+
+function getStatusReasonHeading(booking) {
+  if (!booking?.status_reason_display) return "";
+  if (booking.status === "cancelled") {
+    if (booking.status_updated_by_role === "traveler") return "Cancellation Reason";
+    if (booking.status_updated_by_role === "guide") return "Guide Cancellation Note";
+    if (booking.status_updated_by_role === "admin") return "Admin Cancellation Note";
+  }
+  if (booking.status === "rejected" || booking.status === "auto_rejected") {
+    return "Booking Update";
+  }
+  return "Status Note";
+}
+
 function ReviewStars({ value, onChange, interactive = false }) {
   return (
     <div className={`mt-review-stars ${interactive ? "interactive" : ""}`}>
@@ -128,6 +158,11 @@ export default function MyTrips() {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatSending, setChatSending] = useState(false);
   const [chatError, setChatError] = useState("");
+  const [cancelModalBooking, setCancelModalBooking] = useState(null);
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+  const [cancelReasonCode, setCancelReasonCode] = useState("");
+  const [cancelReasonNote, setCancelReasonNote] = useState("");
   const navigate = useNavigate();
   const activeChatBooking = useMemo(
     () => bookings.find((booking) => String(booking.id) === String(activeChatBookingId)) || null,
@@ -264,6 +299,7 @@ export default function MyTrips() {
   const openGuidesForTrip = (booking) => {
     navigate("/guides", {
       state: {
+        selectedGuideId: booking.guide,
         destination: booking.destination,
         trip_start: booking.trip_start,
         trip_end: booking.trip_end,
@@ -309,6 +345,67 @@ export default function MyTrips() {
     setChatDraft("");
     setChatError("");
     setChatLoading(false);
+  };
+
+  const openCancelModal = (booking) => {
+    if (!booking?.can_cancel) return;
+    setCancelModalBooking(booking);
+    setCancelError("");
+    setCancelReasonCode("");
+    setCancelReasonNote("");
+  };
+
+  const closeCancelModal = () => {
+    if (cancelSubmitting) return;
+    setCancelModalBooking(null);
+    setCancelError("");
+    setCancelReasonCode("");
+    setCancelReasonNote("");
+  };
+
+  const handleCancelBooking = async () => {
+    if (!cancelModalBooking?.id) return;
+
+    setCancelSubmitting(true);
+    setCancelError("");
+
+    try {
+      await initCsrf();
+      const updatedBooking = await cancelTravelerBooking(cancelModalBooking.id, {
+        reason_code: cancelReasonCode,
+        reason_note: cancelReasonNote.trim(),
+      });
+      setBookings((current) =>
+        current.map((booking) => (booking.id === updatedBooking.id ? updatedBooking : booking))
+      );
+      if (activeChatBookingId === updatedBooking.id) {
+        setChatThread((current) =>
+          current
+            ? {
+                ...current,
+                booking_status: updatedBooking.status,
+                can_send_chat: false,
+                can_chat: false,
+                can_view_chat: true,
+                locked_message: updatedBooking.chat_locked_message || "This conversation is closed because the booking has ended.",
+              }
+            : current
+        );
+      }
+      setCancelModalBooking(null);
+      setCancelReasonCode("");
+      setCancelReasonNote("");
+      toast.success("Booking cancelled successfully.");
+    } catch (err) {
+      const message =
+        err.response?.data?.error ||
+        err.response?.data?.detail ||
+        "Unable to cancel your booking right now.";
+      setCancelError(message);
+      toast.error(message);
+    } finally {
+      setCancelSubmitting(false);
+    }
   };
 
   const handleChatSubmit = async (event) => {
@@ -534,7 +631,7 @@ export default function MyTrips() {
                   <p>
                     {activeTab === "Upcoming / Active" && "Stay on top of accepted guides, pending requests, and trips that are currently underway."}
                     {activeTab === "Completed" && "Review past guided trips, leave verified feedback, and reopen the same travel direction when you are ready to plan again."}
-                    {activeTab === "Declined" && "Requests that were declined or cancelled are kept here so you can quickly try again with another guide."}
+                    {activeTab === "Declined" && "Requests that were declined or cancelled are kept here so you can review what happened and send a fresh request when you are ready."}
                   </p>
                 </div>
               </div>
@@ -553,6 +650,7 @@ export default function MyTrips() {
                     const hasReview = Boolean(booking.review);
                     const canSubmitReview = Boolean(booking.can_review);
                     const canViewChat = Boolean(booking.can_view_chat);
+                    const canCancelBooking = Boolean(booking.can_cancel);
 
                     return (
                       <article key={booking.id} className="mt-trip-card">
@@ -601,6 +699,19 @@ export default function MyTrips() {
                                 )}
                               </div>
                             )}
+
+                            {booking.status_reason_display && (
+                              <div className="mt-status-note">
+                                <span className="mt-note-label">{getStatusReasonHeading(booking)}</span>
+                                <p className="is-expanded">{booking.status_reason_display}</p>
+                              </div>
+                            )}
+
+                            {booking.status === "cancelled" && (
+                              <div className="mt-history-hint">
+                                Your previous booking was cancelled. You can send a new request if this guide is available for your dates.
+                              </div>
+                            )}
                           </div>
 
                             <div className="mt-guide-panel">
@@ -609,11 +720,11 @@ export default function MyTrips() {
                                 <div className="mt-guide-avatar">
                                   {booking.guide_name ? booking.guide_name.charAt(0) : "G"}
                               </div>
-                                  <div className="mt-guide-copy">
+                                    <div className="mt-guide-copy">
                                     <h4>{booking.guide_name || "Local Guide"}</h4>
                                     <div className="mt-guide-actions">
-                                      <button type="button" className="mt-guide-link" onClick={() => navigate("/guides")}>
-                                        View Profile
+                                      <button type="button" className="mt-guide-link" onClick={() => openGuidesForTrip(booking)}>
+                                        {getStatusActionLabel(booking)}
                                       </button>
                                       {canViewChat && (
                                         <button
@@ -684,14 +795,21 @@ export default function MyTrips() {
 
                           {["rejected", "auto_rejected", "cancelled"].includes(booking.status) && (
                             <button type="button" className="mt-btn-primary" onClick={() => openGuidesForTrip(booking)}>
-                              Find Another Guide
+                              {booking.status === "cancelled" ? "Request Again" : "View Guide Options"}
                             </button>
                           )}
 
                           {["pending", "accepted", "active"].includes(booking.status) && (
-                            <button type="button" className="mt-btn-outline" onClick={() => navigate("/guides")}>
-                              Browse Guides
-                            </button>
+                            <>
+                              {canCancelBooking && (
+                                <button type="button" className="mt-btn-danger" onClick={() => openCancelModal(booking)}>
+                                  Cancel Booking
+                                </button>
+                              )}
+                              <button type="button" className="mt-btn-outline" onClick={() => navigate("/guides")}>
+                                Browse Guides
+                              </button>
+                            </>
                           )}
                         </div>
                       </article>
@@ -775,6 +893,21 @@ export default function MyTrips() {
         onDraftChange={setChatDraft}
         onSend={handleChatSubmit}
         sending={chatSending}
+      />
+
+      <BookingCancellationModal
+        isOpen={Boolean(cancelModalBooking)}
+        booking={cancelModalBooking}
+        reasons={STATUS_REASON_OPTIONS}
+        reasonCode={cancelReasonCode}
+        reasonNote={cancelReasonNote}
+        loading={cancelSubmitting}
+        loadingLabel="Cancelling..."
+        error={cancelError}
+        onReasonCodeChange={setCancelReasonCode}
+        onReasonNoteChange={setCancelReasonNote}
+        onClose={closeCancelModal}
+        onConfirm={handleCancelBooking}
       />
     </div>
   );

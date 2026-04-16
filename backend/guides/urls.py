@@ -7,6 +7,7 @@ urlpatterns = [
     path('<int:pk>/', views.guide_detail, name='guide-detail'),
     path('<int:pk>/reviews/', views.guide_reviews, name='guide-reviews'),
     path('<int:pk>/request/', views.request_guide, name='request-guide'),
+    path('bookings/<int:pk>/cancel/', views.cancel_booking, name='cancel-booking'),
     path('bookings/<int:pk>/chat/', views.booking_chat, name='booking-chat'),
 
     # Authenticated – /api/guides/me/...

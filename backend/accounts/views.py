@@ -451,5 +451,5 @@ def my_guide_requests(request):
     Returns all bookings (requests) made by the logged-in traveler.
     """
     bookings = Booking.objects.filter(traveler_user=request.user)
-    serializer = BookingSerializer(bookings, many=True)
+    serializer = BookingSerializer(bookings, many=True, context={'request': request})
     return Response(serializer.data)

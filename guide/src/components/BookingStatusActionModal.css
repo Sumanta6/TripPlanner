@@ -1,0 +1,191 @@
+.g-status-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(7, 22, 39, 0.68);
+    backdrop-filter: blur(10px);
+}
+
+.g-status-modal {
+    position: relative;
+    width: min(560px, 100%);
+    padding: 28px;
+    border-radius: 28px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 249, 253, 0.99));
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 28px 70px rgba(15, 23, 42, 0.2);
+}
+
+.g-status-modal-close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.06);
+    color: #475569;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.g-status-modal-head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.g-status-modal-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    background: rgba(239, 68, 68, 0.12);
+    color: #dc2626;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.g-status-modal-eyebrow {
+    display: inline-flex;
+    margin-bottom: 8px;
+    color: #2f7f8f;
+    font-size: 0.73rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.g-status-modal-head h3 {
+    margin: 0 0 8px;
+    font-size: 1.5rem;
+    color: #102542;
+}
+
+.g-status-modal-head p,
+.g-status-modal-warning p {
+    margin: 0;
+    color: #64748b;
+    line-height: 1.7;
+}
+
+.g-status-modal-summary,
+.g-status-modal-warning {
+    border-radius: 20px;
+    border: 1px solid rgba(15, 23, 42, 0.07);
+    background: rgba(248, 250, 252, 0.88);
+}
+
+.g-status-modal-summary {
+    display: grid;
+    gap: 12px;
+    padding: 18px;
+}
+
+.g-status-modal-detail {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    color: #334155;
+}
+
+.g-status-modal-detail span,
+.g-status-modal-field span {
+    display: block;
+    margin-bottom: 4px;
+    color: #64748b;
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.g-status-modal-detail strong {
+    color: #102542;
+}
+
+.g-status-modal-warning {
+    margin-top: 16px;
+    padding: 18px;
+}
+
+.g-status-modal-form {
+    display: grid;
+    gap: 14px;
+    margin-top: 16px;
+}
+
+.g-status-modal-field {
+    display: grid;
+    gap: 8px;
+}
+
+.g-status-modal-field select,
+.g-status-modal-field textarea {
+    width: 100%;
+    border-radius: 16px;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    background: rgba(255, 255, 255, 0.96);
+    color: #102542;
+    padding: 14px 16px;
+    font: inherit;
+    resize: vertical;
+}
+
+.g-status-modal-error {
+    margin-top: 16px;
+}
+
+.g-status-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 22px;
+    flex-wrap: wrap;
+}
+
+.g-status-btn {
+    min-height: 46px;
+    padding: 12px 18px;
+    border-radius: 14px;
+    font-size: 0.94rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.g-status-btn-secondary {
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    background: #fff;
+    color: #334155;
+}
+
+.g-status-btn-danger {
+    border: none;
+    color: #fff;
+    background: linear-gradient(135deg, #b91c1c 0%, #ef4444 100%);
+    box-shadow: 0 14px 28px rgba(239, 68, 68, 0.24);
+}
+
+@media (max-width: 640px) {
+    .g-status-modal {
+        padding: 22px;
+        border-radius: 24px;
+    }
+
+    .g-status-modal-actions {
+        flex-direction: column-reverse;
+    }
+
+    .g-status-btn {
+        width: 100%;
+    }
+}

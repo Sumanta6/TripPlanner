@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { getGuides, getGuideById, requestGuideWithItinerary, initCsrf } from "../services/api";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { getGuides, getGuideById, requestGuideWithItinerary, initCsrf, cancelTravelerBooking } from "../services/api";
 import {
+    AlertTriangle,
     BadgeCheck,
     BriefcaseBusiness,
     CalendarDays,
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useNavigate, useLocation } from "react-router-dom";
+import BookingCancellationModal from "../components/BookingCancellationModal";
 import "./Guides.css";
 
 function getInitials(name) {
@@ -61,6 +63,32 @@ function getAvailabilityTone(availabilityBadge = "") {
     return "limited";
 }
 
+function getBookingStatusTitle(booking) {
+    if (!booking) return "Booking update";
+    if (booking.status === "cancelled") {
+        if (booking.status_updated_by_role === "traveler") return "Cancelled by you";
+        if (booking.status_updated_by_role === "guide") return "Cancelled by guide";
+        if (booking.status_updated_by_role === "admin") return "Cancelled by admin";
+        return "Cancelled booking";
+    }
+    if (booking.status === "rejected" || booking.status === "auto_rejected") {
+        return "Request not accepted";
+    }
+    if (booking.status === "completed") {
+        return "Completed booking";
+    }
+    if (booking.status === "active") {
+        return "Active booking";
+    }
+    if (booking.status === "accepted") {
+        return "Accepted booking";
+    }
+    if (booking.status === "pending") {
+        return "Pending request";
+    }
+    return "Booking update";
+}
+
 function buildConfidenceHighlights(guide) {
     return [
         {
@@ -81,6 +109,15 @@ function buildConfidenceHighlights(guide) {
     ];
 }
 
+const STATUS_REASON_OPTIONS = [
+    { value: "change_of_plans", label: "Change of plans" },
+    { value: "found_another_option", label: "Found another option" },
+    { value: "schedule_conflict", label: "Schedule conflict" },
+    { value: "price_issue", label: "Price issue" },
+    { value: "personal_reason", label: "Personal reason" },
+    { value: "other", label: "Other", requiresNote: true },
+];
+
 export default function Guides() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -94,6 +131,11 @@ export default function Guides() {
     const [showModal, setShowModal] = useState(false);
     const [profileLoading, setProfileLoading] = useState(false);
     const [profileError, setProfileError] = useState("");
+    const [bookingCancelTarget, setBookingCancelTarget] = useState(null);
+    const [bookingCancelError, setBookingCancelError] = useState("");
+    const [bookingCancelling, setBookingCancelling] = useState(false);
+    const [bookingCancelReasonCode, setBookingCancelReasonCode] = useState("");
+    const [bookingCancelReasonNote, setBookingCancelReasonNote] = useState("");
 
     const [bookingData, setBookingData] = useState({
         destination: "",
@@ -109,74 +151,57 @@ export default function Guides() {
     const [availabilityFilter, setAvailabilityFilter] = useState("all");
     const [languageFilter, setLanguageFilter] = useState("all");
 
-    useEffect(() => {
-        let alive = true;
-
-        async function fetchGuides() {
-            setLoading(true);
-            setError(null);
-            try {
-                const state = location.state || {};
-                const params = {};
-                if (state.trip_start) params.trip_start = state.trip_start;
-                if (state.trip_end) params.trip_end = state.trip_end;
-
-                const data = await getGuides(params);
-                if (alive) setGuides(data);
-            } catch (err) {
-                const msg = err.response?.data?.detail || "Failed to load guides.";
-                if (alive) {
-                    setError(msg);
-                    toast.error(msg);
-                }
-            } finally {
-                if (alive) setLoading(false);
-            }
-        }
-
-        fetchGuides();
-        return () => {
-            alive = false;
-        };
+    const getGuideQueryParams = useCallback(() => {
+        const state = location.state || {};
+        const params = {};
+        if (state.trip_start) params.trip_start = state.trip_start;
+        if (state.trip_end) params.trip_end = state.trip_end;
+        return params;
     }, [location.state]);
 
-    useEffect(() => {
-        if (!showModal || !selectedGuideId) return undefined;
-
-        let alive = true;
-
-        async function fetchGuideProfile() {
-            setProfileLoading(true);
-            setProfileError("");
-            try {
-                const state = location.state || {};
-                const params = {};
-                if (state.trip_start) params.trip_start = state.trip_start;
-                if (state.trip_end) params.trip_end = state.trip_end;
-
-                const detail = await getGuideById(selectedGuideId, params);
-                if (alive) setSelectedGuide(detail);
-            } catch (err) {
-                if (!alive) return;
-                const msg = err.response?.data?.error || err.response?.data?.detail || "Unable to load this guide profile.";
-                setProfileError(msg);
-                toast.error(msg);
-            } finally {
-                if (alive) setProfileLoading(false);
-            }
+    const fetchGuides = useCallback(async ({ silent = false } = {}) => {
+        if (!silent) {
+            setLoading(true);
+            setError(null);
         }
+        try {
+            const data = await getGuides(getGuideQueryParams());
+            setGuides(Array.isArray(data) ? data : []);
+            return Array.isArray(data) ? data : [];
+        } catch (err) {
+            const msg = err.response?.data?.detail || "Failed to load guides.";
+            if (!silent) {
+                setError(msg);
+                toast.error(msg);
+            }
+            throw err;
+        } finally {
+            if (!silent) setLoading(false);
+        }
+    }, [getGuideQueryParams]);
 
-        fetchGuideProfile();
-        return () => {
-            alive = false;
-        };
-    }, [showModal, selectedGuideId, location.state]);
+    const fetchGuideProfile = useCallback(async (guideId) => {
+        setProfileLoading(true);
+        setProfileError("");
+        try {
+            const detail = await getGuideById(guideId, getGuideQueryParams());
+            setSelectedGuide(detail);
+            return detail;
+        } catch (err) {
+            const msg = err.response?.data?.error || err.response?.data?.detail || "Unable to load this guide profile.";
+            setProfileError(msg);
+            toast.error(msg);
+            throw err;
+        } finally {
+            setProfileLoading(false);
+        }
+    }, [getGuideQueryParams]);
 
     const isLoggedIn = () =>
         localStorage.getItem("isLoggedIn") === "true" ||
         sessionStorage.getItem("isLoggedIn") === "true";
 
-    const handleOpenProfile = (guide) => {
+    const handleOpenProfile = useCallback((guide) => {
         const state = location.state || {};
 
         setSelectedGuideId(guide.id);
@@ -184,6 +209,8 @@ export default function Guides() {
         setShowModal(true);
         setModalError("");
         setSuccessMessage("");
+        setBookingCancelTarget(null);
+        setBookingCancelError("");
         setProfileError("");
         setBookingData({
             destination: state.destination || "",
@@ -194,7 +221,52 @@ export default function Guides() {
                 : "",
             itinerary_id: state.itineraryId || null,
         });
-    };
+    }, [location.state]);
+
+    useEffect(() => {
+        let alive = true;
+
+        async function loadGuides() {
+            try {
+                const data = await fetchGuides();
+                if (!alive) return;
+
+                const presetGuideId = location.state?.selectedGuideId;
+                if (presetGuideId) {
+                    const presetGuide = data.find((guide) => String(guide.id) === String(presetGuideId));
+                    if (presetGuide) {
+                        handleOpenProfile(presetGuide);
+                    }
+                }
+            } catch {
+                // handled inside fetchGuides
+            }
+        }
+
+        loadGuides();
+        return () => {
+            alive = false;
+        };
+    }, [fetchGuides, handleOpenProfile, location.state?.selectedGuideId]);
+
+    useEffect(() => {
+        if (!showModal || !selectedGuideId) return undefined;
+
+        let alive = true;
+
+        async function loadProfile() {
+            try {
+                await fetchGuideProfile(selectedGuideId);
+            } catch {
+                if (!alive) return;
+            }
+        }
+
+        loadProfile();
+        return () => {
+            alive = false;
+        };
+    }, [showModal, selectedGuideId, fetchGuideProfile]);
 
     const handleCloseModal = () => {
         setShowModal(false);
@@ -203,6 +275,23 @@ export default function Guides() {
         setProfileError("");
         setModalError("");
         setSuccessMessage("");
+        setBookingCancelTarget(null);
+        setBookingCancelError("");
+    };
+
+    const openCancelModal = (booking) => {
+        setBookingCancelTarget(booking);
+        setBookingCancelError("");
+        setBookingCancelReasonCode("");
+        setBookingCancelReasonNote("");
+    };
+
+    const closeCancelModal = () => {
+        if (bookingCancelling) return;
+        setBookingCancelTarget(null);
+        setBookingCancelError("");
+        setBookingCancelReasonCode("");
+        setBookingCancelReasonNote("");
     };
 
     const handleInputChange = (event) => {
@@ -229,6 +318,13 @@ export default function Guides() {
     };
 
     const conflictWarning = checkConflict();
+    const currentTravelerBooking = selectedGuide?.current_traveler_booking || null;
+    const latestTravelerBooking = selectedGuide?.latest_traveler_booking || null;
+    const selectedGuideHasCancellableBooking = Boolean(currentTravelerBooking?.can_cancel);
+    const selectedGuideHasBlockingBooking = Boolean(currentTravelerBooking);
+    const selectedGuideHistoryOnly =
+        Boolean(latestTravelerBooking) &&
+        (!currentTravelerBooking || latestTravelerBooking.id !== currentTravelerBooking.id);
 
     const availableLanguages = useMemo(
         () =>
@@ -329,6 +425,8 @@ export default function Guides() {
         try {
             await initCsrf();
             await requestGuideWithItinerary(selectedGuide.id, bookingData);
+            await fetchGuides({ silent: true });
+            await fetchGuideProfile(selectedGuide.id);
             setSuccessMessage("Request sent successfully. The guide will review your trip shortly.");
             toast.success("Booking request sent.");
             setTimeout(() => {
@@ -343,6 +441,42 @@ export default function Guides() {
             toast.error(msg);
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handleCancelBooking = async () => {
+        if (!bookingCancelTarget?.id) return;
+
+        setBookingCancelling(true);
+        setBookingCancelError("");
+
+        try {
+            await initCsrf();
+            const updatedBooking = await cancelTravelerBooking(bookingCancelTarget.id, {
+                reason_code: bookingCancelReasonCode,
+                reason_note: bookingCancelReasonNote.trim(),
+            });
+            await fetchGuides({ silent: true });
+            if (showModal && selectedGuideId) {
+                await fetchGuideProfile(selectedGuideId);
+            }
+            setBookingCancelTarget(null);
+            setBookingCancelReasonCode("");
+            setBookingCancelReasonNote("");
+            toast.success("Booking cancelled successfully.");
+
+            if (selectedGuide?.id && String(selectedGuide.id) === String(updatedBooking.guide)) {
+                setSuccessMessage("");
+            }
+        } catch (err) {
+            const msg =
+                err.response?.data?.error ||
+                err.response?.data?.detail ||
+                "Unable to cancel this booking right now.";
+            setBookingCancelError(msg);
+            toast.error(msg);
+        } finally {
+            setBookingCancelling(false);
         }
     };
 
@@ -414,6 +548,15 @@ export default function Guides() {
                     <div className="guides-grid">
                         {filteredGuides.map((guide) => {
                             const availabilityTone = getAvailabilityTone(guide.availability_badge);
+                            const travelerBooking = guide.current_traveler_booking;
+                            const latestTravelerBooking = guide.latest_traveler_booking;
+                            const hasBlockingBooking = Boolean(travelerBooking);
+                            const hasCancellableBooking = Boolean(travelerBooking?.can_cancel);
+                            const historyBooking =
+                                latestTravelerBooking && (!travelerBooking || latestTravelerBooking.id !== travelerBooking.id)
+                                    ? latestTravelerBooking
+                                    : null;
+                            const canRequestAgain = Boolean(guide.can_request_now && historyBooking?.status === "cancelled");
 
                             return (
                                 <article
@@ -490,17 +633,66 @@ export default function Guides() {
                                             </p>
                                         )}
 
-                                        <button
-                                            type="button"
-                                            className="btn-primary guide-cta"
-                                            onClick={(event) => {
-                                                event.stopPropagation();
-                                                handleOpenProfile(guide);
-                                            }}
-                                        >
-                                            {availabilityTone === "available" ? "Request Guide" : "View Profile"}
-                                            <ChevronRight size={16} />
-                                        </button>
+                                        {hasBlockingBooking ? (
+                                            <>
+                                                <div className="guide-booking-note">
+                                                    <AlertTriangle size={14} />
+                                                    <span>
+                                                        Your booking is {travelerBooking.status} for {formatDateLabel(travelerBooking.trip_start)} to {formatDateLabel(travelerBooking.trip_end)}.
+                                                    </span>
+                                                </div>
+                                                <div className="guide-cta-row">
+                                                    <button
+                                                        type="button"
+                                                        className="btn-primary guide-cta guide-cta-split"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            handleOpenProfile(guide);
+                                                        }}
+                                                    >
+                                                        View Profile
+                                                        <ChevronRight size={16} />
+                                                    </button>
+                                                    {hasCancellableBooking ? (
+                                                        <button
+                                                            type="button"
+                                                            className="guide-cancel-inline"
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                openCancelModal(travelerBooking);
+                                                            }}
+                                                        >
+                                                            Cancel Booking
+                                                        </button>
+                                                    ) : null}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                {historyBooking?.status_reason_display ? (
+                                                    <div className="guide-status-note">
+                                                        <strong>{getBookingStatusTitle(historyBooking)}</strong>
+                                                        <span>{historyBooking.status_reason_display}</span>
+                                                    </div>
+                                                ) : null}
+                                                {historyBooking?.status === "cancelled" ? (
+                                                    <div className="guide-history-hint">
+                                                        Your previous booking was cancelled. You can send a new request if this guide is available.
+                                                    </div>
+                                                ) : null}
+                                                <button
+                                                    type="button"
+                                                    className="btn-primary guide-cta"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        handleOpenProfile(guide);
+                                                    }}
+                                                >
+                                                    {canRequestAgain ? "Request Again" : "View Profile"}
+                                                    <ChevronRight size={16} />
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </article>
                             );
@@ -796,8 +988,18 @@ export default function Guides() {
                                     <aside className="guide-profile-aside">
                                         <div className="booking-sticky-card">
                                             <div className="booking-sticky-head">
-                                                <h3>Request This Guide</h3>
-                                                <p>Send a professional trip brief directly from this profile.</p>
+                                                <h3>
+                                                    {selectedGuideHasBlockingBooking
+                                                        ? "Booking Status"
+                                                        : latestTravelerBooking?.status === "cancelled"
+                                                            ? "Request This Guide Again"
+                                                            : "Request This Guide"}
+                                                </h3>
+                                                <p>
+                                                    {selectedGuideHasBlockingBooking
+                                                        ? selectedGuide?.request_state_message || "This guide already has a live booking with you for the selected dates."
+                                                        : "Send a professional trip brief directly from this profile."}
+                                                </p>
                                             </div>
 
                                             {bookingData.itinerary_id && (
@@ -812,8 +1014,79 @@ export default function Guides() {
                                                     <CheckCircle size={42} />
                                                     <h4>{successMessage}</h4>
                                                 </div>
+                                            ) : selectedGuideHasBlockingBooking ? (
+                                                <div className="booking-active-state">
+                                                    <div className="booking-active-state-head">
+                                                        <span className="booking-active-state-badge">Current Booking</span>
+                                                        <strong>{getBookingStatusTitle(currentTravelerBooking)}</strong>
+                                                    </div>
+                                                    <div className="booking-active-state-card">
+                                                        <div className="booking-summary-row">
+                                                            <span>Destination</span>
+                                                            <strong>{currentTravelerBooking.destination}</strong>
+                                                        </div>
+                                                        <div className="booking-summary-row">
+                                                            <span>Dates</span>
+                                                            <strong>{formatDateLabel(currentTravelerBooking.trip_start)} to {formatDateLabel(currentTravelerBooking.trip_end)}</strong>
+                                                        </div>
+                                                        <div className="booking-summary-row">
+                                                            <span>Reference</span>
+                                                            <strong>BOOK-{String(currentTravelerBooking.id).padStart(4, "0")}</strong>
+                                                        </div>
+                                                    </div>
+                                                    <p className="booking-active-state-copy">
+                                                        {selectedGuide?.request_state_message || "This guide is already attached to your current booking for the selected dates."}
+                                                    </p>
+                                                    {selectedGuideHasCancellableBooking ? (
+                                                        <button
+                                                            type="button"
+                                                            className="guide-cancel-primary"
+                                                            onClick={() => openCancelModal(currentTravelerBooking)}
+                                                        >
+                                                            Cancel Booking
+                                                        </button>
+                                                    ) : null}
+                                                </div>
                                             ) : (
-                                                <form className="booking-form" onSubmit={handleSubmitBooking}>
+                                                <>
+                                                    {selectedGuideHistoryOnly ? (
+                                                        <div className="booking-history-panel">
+                                                            <div className="booking-active-state-head">
+                                                                <span className="booking-active-state-badge">Previous Booking History</span>
+                                                                <strong>{getBookingStatusTitle(latestTravelerBooking)}</strong>
+                                                            </div>
+                                                            <div className="booking-active-state-card">
+                                                                <div className="booking-summary-row">
+                                                                    <span>Destination</span>
+                                                                    <strong>{latestTravelerBooking.destination}</strong>
+                                                                </div>
+                                                                <div className="booking-summary-row">
+                                                                    <span>Dates</span>
+                                                                    <strong>{formatDateLabel(latestTravelerBooking.trip_start)} to {formatDateLabel(latestTravelerBooking.trip_end)}</strong>
+                                                                </div>
+                                                                <div className="booking-summary-row">
+                                                                    <span>Status</span>
+                                                                    <strong>{latestTravelerBooking.status}</strong>
+                                                                </div>
+                                                                <div className="booking-summary-row">
+                                                                    <span>Updated by</span>
+                                                                    <strong>{latestTravelerBooking.status_updated_by_role || "system"}</strong>
+                                                                </div>
+                                                            </div>
+                                                            {latestTravelerBooking.status_reason_display ? (
+                                                                <div className="booking-status-readonly">
+                                                                    <span>
+                                                                        {latestTravelerBooking.status === "cancelled" ? "Cancellation Reason" : "Booking Note"}
+                                                                    </span>
+                                                                    <strong>{latestTravelerBooking.status_reason_display}</strong>
+                                                                </div>
+                                                            ) : null}
+                                                            <p className="booking-history-message">
+                                                                {selectedGuide?.request_state_message || "Your previous booking was cancelled. You can send a new request if this guide is available."}
+                                                            </p>
+                                                        </div>
+                                                    ) : null}
+                                                    <form className="booking-form" onSubmit={handleSubmitBooking}>
                                                     {modalError && <div className="alert-error">{modalError}</div>}
                                                     {conflictWarning && !modalError && (
                                                         <div className="alert-warning">
@@ -885,14 +1158,14 @@ export default function Guides() {
 
                                                     <button
                                                         type="submit"
-                                                        className={`btn-primary guide-profile-submit ${profileTone !== "available" ? "btn-disabled" : ""}`}
-                                                        disabled={submitting || profileTone !== "available"}
+                                                        className={`btn-primary guide-profile-submit ${conflictWarning ? "btn-disabled" : ""}`}
+                                                        disabled={submitting || Boolean(conflictWarning)}
                                                     >
                                                         {submitting
                                                             ? "Sending Request..."
-                                                            : profileTone === "available"
-                                                                ? "Request This Guide"
-                                                                : "Unavailable for Request"}
+                                                            : latestTravelerBooking?.status === "cancelled"
+                                                                ? "Request Again"
+                                                                : "Request This Guide"}
                                                     </button>
 
                                                     {!isLoggedIn() && (
@@ -900,7 +1173,8 @@ export default function Guides() {
                                                             You can view profiles freely. Log in when you’re ready to send the request.
                                                         </p>
                                                     )}
-                                                </form>
+                                                    </form>
+                                                </>
                                             )}
                                         </div>
                                     </aside>
@@ -910,6 +1184,21 @@ export default function Guides() {
                     </div>
                 </div>
             )}
+
+            <BookingCancellationModal
+                isOpen={Boolean(bookingCancelTarget)}
+                booking={bookingCancelTarget}
+                reasons={STATUS_REASON_OPTIONS}
+                reasonCode={bookingCancelReasonCode}
+                reasonNote={bookingCancelReasonNote}
+                loading={bookingCancelling}
+                loadingLabel="Cancelling..."
+                error={bookingCancelError}
+                onReasonCodeChange={setBookingCancelReasonCode}
+                onReasonNoteChange={setBookingCancelReasonNote}
+                onClose={closeCancelModal}
+                onConfirm={handleCancelBooking}
+            />
         </div>
     );
 }

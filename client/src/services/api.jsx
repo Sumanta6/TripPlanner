@@ -109,6 +109,12 @@ export async function requestGuideWithItinerary(guideId, bookingData) {
     return data;
 }
 
+/** POST /api/guides/bookings/:id/cancel/ – cancel the current traveler's booking */
+export async function cancelTravelerBooking(bookingId, payload = {}) {
+    const { data } = await api.post(`/api/guides/bookings/${bookingId}/cancel/`, payload);
+    return data;
+}
+
 /** POST /api/guides/reviews/ – create verified review */
 export async function createGuideReview(payload) {
     const { data } = await api.post("/api/guides/reviews/", payload);
