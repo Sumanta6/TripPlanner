@@ -97,6 +97,34 @@ function submitPostRedirect(paymentUrl, formData) {
     form.submit();
 }
 
+function isNonPayableError(errorCode) {
+    return [
+        "already_paid",
+        "booking_cancelled",
+        "booking_completed",
+        "booking_rejected",
+        "booking_expired",
+        "booking_not_payable",
+        "invalid_payment_status",
+    ].includes(errorCode);
+}
+
+function resolveExistingDraft(selectedGuide, requestedRetryId) {
+    if (requestedRetryId && String(selectedGuide?.current_traveler_booking?.id) === String(requestedRetryId)) {
+        return selectedGuide.current_traveler_booking;
+    }
+    if (requestedRetryId && String(selectedGuide?.latest_traveler_booking?.id) === String(requestedRetryId)) {
+        return selectedGuide.latest_traveler_booking;
+    }
+    if (selectedGuide?.current_traveler_booking?.status === "payment_pending") {
+        return selectedGuide.current_traveler_booking;
+    }
+    if (selectedGuide?.latest_traveler_booking?.status === "payment_pending") {
+        return selectedGuide.latest_traveler_booking;
+    }
+    return null;
+}
+
 function getBookingStatusTitle(booking) {
     if (!booking) return "Booking update";
     if (booking.status === "payment_pending") {
@@ -487,22 +515,37 @@ export default function Guides() {
         try {
             await initCsrf();
 
-            const existingDraft =
-                selectedGuide?.current_traveler_booking?.status === "payment_pending"
-                    ? selectedGuide.current_traveler_booking
-                    : selectedGuide?.latest_traveler_booking?.status === "payment_pending"
-                        ? selectedGuide.latest_traveler_booking
-                        : null;
+            const requestedRetryId = location.state?.retryBookingId;
+            const existingDraft = resolveExistingDraft(selectedGuide, requestedRetryId);
 
             const booking = existingDraft || await requestGuideWithItinerary(selectedGuide.id, bookingData);
             const paymentRedirect = await initiateEsewaPayment(booking.id);
 
             submitPostRedirect(paymentRedirect.payment_url, paymentRedirect.form_data);
         } catch (err) {
-            setBookingProcessing(false);
-            const msg = err.response?.data?.detail || err.response?.data?.error || err.message || "Unable to initiate payment.";
+            const errorData = err.response?.data || {};
+            const msg = errorData.detail || errorData.error || err.message || "Unable to initiate payment.";
+            const errorCode = errorData.error_code;
             setPaymentError(msg);
             toast.error(msg);
+
+            if (errorCode === "already_paid" && errorData.booking) {
+                setConfirmedBooking(errorData.booking);
+                setConfirmedPaymentMethod("paid");
+                setBookingStep("confirmation");
+            } else if (isNonPayableError(errorCode)) {
+                setBookingStep("details");
+            }
+
+            if (selectedGuideId) {
+                try {
+                    await fetchGuides({ silent: true });
+                    await fetchGuideProfile(selectedGuideId);
+                } catch {
+                    // Keep the current message visible if refresh fails.
+                }
+            }
+            setBookingProcessing(false);
         }
     };
 
@@ -513,7 +556,9 @@ export default function Guides() {
 
         try {
             await initCsrf();
-            const booking = await requestGuideWithItinerary(selectedGuide.id, bookingData);
+            const requestedRetryId = location.state?.retryBookingId;
+            const existingDraft = resolveExistingDraft(selectedGuide, requestedRetryId);
+            const booking = existingDraft || await requestGuideWithItinerary(selectedGuide.id, bookingData);
             setConfirmedBooking(booking);
             setConfirmedPaymentMethod("later");
             setBookingStep("confirmation");

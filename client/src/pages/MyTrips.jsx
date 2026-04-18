@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import BookingChatModal from "../components/BookingChatModal";
 import BookingCancellationModal from "../components/BookingCancellationModal";
 import {
@@ -142,6 +142,7 @@ function ReviewStars({ value, onChange, interactive = false }) {
 }
 
 export default function MyTrips() {
+  const location = useLocation();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -197,6 +198,22 @@ export default function MyTrips() {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    const callbackMessage = location.state?.paymentCallbackMessage;
+    const callbackStatus = location.state?.paymentCallbackStatus;
+    if (!callbackMessage || !callbackStatus) return;
+
+    if (callbackStatus === "success") {
+      toast.success(callbackMessage);
+    } else if (callbackStatus === "cancelled") {
+      toast(callbackMessage);
+    } else {
+      toast.error(callbackMessage);
+    }
+
+    window.history.replaceState({}, document.title);
+  }, [location.state]);
 
   useEffect(() => {
     if (!chatModalOpen || !activeChatBookingId) return undefined;

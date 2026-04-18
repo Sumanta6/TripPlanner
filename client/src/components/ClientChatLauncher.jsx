@@ -12,6 +12,7 @@ import { createOptimisticChatMessage, normalizeChatMessage, normalizeChatThread 
 import "./ClientChatLauncher.css";
 
 const CLOSED_CHAT_STATUSES = new Set(["completed", "cancelled", "expired"]);
+const CHAT_LAUNCHER_BOOKED_STATUSES = new Set(["accepted", "active"]);
 
 function isClosedBookingStatus(status) {
   return CLOSED_CHAT_STATUSES.has(status);
@@ -36,7 +37,9 @@ function syncBookingStatus(currentBookings, bookingId, nextStatus) {
 }
 
 function pickPrimaryBooking(bookings) {
-  const eligible = (Array.isArray(bookings) ? bookings : []).filter((booking) => booking?.can_view_chat);
+  const eligible = (Array.isArray(bookings) ? bookings : []).filter(
+    (booking) => booking?.can_view_chat && CHAT_LAUNCHER_BOOKED_STATUSES.has(booking?.status)
+  );
   const active = eligible.find((booking) => booking.status === "active");
   if (active) return active;
   const accepted = eligible.find((booking) => booking.status === "accepted");

@@ -31,6 +31,15 @@ const STATUS_MAP = {
 };
 
 const STATUS_KEYS = ['pending', 'accepted', 'active', 'completed', 'cancelled', 'rejected', 'auto_rejected'];
+const STATUS_PRIORITY = {
+    pending: 0,
+    accepted: 1,
+    active: 2,
+    completed: 3,
+    cancelled: 4,
+    rejected: 5,
+    auto_rejected: 6,
+};
 const COMMUNICATION_ENABLED_STATUSES = new Set(['accepted', 'active']);
 const CLOSED_CHAT_STATUSES = new Set(['completed', 'cancelled', 'expired']);
 const STATUS_REASON_OPTIONS = [
@@ -114,6 +123,10 @@ function getStatusReasonTitle(booking) {
         return 'Decision Reason';
     }
     return 'Status Note';
+}
+
+function getBookingSortTimestamp(booking) {
+    return new Date(booking?.updated_at || booking?.created_at || 0).getTime();
 }
 
 /* ── Skeleton Card ───────────────────────────────────────────────────────────── */
@@ -311,6 +324,10 @@ export default function Travelers() {
                 t.destination.toLowerCase().includes(q);
             const matchStatus = filterStatus === 'all' || t.status === filterStatus;
             return matchSearch && matchStatus;
+        }).sort((a, b) => {
+            const priorityDiff = (STATUS_PRIORITY[a.status] ?? 999) - (STATUS_PRIORITY[b.status] ?? 999);
+            if (priorityDiff !== 0) return priorityDiff;
+            return getBookingSortTimestamp(b) - getBookingSortTimestamp(a);
         });
     }, [bookings, search, filterStatus]);
 

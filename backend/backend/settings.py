@@ -3,13 +3,36 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load environment variables from backend/.env if present (local dev convenience)
-try:
-    from dotenv import load_dotenv
+def _load_env_file(env_path):
+    if not env_path.exists():
+        return
+    try:
+        from dotenv import load_dotenv
 
-    load_dotenv(BASE_DIR / ".env")
-except Exception:
-    pass
+        load_dotenv(env_path, override=False)
+        return
+    except Exception:
+        pass
+
+    # Fallback parser so local .env loading still works even if python-dotenv is unavailable.
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+PROJECT_ROOT = BASE_DIR.parent
+_load_env_file(PROJECT_ROOT / ".env")
+_load_env_file(BASE_DIR / ".env")
+
+
+def _env_str(name):
+    return (os.environ.get(name, "") or "").strip()
 
 SECRET_KEY = "django-insecure-change-this"
 
@@ -182,18 +205,11 @@ GEOAPIFY_API_KEY = os.environ.get("GEOAPIFY_API_KEY", "")
 # ======================
 # ESEWA (Sandbox / Production)
 # ======================
-ESEWA_MERCHANT_ID = os.environ.get("ESEWA_MERCHANT_ID", "EPAYTEST").strip()
+ESEWA_MERCHANT_ID = _env_str("ESEWA_MERCHANT_ID")
 ESEWA_MERCHANT_CODE = ESEWA_MERCHANT_ID
-ESEWA_SECRET_KEY = os.environ.get("ESEWA_SECRET_KEY", "").strip()
-ESEWA_PAYMENT_URL = os.environ.get(
-    "ESEWA_PAYMENT_URL",
-    "https://rc-epay.esewa.com.np/api/epay/main/v2/form",
-).strip()
-ESEWA_SUCCESS_URL = os.environ.get(
-    "ESEWA_SUCCESS_URL",
-    "http://localhost:3000/guides/payment/callback?status=success",
-).strip()
-ESEWA_FAILURE_URL = os.environ.get(
-    "ESEWA_FAILURE_URL",
-    "http://localhost:3000/guides/payment/callback?status=failure",
-).strip()
+ESEWA_SECRET_KEY = _env_str("ESEWA_SECRET_KEY")
+ESEWA_PAYMENT_URL = _env_str("ESEWA_PAYMENT_URL")
+ESEWA_STATUS_URL = _env_str("ESEWA_STATUS_URL")
+ESEWA_SUCCESS_URL = _env_str("ESEWA_SUCCESS_URL")
+ESEWA_FAILURE_URL = _env_str("ESEWA_FAILURE_URL")
+ESEWA_FRONTEND_CALLBACK_URL = _env_str("ESEWA_FRONTEND_CALLBACK_URL")

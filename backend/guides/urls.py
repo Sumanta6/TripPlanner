@@ -10,6 +10,12 @@ urlpatterns = [
     path('bookings/<int:pk>/cancel/', views.cancel_booking, name='cancel-booking'),
     path('bookings/<int:pk>/payment/initiate/', views.initiate_esewa_payment, name='initiate-esewa-payment'),
     path('bookings/payment/verify/', views.verify_esewa_payment, name='verify-esewa-payment'),
+    path(
+        'bookings/payment/callback/<str:flow>/<int:booking_id>/<int:guide_id>/<str:transaction_uuid>/<str:total_amount>/',
+        views.esewa_callback,
+        name='esewa-callback',
+    ),
+    path('bookings/payment/callback/<str:flow>/', views.esewa_callback, name='esewa-callback-fallback'),
     path('bookings/<int:pk>/chat/', views.booking_chat, name='booking-chat'),
 
     # Authenticated – /api/guides/me/...

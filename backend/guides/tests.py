@@ -1,4 +1,6 @@
 import base64
+import hashlib
+import hmac
 import json
 from datetime import date, timedelta
 from unittest.mock import Mock, patch
@@ -70,6 +72,14 @@ class CancelBookingApiTests(APITestCase):
 
     def verify_payment_url(self):
         return "/api/guides/bookings/payment/verify/"
+
+    def esewa_callback_url(self, query=""):
+        suffix = f"?{query}" if query else ""
+        return f"/api/guides/bookings/payment/callback/{suffix}"
+
+    def esewa_callback_path_url(self, flow, booking_id, guide_id, transaction_uuid, total_amount, query=""):
+        suffix = f"?{query}" if query else ""
+        return f"/api/guides/bookings/payment/callback/{flow}/{booking_id}/{guide_id}/{transaction_uuid}/{total_amount}/{suffix}"
 
     def test_traveler_can_cancel_pending_booking(self):
         booking = self.create_booking(self.traveler, "pending")
@@ -305,6 +315,7 @@ class CancelBookingApiTests(APITestCase):
         ESEWA_MERCHANT_ID="EPAYTEST",
         ESEWA_SECRET_KEY="test-secret",
         ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
+        ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
         ESEWA_SUCCESS_URL="http://localhost:3000/guides/payment/callback?status=success",
         ESEWA_FAILURE_URL="http://localhost:3000/guides/payment/callback?status=failure",
     )
@@ -327,11 +338,36 @@ class CancelBookingApiTests(APITestCase):
         self.assertEqual(payment.status, "pending")
         self.assertTrue(payment.transaction_id)
         self.assertEqual(response.data["form_data"]["transaction_uuid"], payment.transaction_id)
+        self.assertIn(f"/success/{booking.id}/{self.guide.id}/{payment.transaction_id}/220.00/", response.data["form_data"]["success_url"])
+        self.assertIn(f"/failure/{booking.id}/{self.guide.id}/{payment.transaction_id}/220.00/", response.data["form_data"]["failure_url"])
+
+    @override_settings(
+        ESEWA_MERCHANT_ID="EPAYTEST",
+        ESEWA_SECRET_KEY="test-secret",
+        ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
+        ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
+        ESEWA_SUCCESS_URL="http://localhost:3000/guides/payment/callback?status=success",
+        ESEWA_FAILURE_URL="http://localhost:3000/guides/payment/callback?status=failure",
+    )
+    def test_initiate_payment_creates_missing_payment_record_for_valid_draft(self):
+        booking = self.create_booking(self.traveler, "payment_pending")
+        self.client.force_authenticate(self.traveler)
+
+        response = self.client.post(
+            self.initiate_payment_url(booking.id),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        payment = Payment.objects.get(booking=booking)
+        self.assertEqual(payment.status, "pending")
+        self.assertEqual(response.data["payment_status"], "pending")
 
     @override_settings(
         ESEWA_MERCHANT_ID="EPAYTEST",
         ESEWA_SECRET_KEY="",
         ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
+        ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
         ESEWA_SUCCESS_URL="http://localhost:3000/guides/payment/callback?status=success",
         ESEWA_FAILURE_URL="http://localhost:3000/guides/payment/callback?status=failure",
     )
@@ -346,8 +382,12 @@ class CancelBookingApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data["error"], "eSewa payment is not configured correctly.")
+        self.assertEqual(
+            response.data["error"],
+            "eSewa payment is not configured correctly. Missing settings: ESEWA_SECRET_KEY.",
+        )
         self.assertIn("ESEWA_SECRET_KEY", response.data["missing_fields"])
+        self.assertEqual(response.data["error_code"], "payment_config_missing")
 
     def test_duplicate_paid_confirmation_is_rejected(self):
         booking = self.create_booking(self.traveler, "payment_pending")
@@ -365,13 +405,15 @@ class CancelBookingApiTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(response.data["error"], "This booking has already been paid.")
+        self.assertEqual(response.data["error_code"], "already_paid")
 
     @override_settings(
         ESEWA_MERCHANT_ID="EPAYTEST",
         ESEWA_SECRET_KEY="test-secret",
         ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
+        ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
         ESEWA_SUCCESS_URL="http://localhost:3000/guides/payment/callback?status=success",
         ESEWA_FAILURE_URL="http://localhost:3000/guides/payment/callback?status=failure",
     )
@@ -441,6 +483,211 @@ class CancelBookingApiTests(APITestCase):
         self.assertEqual(booking.status, "payment_pending")
         self.assertEqual(payment.status, "failed")
         self.assertEqual(response.data["status"], "failed")
+
+    def test_initiate_payment_rejects_non_owner(self):
+        booking = self.create_booking(self.other_traveler, "payment_pending")
+        Payment.objects.create(booking=booking, amount=220, status="pending", payment_method="esewa")
+        self.client.force_authenticate(self.traveler)
+
+        response = self.client.post(
+            self.initiate_payment_url(booking.id),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["error_code"], "forbidden_booking")
+
+    def test_initiate_payment_rejects_cancelled_booking_with_clear_reason(self):
+        booking = self.create_booking(self.traveler, "cancelled")
+        Payment.objects.create(booking=booking, amount=220, status="failed", payment_method="esewa")
+        self.client.force_authenticate(self.traveler)
+
+        response = self.client.post(
+            self.initiate_payment_url(booking.id),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error_code"], "booking_cancelled")
+        self.assertEqual(response.data["next_action"], "request_again")
+
+    def test_initiate_payment_rejects_pending_booking_as_not_payable(self):
+        booking = self.create_booking(self.traveler, "pending")
+        Payment.objects.create(booking=booking, amount=220, status="paid", payment_method="esewa", transaction_id="paid-123")
+        self.client.force_authenticate(self.traveler)
+
+        response = self.client.post(
+            self.initiate_payment_url(booking.id),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data["error_code"], "already_paid")
+        self.assertEqual(response.data["next_action"], "view_profile")
+
+    @override_settings(
+        ESEWA_MERCHANT_ID="EPAYTEST",
+        ESEWA_SECRET_KEY="test-secret",
+        ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
+        ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
+        ESEWA_SUCCESS_URL="http://localhost:3000/guides/payment/callback?status=success",
+        ESEWA_FAILURE_URL="http://localhost:3000/guides/payment/callback?status=failure",
+    )
+    def test_initiate_payment_retries_failed_payment_with_same_payment_record(self):
+        booking = self.create_booking(self.traveler, "payment_pending")
+        payment = Payment.objects.create(
+            booking=booking,
+            amount=220,
+            status="failed",
+            payment_method="esewa",
+            transaction_id="stale-transaction",
+        )
+        self.client.force_authenticate(self.traveler)
+
+        response = self.client.post(
+            self.initiate_payment_url(booking.id),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        payment.refresh_from_db()
+        self.assertEqual(payment.id, booking.payment.id)
+        self.assertEqual(payment.status, "pending")
+        self.assertNotEqual(payment.transaction_id, "stale-transaction")
+
+    @override_settings(
+        ESEWA_MERCHANT_ID="EPAYTEST",
+        ESEWA_SECRET_KEY="test-secret",
+        ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
+        ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
+        ESEWA_SUCCESS_URL="http://localhost:8000/api/guides/bookings/payment/callback/success/",
+        ESEWA_FAILURE_URL="http://localhost:8000/api/guides/bookings/payment/callback/failure/",
+        ESEWA_FRONTEND_CALLBACK_URL="http://localhost:3000/guides/payment/callback",
+    )
+    @patch("guides.views.requests.get")
+    def test_esewa_callback_redirects_success_with_normalized_payload(self, mock_get):
+        booking = self.create_booking(self.traveler, "payment_pending")
+        payment = Payment.objects.create(
+            booking=booking,
+            amount=220,
+            status="pending",
+            payment_method="esewa",
+            transaction_id="booking-1-abcdef123456",
+        )
+        mock_response = Mock()
+        mock_response.json.return_value = {"status": "COMPLETE"}
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        payload = {
+            "transaction_uuid": payment.transaction_id,
+            "total_amount": "220.00",
+            "status": "COMPLETE",
+        }
+        encoded_payload = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("utf-8")
+
+        response = self.client.get(
+            self.esewa_callback_path_url("success", booking.id, self.guide.id, payment.transaction_id, "220.00", query="data=" + encoded_payload)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn("status=success", response["Location"])
+        self.assertIn(f"booking_id={booking.id}", response["Location"])
+        self.assertIn(f"guide_id={self.guide.id}", response["Location"])
+
+    @override_settings(
+        ESEWA_MERCHANT_ID="EPAYTEST",
+        ESEWA_SECRET_KEY="test-secret",
+        ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
+        ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
+        ESEWA_SUCCESS_URL="http://localhost:8000/api/guides/bookings/payment/callback/success/",
+        ESEWA_FAILURE_URL="http://localhost:8000/api/guides/bookings/payment/callback/failure/",
+        ESEWA_FRONTEND_CALLBACK_URL="http://localhost:3000/guides/payment/callback",
+    )
+    def test_esewa_callback_uses_signed_complete_payload_without_status_api(self):
+        booking = self.create_booking(self.traveler, "payment_pending")
+        Payment.objects.create(
+            booking=booking,
+            amount=220,
+            status="pending",
+            payment_method="esewa",
+            transaction_id="booking-1-abcdef123456",
+        )
+        signed_fields = "transaction_code,status,total_amount,transaction_uuid,product_code,signed_field_names"
+        payload = {
+            "transaction_code": "000AWEO",
+            "status": "COMPLETE",
+            "total_amount": "220.00",
+            "transaction_uuid": "booking-1-abcdef123456",
+            "product_code": "EPAYTEST",
+            "signed_field_names": signed_fields,
+        }
+        message = ",".join(f"{field}={payload[field]}" for field in signed_fields.split(","))
+        payload["signature"] = base64.b64encode(
+            hmac.new(b"test-secret", message.encode("utf-8"), hashlib.sha256).digest()
+        ).decode("utf-8")
+        encoded_payload = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("utf-8")
+
+        response = self.client.get(
+            self.esewa_callback_path_url("success", booking.id, self.guide.id, booking.payment.transaction_id, "220.00", query="data=" + encoded_payload)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn("status=success", response["Location"])
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, "pending")
+        self.assertEqual(booking.payment.status, "paid")
+
+    @override_settings(
+        ESEWA_MERCHANT_ID="EPAYTEST",
+        ESEWA_SECRET_KEY="test-secret",
+        ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
+        ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
+        ESEWA_SUCCESS_URL="http://localhost:8000/api/guides/bookings/payment/callback/success/",
+        ESEWA_FAILURE_URL="http://localhost:8000/api/guides/bookings/payment/callback/failure/",
+        ESEWA_FRONTEND_CALLBACK_URL="http://localhost:3000/guides/payment/callback",
+    )
+    @patch("guides.views.requests.get")
+    def test_esewa_callback_flow_failure_can_still_verify_complete(self, mock_get):
+        booking = self.create_booking(self.traveler, "payment_pending")
+        payment = Payment.objects.create(
+            booking=booking,
+            amount=220,
+            status="pending",
+            payment_method="esewa",
+            transaction_id="booking-1-abcdef123456",
+        )
+        mock_response = Mock()
+        mock_response.json.return_value = {"status": "COMPLETE"}
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        response = self.client.get(
+            self.esewa_callback_path_url("failure", booking.id, self.guide.id, payment.transaction_id, "220.00")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn("status=success", response["Location"])
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, "paid")
+
+    def test_esewa_callback_redirects_failed_when_failure_payload_missing(self):
+        response = self.client.get(
+            self.esewa_callback_path_url("failure", 64, 4, "booking-64-abcdef123456", "1000.00")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn("status=failed", response["Location"])
+        self.assertIn("status_code=missing_failure_details", response["Location"])
+
+    def test_esewa_callback_redirects_failed_when_success_payload_missing(self):
+        response = self.client.get(
+            self.esewa_callback_path_url("success", 64, 4, "booking-64-abcdef123456", "1000.00")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn("status=failed", response["Location"])
+        self.assertIn("status_code=missing_success_details", response["Location"])
 
     def test_guide_list_excludes_payment_pending_drafts(self):
         booking = self.create_booking(self.traveler, "payment_pending")

@@ -2,14 +2,16 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 from decimal import Decimal, ROUND_HALF_UP
 import requests
 import uuid
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 from django.conf import settings
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Count
+from django.http import HttpResponseRedirect
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -37,8 +39,8 @@ TRAVELER_CANCELLABLE_STATUSES = {'payment_pending', 'pending', 'accepted'}
 GUIDE_CANCELLABLE_STATUSES = {'accepted', 'active'}
 GUIDE_REJECTABLE_STATUSES = {'pending'}
 STATUS_REASON_CODES = {choice[0] for choice in Booking.STATUS_REASON_CHOICES}
-PAYMENT_CONFIRMABLE_STATUSES = {'payment_pending'}
 ESEWA_SIGNED_FIELD_NAMES = 'total_amount,transaction_uuid,product_code'
+logger = logging.getLogger(__name__)
 
 
 def _coerce_scalar(value):
@@ -91,6 +93,7 @@ def _get_esewa_config():
         'merchant_id': (getattr(settings, 'ESEWA_MERCHANT_ID', '') or '').strip(),
         'secret_key': (getattr(settings, 'ESEWA_SECRET_KEY', '') or '').strip(),
         'payment_url': (getattr(settings, 'ESEWA_PAYMENT_URL', '') or '').strip(),
+        'status_url': (getattr(settings, 'ESEWA_STATUS_URL', '') or '').strip(),
         'success_url': (getattr(settings, 'ESEWA_SUCCESS_URL', '') or '').strip(),
         'failure_url': (getattr(settings, 'ESEWA_FAILURE_URL', '') or '').strip(),
     }
@@ -98,10 +101,12 @@ def _get_esewa_config():
         'merchant_id': 'ESEWA_MERCHANT_ID',
         'secret_key': 'ESEWA_SECRET_KEY',
         'payment_url': 'ESEWA_PAYMENT_URL',
+        'status_url': 'ESEWA_STATUS_URL',
         'success_url': 'ESEWA_SUCCESS_URL',
         'failure_url': 'ESEWA_FAILURE_URL',
     }
-    missing = [env_names[key] for key, value in config.items() if not value]
+    required_keys = {'merchant_id', 'secret_key', 'payment_url', 'success_url', 'failure_url'}
+    missing = [env_names[key] for key, value in config.items() if key in required_keys and not value]
     return config, missing
 
 
@@ -115,10 +120,47 @@ def _build_esewa_signature(*, total_amount, transaction_uuid, product_code, secr
     return base64.b64encode(digest).decode('utf-8')
 
 
+def _build_hmac_base64(message, secret_key):
+    digest = hmac.new(
+        secret_key.encode('utf-8'),
+        message.encode('utf-8'),
+        hashlib.sha256,
+    ).digest()
+    return base64.b64encode(digest).decode('utf-8')
+
+
+def _verify_esewa_callback_signature(callback_data, secret_key):
+    signed_field_names = str(callback_data.get('signed_field_names') or '').strip()
+    signature = str(callback_data.get('signature') or '').strip()
+    if not signed_field_names or not signature or not secret_key:
+        return False
+
+    field_names = [field.strip() for field in signed_field_names.split(',') if field.strip()]
+    if not field_names:
+        return False
+
+    message = ",".join(f"{field}={callback_data.get(field, '')}" for field in field_names)
+    expected_signature = _build_hmac_base64(message, secret_key)
+    return hmac.compare_digest(signature, expected_signature)
+
+
 def _build_esewa_status_url(payment_url):
+    explicit_status_url = (getattr(settings, 'ESEWA_STATUS_URL', '') or '').strip()
+    if explicit_status_url:
+        return explicit_status_url
+
     parsed = urlparse(payment_url)
     if not parsed.scheme or not parsed.netloc:
         return ''
+
+    host_map = {
+        'rc-epay.esewa.com.np': 'https://rc.esewa.com.np/api/epay/transaction/status/',
+        'epay.esewa.com.np': 'https://esewa.com.np/api/epay/transaction/status/',
+        'uat.esewa.com.np': 'https://uat.esewa.com.np/api/epay/transaction/status/',
+    }
+    if parsed.netloc in host_map:
+        return host_map[parsed.netloc]
+
     return f"{parsed.scheme}://{parsed.netloc}/api/epay/transaction/status/"
 
 
@@ -137,6 +179,414 @@ def _ensure_payment_record(booking):
         },
     )
     return payment
+
+
+def _normalize_request_payload(query_dict):
+    payload = {}
+    for key in query_dict.keys():
+        values = query_dict.getlist(key)
+        payload[key] = values if len(values) > 1 else query_dict.get(key)
+    return payload
+
+
+def _build_payment_response_payload(booking, payment=None, **extra):
+    payload = {
+        'booking_id': booking.id,
+        'booking_status': booking.status,
+        'payment_status': payment.status if payment else '',
+        'can_retry_payment': bool(
+            booking.status == 'payment_pending' and payment and payment.status in {'pending', 'failed'}
+        ),
+        'next_action': extra.pop('next_action', None),
+    }
+    payload.update(extra)
+    return payload
+
+
+def _payment_error_response(booking, payment, *, message, error_code, http_status, next_action=None, include_booking=False):
+    payload = _build_payment_response_payload(
+        booking,
+        payment,
+        error=message,
+        error_code=error_code,
+        next_action=next_action,
+    )
+    if include_booking:
+        payload['booking'] = BookingSerializer(booking).data
+    return Response(payload, status=http_status)
+
+
+def _build_callback_redirect_url(target_url, params):
+    encoded = urlencode({key: value for key, value in params.items() if value not in (None, '')})
+    separator = '&' if '?' in target_url else '?'
+    return f"{target_url}{separator}{encoded}" if encoded else target_url
+
+
+def _get_frontend_callback_url():
+    frontend_url = (getattr(settings, 'ESEWA_FRONTEND_CALLBACK_URL', '') or '').strip()
+    return frontend_url or 'http://localhost:3000/guides/payment/callback'
+
+
+def _build_frontend_callback_payload(*, result_status, message, booking=None, payment=None, transaction_uuid='', status_code=''):
+    return {
+        'status': result_status,
+        'message': message,
+        'booking_id': booking.id if booking else '',
+        'guide_id': booking.guide_id if booking else '',
+        'transaction_uuid': transaction_uuid or (payment.transaction_id if payment else ''),
+        'payment_status': payment.status if payment else '',
+        'booking_status': booking.status if booking else '',
+        'status_code': status_code,
+    }
+
+
+def _build_esewa_return_url(base_url, *, booking, transaction_uuid, total_amount):
+    normalized_base = base_url.rstrip('/')
+    return (
+        f"{normalized_base}/"
+        f"{booking.id}/"
+        f"{booking.guide_id}/"
+        f"{transaction_uuid}/"
+        f"{total_amount}/"
+    )
+
+
+def _evaluate_booking_payability(booking, payment):
+    if payment and payment.status == 'paid':
+        if booking.status == 'payment_pending':
+            booking.status = 'pending'
+            booking.save(update_fields=['status', 'updated_at'])
+        return {
+            'is_payable': False,
+            'error_code': 'already_paid',
+            'message': 'This booking has already been paid.',
+            'next_action': 'view_profile',
+            'http_status': status.HTTP_409_CONFLICT,
+        }
+
+    if booking.status == 'payment_pending':
+        return {
+            'is_payable': True,
+            'next_action': 'complete_payment',
+            'http_status': status.HTTP_200_OK,
+        }
+
+    state_map = {
+        'cancelled': ('booking_cancelled', 'This booking has been cancelled and can no longer be paid.', 'request_again'),
+        'completed': ('booking_completed', 'This booking is already completed and cannot be paid again.', 'view_profile'),
+        'rejected': ('booking_rejected', 'This booking was rejected and cannot be paid.', 'request_again'),
+        'auto_rejected': ('booking_rejected', 'This booking was rejected and cannot be paid.', 'request_again'),
+        'expired': ('booking_expired', 'This booking has expired and can no longer be paid.', 'request_again'),
+        'pending': ('booking_not_payable', 'This booking has already been submitted to the guide and no longer needs payment.', 'view_profile'),
+        'accepted': ('booking_not_payable', 'This booking has already been accepted and cannot be paid again.', 'view_profile'),
+        'active': ('booking_not_payable', 'This booking is already active and cannot be paid again.', 'view_profile'),
+    }
+    error_code, message, next_action = state_map.get(
+        booking.status,
+        ('booking_not_payable', f'This booking is not payable in its current state: {booking.status}.', 'view_profile'),
+    )
+    return {
+        'is_payable': False,
+        'error_code': error_code,
+        'message': message,
+        'next_action': next_action,
+        'http_status': status.HTTP_400_BAD_REQUEST,
+    }
+
+
+def _extract_esewa_callback_data(request):
+    combined = request.GET.copy()
+    combined.update(request.POST)
+    raw_payload = _normalize_request_payload(combined)
+    data_b64 = combined.get('data')
+
+    logger.info(
+        "eSewa callback raw payload",
+        extra={
+            'query_params': _normalize_request_payload(request.GET),
+            'post_params': _normalize_request_payload(request.POST),
+        },
+    )
+
+    decoded_data = {}
+    decode_error = ''
+    if data_b64:
+        try:
+            decoded_bytes = base64.b64decode(data_b64)
+            decoded_data = json.loads(decoded_bytes.decode('utf-8'))
+        except Exception:
+            decode_error = 'Invalid data payload.'
+
+    callback_data = decoded_data.copy() if decoded_data else {}
+    callback_data.setdefault('transaction_uuid', combined.get('transaction_uuid') or combined.get('oid') or '')
+    callback_data.setdefault('total_amount', combined.get('total_amount') or combined.get('amt') or '')
+    callback_data.setdefault('status', combined.get('status') or '')
+    callback_data.setdefault('product_code', combined.get('product_code') or '')
+    callback_data.setdefault('reference_id', combined.get('refId') or combined.get('transaction_code') or '')
+    callback_data.setdefault('signed_field_names', combined.get('signed_field_names') or '')
+    callback_data.setdefault('signature', combined.get('signature') or '')
+    return {
+        'raw_payload': raw_payload,
+        'callback_data': callback_data,
+        'decode_error': decode_error,
+        'has_data_param': bool(data_b64),
+    }
+
+
+def _normalize_esewa_verification_input(payload):
+    data_b64 = payload.get('data')
+    if data_b64:
+        try:
+            decoded_bytes = base64.b64decode(data_b64)
+            decoded_data = json.loads(decoded_bytes.decode('utf-8'))
+        except Exception:
+            return None, 'Invalid data payload.'
+        return {
+            'transaction_uuid': decoded_data.get('transaction_uuid', ''),
+            'total_amount': decoded_data.get('total_amount', ''),
+            'status': decoded_data.get('status', ''),
+            'product_code': decoded_data.get('product_code', ''),
+        }, ''
+
+    return {
+        'transaction_uuid': payload.get('transaction_uuid', '') or payload.get('oid', ''),
+        'total_amount': payload.get('total_amount', '') or payload.get('amt', ''),
+        'status': payload.get('status', ''),
+        'product_code': payload.get('product_code', ''),
+    }, ''
+
+
+def _process_esewa_verification(callback_data, *, expected_user_id=None):
+    transaction_uuid = str(callback_data.get('transaction_uuid') or '').strip()
+    total_amount = str(callback_data.get('total_amount') or '').replace(',', '').strip()
+    esewa_status = str(callback_data.get('status') or '').strip().upper()
+
+    if not transaction_uuid:
+        return {
+            'ok': False,
+            'http_status': status.HTTP_400_BAD_REQUEST,
+            'result_status': 'invalid',
+            'message': 'Missing transaction UUID in the eSewa response.',
+            'error_code': 'missing_transaction_uuid',
+            'booking': None,
+            'payment': None,
+        }
+
+    payment_qs = Payment.objects.select_related('booking', 'booking__guide')
+    if expected_user_id is not None:
+        payment_qs = payment_qs.filter(booking__traveler_user_id=expected_user_id)
+
+    payment = payment_qs.filter(transaction_id=transaction_uuid).first()
+    if not payment:
+        return {
+            'ok': False,
+            'http_status': status.HTTP_404_NOT_FOUND,
+            'result_status': 'invalid',
+            'message': 'Matching booking payment not found for this eSewa response.',
+            'error_code': 'payment_not_found',
+            'booking': None,
+            'payment': None,
+        }
+
+    booking = payment.booking
+
+    if payment.status == 'paid':
+        if booking.status == 'payment_pending':
+            booking.status = 'pending'
+            booking.save(update_fields=['status', 'updated_at'])
+        return {
+            'ok': True,
+            'http_status': status.HTTP_200_OK,
+            'result_status': 'success',
+            'message': 'Payment already verified successfully.',
+            'error_code': 'already_paid',
+            'booking': booking,
+            'payment': payment,
+        }
+
+    esewa_config, missing = _get_esewa_config()
+    if missing:
+        return {
+            'ok': False,
+            'http_status': status.HTTP_400_BAD_REQUEST,
+            'result_status': 'invalid',
+            'message': f"eSewa payment verification is not configured correctly. Missing settings: {', '.join(missing)}.",
+            'error_code': 'payment_config_missing',
+            'booking': booking,
+            'payment': payment,
+        }
+
+    callback_signature_valid = _verify_esewa_callback_signature(callback_data, esewa_config['secret_key'])
+    logger.info(
+        "eSewa callback signature check",
+        extra={
+            'booking_id': booking.id,
+            'transaction_uuid': transaction_uuid,
+            'callback_status': esewa_status,
+            'signature_present': bool(callback_data.get('signature')),
+            'signed_fields_present': bool(callback_data.get('signed_field_names')),
+            'callback_signature_valid': callback_signature_valid,
+        },
+    )
+
+    if esewa_status == 'COMPLETE' and callback_signature_valid:
+        payment.status = 'paid'
+        payment.save(update_fields=['status', 'updated_at'])
+
+        if booking.status == 'payment_pending':
+            booking.status = 'pending'
+            booking.save(update_fields=['status', 'updated_at'])
+
+            Activity.objects.create(
+                guide=booking.guide,
+                activity_type='request',
+                message=f"New guide request from {booking.traveler_name}",
+                highlight=f"To {booking.destination}",
+                sub=f"{booking.trip_start} to {booking.trip_end}"
+            )
+
+        return {
+            'ok': True,
+            'http_status': status.HTTP_200_OK,
+            'result_status': 'success',
+            'message': 'Payment verified successfully.',
+            'error_code': '',
+            'booking': booking,
+            'payment': payment,
+        }
+
+    status_url = _build_esewa_status_url(esewa_config['payment_url'])
+    if not status_url:
+        return {
+            'ok': False,
+            'http_status': status.HTTP_400_BAD_REQUEST,
+            'result_status': 'invalid',
+            'message': 'Invalid ESEWA_PAYMENT_URL configuration.',
+            'error_code': 'invalid_payment_url',
+            'booking': booking,
+            'payment': payment,
+        }
+
+    if not total_amount:
+        return {
+            'ok': False,
+            'http_status': status.HTTP_400_BAD_REQUEST,
+            'result_status': 'invalid',
+            'message': 'Missing total amount from eSewa response.',
+            'error_code': 'missing_total_amount',
+            'booking': booking,
+            'payment': payment,
+        }
+
+    try:
+        verify_response = requests.get(
+            status_url,
+            params={
+                'product_code': esewa_config['merchant_id'],
+                'total_amount': total_amount,
+                'transaction_uuid': transaction_uuid,
+            },
+            timeout=10,
+        )
+        verify_response.raise_for_status()
+        verify_data = verify_response.json()
+    except requests.RequestException as exc:
+        logger.warning(
+            "eSewa verification request failed",
+            extra={
+                'booking_id': booking.id,
+                'transaction_uuid': transaction_uuid,
+                'status_url': status_url,
+                'error': str(exc),
+                'callback_signature_valid': callback_signature_valid,
+                'callback_status': esewa_status,
+            },
+        )
+        return {
+            'ok': False,
+            'http_status': status.HTTP_502_BAD_GATEWAY,
+            'result_status': 'failed',
+            'message': 'eSewa verification request failed.',
+            'error_code': 'verification_request_failed',
+            'booking': booking,
+            'payment': payment,
+        }
+    except ValueError:
+        return {
+            'ok': False,
+            'http_status': status.HTTP_502_BAD_GATEWAY,
+            'result_status': 'invalid',
+            'message': 'Invalid verification response from eSewa.',
+            'error_code': 'invalid_verification_response',
+            'booking': booking,
+            'payment': payment,
+        }
+
+    verify_status = str(verify_data.get('status') or '').strip().upper()
+
+    if verify_status == 'COMPLETE':
+        payment.status = 'paid'
+        payment.save(update_fields=['status', 'updated_at'])
+
+        if booking.status == 'payment_pending':
+            booking.status = 'pending'
+            booking.save(update_fields=['status', 'updated_at'])
+
+            Activity.objects.create(
+                guide=booking.guide,
+                activity_type='request',
+                message=f"New guide request from {booking.traveler_name}",
+                highlight=f"To {booking.destination}",
+                sub=f"{booking.trip_start} to {booking.trip_end}"
+            )
+
+        return {
+            'ok': True,
+            'http_status': status.HTTP_200_OK,
+            'result_status': 'success',
+            'message': 'Payment verified successfully.',
+            'error_code': '',
+            'booking': booking,
+            'payment': payment,
+        }
+
+    if verify_status in {'PENDING', 'AMBIGUOUS'}:
+        payment.status = 'pending'
+        payment.save(update_fields=['status', 'updated_at'])
+        return {
+            'ok': False,
+            'http_status': status.HTTP_409_CONFLICT,
+            'result_status': 'failed',
+            'message': 'Payment is still pending and could not be confirmed yet.',
+            'error_code': 'payment_pending_confirmation',
+            'booking': booking,
+            'payment': payment,
+        }
+
+    if verify_status in {'CANCELED', 'CANCELLED'} or esewa_status in {'CANCELED', 'CANCELLED', 'USER_CANCELLED'}:
+        payment.status = 'failed'
+        payment.save(update_fields=['status', 'updated_at'])
+        return {
+            'ok': False,
+            'http_status': status.HTTP_400_BAD_REQUEST,
+            'result_status': 'cancelled',
+            'message': 'Payment was cancelled before completion.',
+            'error_code': 'payment_cancelled',
+            'booking': booking,
+            'payment': payment,
+        }
+
+    payment.status = 'failed'
+    payment.save(update_fields=['status', 'updated_at'])
+    return {
+        'ok': False,
+        'http_status': status.HTTP_400_BAD_REQUEST,
+        'result_status': 'failed',
+        'message': 'Payment could not be verified with eSewa.',
+        'error_code': 'verification_failed',
+        'booking': booking,
+        'payment': payment,
+    }
 
 
 def get_or_create_guide_profile(user):
@@ -419,33 +869,125 @@ def initiate_esewa_payment(request, pk):
     POST /api/guides/bookings/<id>/payment/initiate/
     Generates the payload and HMAC signature for eSewa sandbox form submission.
     """
-    try:
-        booking = Booking.objects.select_related('guide', 'payment').get(pk=pk, traveler_user=request.user)
-    except Booking.DoesNotExist:
-        return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+    booking = Booking.objects.select_related('guide', 'payment').filter(pk=pk).first()
+    if not booking:
+        logger.warning("eSewa initiate rejected: booking missing", extra={'booking_id': pk, 'user_id': request.user.id})
+        return Response(
+            {'error': 'Booking not found.', 'error_code': 'booking_not_found'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    if booking.traveler_user_id != request.user.id:
+        logger.warning(
+            "eSewa initiate rejected: ownership mismatch",
+            extra={'booking_id': booking.id, 'booking_traveler_id': booking.traveler_user_id, 'request_user_id': request.user.id},
+        )
+        return Response(
+            {'error': 'You do not have permission to pay for this booking.', 'error_code': 'forbidden_booking'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     refresh_guide_booking_state(booking.guide)
     booking.refresh_from_db()
+    payment = getattr(booking, 'payment', None)
 
-    payment = _ensure_payment_record(booking)
+    logger.debug(
+        "eSewa initiate request state",
+        extra={
+            'booking_id': booking.id,
+            'booking_status': booking.status,
+            'payment_status': payment.status if payment else 'missing',
+            'traveler_user_id': booking.traveler_user_id,
+            'request_user_id': request.user.id,
+        },
+    )
 
-    if booking.status not in PAYMENT_CONFIRMABLE_STATUSES:
-        return Response(
-            {'error': 'This booking is no longer waiting for payment.', 'status': booking.status},
-            status=status.HTTP_400_BAD_REQUEST,
+    payability = _evaluate_booking_payability(booking, payment)
+    payment = getattr(booking, 'payment', None)
+    if not payability['is_payable']:
+        logger.info(
+            "eSewa initiate rejected: booking not payable",
+            extra={
+                'booking_id': booking.id,
+                'booking_status': booking.status,
+                'payment_status': payment.status if payment else 'missing',
+                'error_code': payability['error_code'],
+            },
+        )
+        return _payment_error_response(
+            booking,
+            payment,
+            message=payability['message'],
+            error_code=payability['error_code'],
+            http_status=payability['http_status'],
+            next_action=payability['next_action'],
+            include_booking=True,
         )
 
-    if payment.status == 'paid':
-        return Response({'error': 'This booking has already been paid.'}, status=status.HTTP_400_BAD_REQUEST)
+    if payment is None:
+        payment = _ensure_payment_record(booking)
+        logger.info(
+            "eSewa initiate created missing payment record",
+            extra={'booking_id': booking.id, 'payment_status': payment.status},
+        )
+
+    if payment.status not in {'pending', 'failed'}:
+        logger.warning(
+            "eSewa initiate rejected: invalid payment status",
+            extra={'booking_id': booking.id, 'booking_status': booking.status, 'payment_status': payment.status},
+        )
+        return _payment_error_response(
+            booking,
+            payment,
+            message='This booking does not have a payable payment draft right now.',
+            error_code='invalid_payment_status',
+            http_status=status.HTTP_409_CONFLICT,
+            next_action='view_profile',
+            include_booking=True,
+        )
 
     esewa_config, missing = _get_esewa_config()
+    logger.debug(
+        "eSewa initiate config presence",
+        extra={
+            'booking_id': booking.id,
+            'has_merchant_id': bool(esewa_config['merchant_id']),
+            'has_secret_key': bool(esewa_config['secret_key']),
+            'has_payment_url': bool(esewa_config['payment_url']),
+            'has_status_url': bool(esewa_config['status_url']),
+            'has_success_url': bool(esewa_config['success_url']),
+            'has_failure_url': bool(esewa_config['failure_url']),
+        },
+    )
+    logger.info(
+        "eSewa initiate config check",
+        extra={
+            'booking_id': booking.id,
+            'merchant_id_loaded': bool(esewa_config['merchant_id']),
+            'secret_key_loaded': bool(esewa_config['secret_key']),
+            'payment_url_loaded': bool(esewa_config['payment_url']),
+            'status_url_loaded': bool(esewa_config['status_url']),
+            'success_url_loaded': bool(esewa_config['success_url']),
+            'failure_url_loaded': bool(esewa_config['failure_url']),
+        },
+    )
     if missing:
+        logger.warning(
+            "eSewa initiate rejected: config missing",
+            extra={'booking_id': booking.id, 'missing_fields': missing},
+        )
         return Response(
             {
-                'error': 'eSewa payment is not configured correctly.',
+                'error': f"eSewa payment is not configured correctly. Missing settings: {', '.join(missing)}.",
+                'error_code': 'payment_config_missing',
                 'missing_fields': missing,
             },
             status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if payment.transaction_id:
+        logger.info(
+            "eSewa initiate overwriting existing unpaid transaction id",
+            extra={'booking_id': booking.id, 'old_transaction_id': payment.transaction_id, 'payment_status': payment.status},
         )
 
     transaction_uuid = f"booking-{booking.id}-{uuid.uuid4().hex[:12]}"
@@ -462,6 +1004,31 @@ def initiate_esewa_payment(request, pk):
     payment.transaction_id = transaction_uuid
     payment.save(update_fields=['payment_method', 'status', 'transaction_id', 'updated_at'])
 
+    success_url = _build_esewa_return_url(
+        esewa_config['success_url'],
+        booking=booking,
+        transaction_uuid=transaction_uuid,
+        total_amount=amount,
+    )
+    failure_url = _build_esewa_return_url(
+        esewa_config['failure_url'],
+        booking=booking,
+        transaction_uuid=transaction_uuid,
+        total_amount=amount,
+    )
+
+    logger.info(
+        "eSewa initiate prepared redirect",
+        extra={
+            'booking_id': booking.id,
+            'booking_status': booking.status,
+            'payment_status': payment.status,
+            'transaction_uuid': transaction_uuid,
+            'success_url': success_url,
+            'failure_url': failure_url,
+        },
+    )
+
     form_data = {
         'amount': amount,
         'tax_amount': '0',
@@ -470,8 +1037,8 @@ def initiate_esewa_payment(request, pk):
         'product_code': esewa_config['merchant_id'],
         'product_service_charge': '0',
         'product_delivery_charge': '0',
-        'success_url': esewa_config['success_url'],
-        'failure_url': esewa_config['failure_url'],
+        'success_url': success_url,
+        'failure_url': failure_url,
         'signed_field_names': ESEWA_SIGNED_FIELD_NAMES,
         'signature': signature,
     }
@@ -479,6 +1046,9 @@ def initiate_esewa_payment(request, pk):
     return Response({
         'payment_url': esewa_config['payment_url'],
         'form_data': form_data,
+        'booking_id': booking.id,
+        'booking_status': booking.status,
+        'payment_status': payment.status,
     }, status=status.HTTP_200_OK)
 
 
@@ -487,103 +1057,99 @@ def initiate_esewa_payment(request, pk):
 def verify_esewa_payment(request):
     """
     POST /api/guides/bookings/payment/verify/
-    Verify the payment based on the base64 encoded data parameter returned by eSewa URL redirect.
+    Verify the payment based on the payload returned by eSewa.
     """
-    data_b64 = request.data.get('data')
-    if not data_b64:
-        return Response({'error': 'No data payload provided.'}, status=status.HTTP_400_BAD_REQUEST)
-        
-    try:
-        decoded_bytes = base64.b64decode(data_b64)
-        decoded_data = json.loads(decoded_bytes.decode('utf-8'))
-    except Exception:
-        return Response({'error': 'Invalid data payload.'}, status=status.HTTP_400_BAD_REQUEST)
-        
-    transaction_uuid = decoded_data.get('transaction_uuid')
-    total_amount = decoded_data.get('total_amount')
-    esewa_status = decoded_data.get('status')
+    callback_data = request.data.copy()
+    if not callback_data.get('data') and not callback_data.get('transaction_uuid') and not callback_data.get('oid'):
+        return Response({'error': 'No eSewa callback payload provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if not transaction_uuid:
-        return Response({'error': 'Missing transaction UUID.'}, status=status.HTTP_400_BAD_REQUEST)
+    normalized_data, decode_error = _normalize_esewa_verification_input(callback_data)
+    if decode_error:
+        return Response({'error': decode_error}, status=status.HTTP_400_BAD_REQUEST)
 
-    try:
-        payment = Payment.objects.select_related('booking', 'booking__guide').get(
-            transaction_id=transaction_uuid,
-            booking__traveler_user=request.user,
-        )
-    except Payment.DoesNotExist:
-        return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
-    booking = payment.booking
+    result = _process_esewa_verification(normalized_data, expected_user_id=request.user.id)
+    booking = result.get('booking')
+    payment = result.get('payment')
 
-    if payment.status == 'paid':
+    if result['ok']:
         serializer = BookingSerializer(booking, context={'request': request})
-        return Response({'booking': serializer.data, 'payment_status': payment.status}, status=status.HTTP_200_OK)
-
-    if esewa_status != 'COMPLETE':
-        payment.status = 'failed'
-        payment.save(update_fields=['status', 'updated_at'])
-        return Response({'error': 'Payment was not marked complete by eSewa.', 'status': 'failed'}, status=status.HTTP_400_BAD_REQUEST)
-
-    esewa_config, missing = _get_esewa_config()
-    if missing:
         return Response(
             {
-                'error': 'eSewa payment verification is not configured correctly.',
-                'missing_fields': missing,
+                'booking': serializer.data,
+                'payment_status': payment.status if payment else '',
+                'message': result['message'],
             },
-            status=status.HTTP_400_BAD_REQUEST,
+            status=result['http_status'],
         )
 
-    status_url = _build_esewa_status_url(esewa_config['payment_url'])
-    if not status_url:
-        return Response(
-            {'error': 'Invalid ESEWA_PAYMENT_URL configuration.'},
-            status=status.HTTP_400_BAD_REQUEST,
+    response_payload = {'error': result['message'], 'status': result['result_status'], 'error_code': result['error_code']}
+    if booking:
+        response_payload['booking'] = BookingSerializer(booking, context={'request': request}).data
+    return Response(response_payload, status=result['http_status'])
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def esewa_callback(request, flow=None, booking_id=None, guide_id=None, transaction_uuid=None, total_amount=None):
+    extraction = _extract_esewa_callback_data(request)
+    target_url = _get_frontend_callback_url()
+    flow = (flow or request.GET.get('flow') or request.POST.get('flow') or '').strip().lower()
+
+    if booking_id and not extraction['callback_data'].get('booking_id'):
+        extraction['callback_data']['booking_id'] = str(booking_id)
+    if guide_id and not extraction['callback_data'].get('guide_id'):
+        extraction['callback_data']['guide_id'] = str(guide_id)
+    if transaction_uuid and not extraction['callback_data'].get('transaction_uuid'):
+        extraction['callback_data']['transaction_uuid'] = str(transaction_uuid)
+    if total_amount and not extraction['callback_data'].get('total_amount'):
+        extraction['callback_data']['total_amount'] = str(total_amount)
+
+    if extraction['decode_error']:
+        redirect_params = _build_frontend_callback_payload(
+            result_status='invalid',
+            message='Sandbox response was invalid and could not be decoded.',
+            transaction_uuid=str(extraction['callback_data'].get('transaction_uuid') or ''),
+            status_code='invalid_payload',
         )
+        return HttpResponseRedirect(_build_callback_redirect_url(target_url, redirect_params))
 
-    amount_str = str(total_amount or '').replace(',', '').strip()
-    if not amount_str:
-        return Response({'error': 'Missing total amount from eSewa response.'}, status=status.HTTP_400_BAD_REQUEST)
+    callback_data = extraction['callback_data']
+    raw_status = str(callback_data.get('status') or '').strip().upper()
 
-    try:
-        verify_response = requests.get(
-            status_url,
-            params={
-                'product_code': esewa_config['merchant_id'],
-                'total_amount': amount_str,
-                'transaction_uuid': transaction_uuid,
-            },
-            timeout=10,
+    if not extraction['has_data_param'] and not callback_data.get('transaction_uuid'):
+        if flow == 'failure' or raw_status in {'FAILURE', 'FAILED'}:
+            result_status = 'failed'
+            message = 'Payment failed or was interrupted before completion.'
+            status_code = 'missing_failure_details'
+        elif raw_status in {'CANCELLED', 'CANCELED'}:
+            result_status = 'cancelled'
+            message = 'Payment was cancelled before completion.'
+            status_code = 'missing_cancelled_details'
+        elif flow == 'success':
+            result_status = 'failed'
+            message = 'Payment could not be confirmed because the sandbox success response was missing payment details.'
+            status_code = 'missing_success_details'
+        else:
+            result_status = 'failed'
+            message = 'Payment could not be confirmed because the sandbox response was missing payment details.'
+            status_code = 'missing_payment_details'
+        redirect_params = _build_frontend_callback_payload(
+            result_status=result_status,
+            message=message,
+            status_code=status_code,
         )
-        verify_response.raise_for_status()
-        verify_data = verify_response.json()
-    except requests.RequestException:
-        return Response({'error': 'eSewa verification request failed.'}, status=status.HTTP_502_BAD_GATEWAY)
-    except ValueError:
-        return Response({'error': 'Invalid verification response from eSewa.'}, status=status.HTTP_502_BAD_GATEWAY)
+        return HttpResponseRedirect(_build_callback_redirect_url(target_url, redirect_params))
 
-    if verify_data.get('status') == 'COMPLETE':
-        payment.status = 'paid'
-        payment.save(update_fields=['status', 'updated_at'])
-
-        if booking.status == 'payment_pending':
-            booking.status = 'pending'
-            booking.save(update_fields=['status', 'updated_at'])
-
-            Activity.objects.create(
-                guide=booking.guide,
-                activity_type='request',
-                message=f"New guide request from {booking.traveler_name}",
-                highlight=f"To {booking.destination}",
-                sub=f"{booking.trip_start} to {booking.trip_end}"
-            )
-            
-        serializer = BookingSerializer(booking, context={'request': request})
-        return Response({'booking': serializer.data, 'payment_status': payment.status}, status=status.HTTP_200_OK)
-
-    payment.status = 'failed'
-    payment.save(update_fields=['status', 'updated_at'])
-    return Response({'error': 'Payment verification failed.', 'esewa_ref': verify_data}, status=status.HTTP_400_BAD_REQUEST)
+    result = _process_esewa_verification(callback_data)
+    redirect_params = _build_frontend_callback_payload(
+        result_status=result['result_status'],
+        message=result['message'],
+        booking=result.get('booking'),
+        payment=result.get('payment'),
+        transaction_uuid=str(callback_data.get('transaction_uuid') or transaction_uuid or ''),
+        status_code=result['error_code'] or result['result_status'],
+    )
+    return HttpResponseRedirect(_build_callback_redirect_url(target_url, redirect_params))
 
 
 @api_view(['GET', 'PATCH'])
