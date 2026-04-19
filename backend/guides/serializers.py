@@ -220,6 +220,8 @@ class GuideProfileSerializer(serializers.ModelSerializer):
 
     def get_can_request_now(self, obj):
         user = self._get_authenticated_user()
+        if obj.availability == 'busy':
+            return False
         if not user:
             return True
 
@@ -241,6 +243,8 @@ class GuideProfileSerializer(serializers.ModelSerializer):
     def get_request_state_message(self, obj):
         user = self._get_authenticated_user()
         blocking_booking, latest_booking = self._get_traveler_booking_state(obj)
+        if obj.availability == 'busy':
+            return 'This guide is currently unavailable for new requests.'
         if blocking_booking:
             if blocking_booking.status == 'payment_pending':
                 return 'Your booking draft is waiting for payment confirmation before it can be sent to the guide.'

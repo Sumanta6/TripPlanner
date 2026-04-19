@@ -825,6 +825,8 @@ def request_guide(request, pk):
         return Response({'error': 'End date is required.'}, status=status.HTTP_400_BAD_REQUEST)
     if trip_end < trip_start:
         return Response({'error': 'End date cannot be earlier than start date.'}, status=status.HTTP_400_BAD_REQUEST)
+    if guide.availability == 'busy':
+        return Response({'error': 'This guide is currently unavailable for new requests.'}, status=status.HTTP_400_BAD_REQUEST)
 
     overlapping = Booking.objects.filter(
         guide=guide,

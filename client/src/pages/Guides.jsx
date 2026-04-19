@@ -70,6 +70,7 @@ function formatReviewDate(dateString) {
 
 function getAvailabilityTone(availabilityBadge = "") {
     const badge = availabilityBadge.toLowerCase();
+    if (badge.includes("unavailable")) return "busy";
     if (badge.includes("available")) return "available";
     if (badge.includes("booked")) return "booked";
     return "limited";
@@ -444,6 +445,10 @@ export default function Guides() {
 
     const profileTone = getAvailabilityTone(selectedGuide?.availability_badge);
     const profileHighlights = selectedGuide ? buildConfidenceHighlights(selectedGuide) : [];
+    const selectedGuideUnavailable = Boolean(
+        selectedGuide &&
+        (selectedGuide.can_request_now === false || getAvailabilityTone(selectedGuide.availability_badge) === "busy")
+    );
 
     const guideQuickFacts = selectedGuide
         ? [
@@ -484,6 +489,11 @@ export default function Guides() {
             return;
         }
 
+        if (selectedGuideUnavailable) {
+            setModalError(selectedGuide?.request_state_message || "This guide is currently unavailable for new requests.");
+            return;
+        }
+
         if (!bookingData.destination.trim()) {
             setModalError("Destination is required.");
             return;
@@ -509,6 +519,13 @@ export default function Guides() {
 
     const handlePayNow = async () => {
         if (!selectedGuide) return;
+        if (selectedGuideUnavailable) {
+            const message = selectedGuide?.request_state_message || "This guide is currently unavailable for new requests.";
+            setPaymentError(message);
+            toast.error(message);
+            setBookingStep("details");
+            return;
+        }
         setBookingProcessing(true);
         setPaymentError("");
 
@@ -551,6 +568,13 @@ export default function Guides() {
 
     const handlePayLater = async () => {
         if (!selectedGuide) return;
+        if (selectedGuideUnavailable) {
+            const message = selectedGuide?.request_state_message || "This guide is currently unavailable for new requests.";
+            setPaymentError(message);
+            toast.error(message);
+            setBookingStep("details");
+            return;
+        }
         setBookingProcessing(true);
         setPaymentError("");
 
