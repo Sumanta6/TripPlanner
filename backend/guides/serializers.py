@@ -180,6 +180,8 @@ class GuideProfileSerializer(serializers.ModelSerializer):
         today = timezone.now().date()
 
         if check_start and check_end:
+            if obj.availability == 'busy':
+                return "Unavailable"
             conflict = obj.bookings.filter(
                 status__in=['accepted', 'active'],
                 trip_start__lte=check_end,
@@ -197,6 +199,9 @@ class GuideProfileSerializer(serializers.ModelSerializer):
             if upcoming_trip.trip_start <= today:
                 return f"Booked until {upcoming_trip.trip_end.strftime('%b %d')}"
             return f"Booked (starts {upcoming_trip.trip_start.strftime('%b %d')})"
+
+        if obj.availability == 'busy':
+            return "Unavailable"
 
         return "Available"
 

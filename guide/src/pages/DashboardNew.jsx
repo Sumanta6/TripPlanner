@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     FaChartBar, FaStar, FaUsers, FaMapMarkedAlt,
     FaClock, FaCalendarCheck, FaChartLine, FaCheckCircle,
@@ -62,6 +63,32 @@ function KPICard({ icon, label, value, color, bg, suffix = '' }) {
     );
 }
 
+function RatingCard({ value, onClick }) {
+    const animated = useCountUp(value);
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            className="dn-kpi dn-kpi-button"
+            onClick={onClick}
+            onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onClick();
+                }
+            }}
+        >
+            <div className="dn-kpi-icon" style={{ color: 'var(--gold)', background: 'var(--amber-bg)' }}>
+                <FaStar />
+            </div>
+            <div className="dn-kpi-info">
+                <div className="dn-kpi-label">Rating</div>
+                <div className="dn-kpi-value">{animated} ★</div>
+            </div>
+        </div>
+    );
+}
+
 /* ── Donut Chart (SVG) ───────────────────────────────────────────────────────── */
 function DonutChart({ segments, total }) {
     const radius = 50;
@@ -112,6 +139,7 @@ const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 
 /* ══════════════════════════════════════════════════════════════════════════════ */
 export default function Dashboard() {
+    const navigate = useNavigate();
     const { profile } = useAuth();
     const [stats, setStats] = useState(null);
     const [bookings, setBookings] = useState([]);
@@ -206,9 +234,9 @@ export default function Dashboard() {
                     <h1>📊 Analytics Dashboard</h1>
                     <p>Your complete performance overview &amp; insights</p>
                 </div>
-                <div className="dn-rating-badge">
+                <button type="button" className="dn-rating-badge dn-rating-button" onClick={() => navigate('/reviews')}>
                     <FaStar /> {profile?.rating ?? '—'} Rating
-                </div>
+                </button>
             </header>
 
             {error && <div className="dn-error">⚠️ {error}</div>}
@@ -224,7 +252,7 @@ export default function Dashboard() {
                         <KPICard icon={<FaCalendarCheck />} label="Completed" value={stats?.completed_trips ?? 0} color="var(--purple)" bg="var(--purple-bg)" />
                         <KPICard icon={<FaClock />} label="Pending" value={stats?.pending_requests ?? 0} color="var(--amber)" bg="var(--amber-bg)" />
                         <KPICard icon={<FaChartLine />} label="Active Trips" value={stats?.active_trips ?? 0} color="var(--teal)" bg="var(--teal-bg)" />
-                        <KPICard icon={<FaStar />} label="Rating" value={stats?.rating ?? 0} color="var(--gold)" bg="var(--amber-bg)" suffix=" ★" />
+                        <RatingCard value={stats?.rating ?? 0} onClick={() => navigate('/reviews')} />
                         <KPICard icon={<FaPercentage />} label="Completion Rate" value={stats?.completion_rate ?? 0} color="var(--green)" bg="var(--green-bg)" suffix="%" />
                         <KPICard icon={<FaTrophy />} label="Tours Done" value={stats?.tours_completed ?? 0} color="var(--pink)" bg="var(--pink-bg)" />
                     </>

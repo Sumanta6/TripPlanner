@@ -200,8 +200,13 @@ export default function MyTrips() {
   }, []);
 
   useEffect(() => {
-    const callbackMessage = location.state?.paymentCallbackMessage;
-    const callbackStatus = location.state?.paymentCallbackStatus;
+    const params = new URLSearchParams(location.search);
+    const callbackMessage =
+      location.state?.paymentCallbackMessage ||
+      params.get("paymentCallbackMessage");
+    const callbackStatus =
+      location.state?.paymentCallbackStatus ||
+      params.get("paymentCallbackStatus");
     if (!callbackMessage || !callbackStatus) return;
 
     if (callbackStatus === "success") {
@@ -212,8 +217,8 @@ export default function MyTrips() {
       toast.error(callbackMessage);
     }
 
-    window.history.replaceState({}, document.title);
-  }, [location.state]);
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }, [location.search, location.state]);
 
   useEffect(() => {
     if (!chatModalOpen || !activeChatBookingId) return undefined;

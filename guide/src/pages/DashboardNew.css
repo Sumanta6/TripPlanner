@@ -75,6 +75,15 @@
   transform: scale(1.05);
 }
 
+.dn-rating-button {
+  border: 0;
+  cursor: pointer;
+}
+
+.dn-kpi-button {
+  cursor: pointer;
+}
+
 /* ── KPI Grid ────────────────────────────────────────────────────────────────── */
 .dn-kpi-grid {
   display: grid;

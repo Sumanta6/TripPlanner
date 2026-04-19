@@ -25,6 +25,7 @@ urlpatterns = [
     path('me/bookings/<int:pk>/status/', views.update_booking_status, name='update-booking-status'),
     path('me/activity/', views.my_activity, name='guide-activity'),
     path('me/dashboard/', views.my_dashboard, name='guide-dashboard'),
+    path('me/reviews/', views.my_reviews, name='guide-reviews-me'),
     path('my-trips/', views.my_booked_trips, name='traveler-trips'),
     path('reviews/', views.create_review, name='create-review'),
 ]

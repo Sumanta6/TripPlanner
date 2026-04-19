@@ -316,8 +316,8 @@ class CancelBookingApiTests(APITestCase):
         ESEWA_SECRET_KEY="test-secret",
         ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
         ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
-        ESEWA_SUCCESS_URL="http://localhost:3000/guides/payment/callback?status=success",
-        ESEWA_FAILURE_URL="http://localhost:3000/guides/payment/callback?status=failure",
+        ESEWA_SUCCESS_URL="http://localhost:3000/payment/callback?status=success",
+        ESEWA_FAILURE_URL="http://localhost:3000/payment/callback?status=failure",
     )
     def test_initiate_payment_returns_payment_url_and_form_payload(self):
         booking = self.create_booking(self.traveler, "payment_pending")
@@ -346,8 +346,8 @@ class CancelBookingApiTests(APITestCase):
         ESEWA_SECRET_KEY="test-secret",
         ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
         ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
-        ESEWA_SUCCESS_URL="http://localhost:3000/guides/payment/callback?status=success",
-        ESEWA_FAILURE_URL="http://localhost:3000/guides/payment/callback?status=failure",
+        ESEWA_SUCCESS_URL="http://localhost:3000/payment/callback?status=success",
+        ESEWA_FAILURE_URL="http://localhost:3000/payment/callback?status=failure",
     )
     def test_initiate_payment_creates_missing_payment_record_for_valid_draft(self):
         booking = self.create_booking(self.traveler, "payment_pending")
@@ -368,8 +368,8 @@ class CancelBookingApiTests(APITestCase):
         ESEWA_SECRET_KEY="",
         ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
         ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
-        ESEWA_SUCCESS_URL="http://localhost:3000/guides/payment/callback?status=success",
-        ESEWA_FAILURE_URL="http://localhost:3000/guides/payment/callback?status=failure",
+        ESEWA_SUCCESS_URL="http://localhost:3000/payment/callback?status=success",
+        ESEWA_FAILURE_URL="http://localhost:3000/payment/callback?status=failure",
     )
     def test_initiate_payment_returns_clear_error_when_config_missing(self):
         booking = self.create_booking(self.traveler, "payment_pending")
@@ -414,8 +414,8 @@ class CancelBookingApiTests(APITestCase):
         ESEWA_SECRET_KEY="test-secret",
         ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
         ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
-        ESEWA_SUCCESS_URL="http://localhost:3000/guides/payment/callback?status=success",
-        ESEWA_FAILURE_URL="http://localhost:3000/guides/payment/callback?status=failure",
+        ESEWA_SUCCESS_URL="http://localhost:3000/payment/callback?status=success",
+        ESEWA_FAILURE_URL="http://localhost:3000/payment/callback?status=failure",
     )
     @patch("guides.views.requests.get")
     def test_verify_payment_moves_booking_to_pending(self, mock_get):
@@ -530,8 +530,8 @@ class CancelBookingApiTests(APITestCase):
         ESEWA_SECRET_KEY="test-secret",
         ESEWA_PAYMENT_URL="https://rc-epay.esewa.com.np/api/epay/main/v2/form",
         ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
-        ESEWA_SUCCESS_URL="http://localhost:3000/guides/payment/callback?status=success",
-        ESEWA_FAILURE_URL="http://localhost:3000/guides/payment/callback?status=failure",
+        ESEWA_SUCCESS_URL="http://localhost:3000/payment/callback?status=success",
+        ESEWA_FAILURE_URL="http://localhost:3000/payment/callback?status=failure",
     )
     def test_initiate_payment_retries_failed_payment_with_same_payment_record(self):
         booking = self.create_booking(self.traveler, "payment_pending")
@@ -562,7 +562,7 @@ class CancelBookingApiTests(APITestCase):
         ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
         ESEWA_SUCCESS_URL="http://localhost:8000/api/guides/bookings/payment/callback/success/",
         ESEWA_FAILURE_URL="http://localhost:8000/api/guides/bookings/payment/callback/failure/",
-        ESEWA_FRONTEND_CALLBACK_URL="http://localhost:3000/guides/payment/callback",
+        ESEWA_FRONTEND_CALLBACK_URL="http://localhost:3000/payment/callback",
     )
     @patch("guides.views.requests.get")
     def test_esewa_callback_redirects_success_with_normalized_payload(self, mock_get):
@@ -602,7 +602,7 @@ class CancelBookingApiTests(APITestCase):
         ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
         ESEWA_SUCCESS_URL="http://localhost:8000/api/guides/bookings/payment/callback/success/",
         ESEWA_FAILURE_URL="http://localhost:8000/api/guides/bookings/payment/callback/failure/",
-        ESEWA_FRONTEND_CALLBACK_URL="http://localhost:3000/guides/payment/callback",
+        ESEWA_FRONTEND_CALLBACK_URL="http://localhost:3000/payment/callback",
     )
     def test_esewa_callback_uses_signed_complete_payload_without_status_api(self):
         booking = self.create_booking(self.traveler, "payment_pending")
@@ -645,7 +645,7 @@ class CancelBookingApiTests(APITestCase):
         ESEWA_STATUS_URL="https://rc.esewa.com.np/api/epay/transaction/status/",
         ESEWA_SUCCESS_URL="http://localhost:8000/api/guides/bookings/payment/callback/success/",
         ESEWA_FAILURE_URL="http://localhost:8000/api/guides/bookings/payment/callback/failure/",
-        ESEWA_FRONTEND_CALLBACK_URL="http://localhost:3000/guides/payment/callback",
+        ESEWA_FRONTEND_CALLBACK_URL="http://localhost:3000/payment/callback",
     )
     @patch("guides.views.requests.get")
     def test_esewa_callback_flow_failure_can_still_verify_complete(self, mock_get):

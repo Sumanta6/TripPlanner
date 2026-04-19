@@ -11,6 +11,7 @@ import Travelers from './pages/Travelers';
 import Itineraries from './pages/Itineraries';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
+import Reviews from './pages/Reviews';
 import { AuthProvider } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
 import { clearGuideAuthToken, storeGuideAuthToken } from './services/guidesService';
@@ -37,6 +38,16 @@ export default function App() {
     const [loggedIn, setLoggedIn] = useState(getInitialAuth);
 
     useEffect(() => {
+        const currentPath = window.location.pathname;
+        const currentSearch = window.location.search || '';
+
+        // Payment callbacks belong to the traveler app. If this route lands in the
+        // guide app, bounce it back instead of falling through to guide login.
+        if (currentPath === '/guides/payment/callback' || currentPath === '/payment/callback') {
+            window.location.replace(`${LANDING_URL}payment/callback${currentSearch}`);
+            return;
+        }
+
         const params = new URLSearchParams(window.location.search);
         const guideToken = params.get('guide_token');
         const remember = params.get('remember') === '1';
@@ -109,6 +120,7 @@ export default function App() {
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/travelers" element={<Travelers />} />
                     <Route path="/itineraries" element={<Itineraries />} />
+                    <Route path="/reviews" element={<Reviews />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/settings" element={<Settings />} />
                 </Route>

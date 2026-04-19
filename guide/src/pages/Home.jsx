@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
     FaCalendarAlt, FaChartLine, FaUsers, FaStar,
@@ -88,17 +88,15 @@ function StatCard({ icon, label, value, color, bg, suffix = '' }) {
 
 /* ══════════════════════════════════════════════════════════════════════════════ */
 export default function Home() {
-    const { profile, patchProfile } = useAuth();
+    const { profile } = useAuth();
 
     const [dashboard, setDashboard] = useState(null);
     const [bookings, setBookings] = useState([]);
     const [activity, setActivity] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [toggling, setToggling] = useState(false);
-
     const availability = profile?.availability || 'available';
-    const availBadge = profile?.availability_badge || (availability === 'available' ? 'Available' : 'Busy');
+    const availBadge = profile?.availability_badge || (availability === 'available' ? 'Available' : 'Unavailable');
     const isBooked = availBadge.toLowerCase().startsWith('booked');
     const isAvailable = availBadge === 'Available';
     const firstName = profile?.full_name?.split(' ')[0] || 'Guide';
@@ -131,18 +129,6 @@ export default function Home() {
         return () => { alive = false; };
     }, []);
 
-    /* ── Toggle availability ─────────────────────────────────────────────────── */
-    const handleToggle = useCallback(async () => {
-        if (toggling) return;
-        const next = availability === 'available' ? 'busy' : 'available';
-        setToggling(true);
-        try {
-            await patchProfile({ availability: next });
-            toast.success(`Status set to ${next === 'available' ? 'Available' : 'Busy'}`);
-        } catch (_) { /* handled in context */ }
-        finally { setToggling(false); }
-    }, [availability, patchProfile, toggling]);
-
     /* ── Derived data ────────────────────────────────────────────────────────── */
     const upcomingTrips = bookings.filter(b => b.status === 'accepted');
     const today = new Date().toLocaleDateString('en-US', {
@@ -167,24 +153,10 @@ export default function Home() {
                     </div>
                 </div>
 
-                {isBooked ? (
-                    /* Booked badge – no toggle, just status display */
-                    <div className="gh-status-badge booked">
-                        <span className="gh-status-dot booked" />
-                        {availBadge}
-                    </div>
-                ) : (
-                    /* Available / Busy toggle */
-                    <button
-                        className="gh-avail-toggle"
-                        onClick={handleToggle}
-                        disabled={toggling}
-                        title="Click to toggle availability"
-                    >
-                        <span className={`gh-avail-dot ${isAvailable ? 'available' : 'busy'}`} />
-                        {availBadge}
-                    </button>
-                )}
+                <div className={`gh-status-badge ${isBooked ? 'booked' : ''}`}>
+                    <span className={`gh-status-dot ${isBooked ? 'booked' : (isAvailable ? 'available' : 'busy')}`} />
+                    {availBadge}
+                </div>
             </section>
 
             {/* ── Error Banner ──────────────────────────────────────────────────── */}

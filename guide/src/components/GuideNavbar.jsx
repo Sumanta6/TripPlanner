@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
     FaBars, FaTimes, FaCompass, FaUserCircle,
-    FaSignOutAlt, FaSun, FaMoon, FaCog
+    FaSignOutAlt, FaSun, FaMoon, FaCog, FaStar
 } from 'react-icons/fa';
 import LogoutModal from './LogoutModal';
 import './GuideNavbar.css';
@@ -96,6 +96,11 @@ export default function GuideNavbar({ onLogout }) {
                     <li className="guide-nav-item">
                         <NavLink to="/itineraries" className="guide-nav-link" onClick={() => setMenuOpen(false)}>
                             Itineraries
+                        </NavLink>
+                    </li>
+                    <li className="guide-nav-item">
+                        <NavLink to="/reviews" className="guide-nav-link" onClick={() => setMenuOpen(false)}>
+                            <FaStar className="guide-nav-icon" /> Reviews
                         </NavLink>
                     </li>
 

@@ -1,12 +1,10 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { getMyBookedTrips } from "../services/api";
+import { useLocation } from "react-router-dom";
 import { LoaderCircle } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function PaymentCallback() {
   const location = useLocation();
-  const navigate = useNavigate();
   const [statusText, setStatusText] = useState("Verifying payment...");
   const [detailText, setDetailText] = useState("Please do not close or refresh this page.");
   const [countdown, setCountdown] = useState(null);
@@ -40,37 +38,28 @@ export default function PaymentCallback() {
     setStatusText(statusCopy[callbackStatus] || statusCopy.invalid);
     setDetailText(detailCopy[callbackStatus] || detailCopy.invalid);
 
-    const resolveCallback = async () => {
-      if (callbackStatus === "success" && bookingId) {
-        try {
-          const trips = await getMyBookedTrips();
-          const bookings = Array.isArray(trips) ? trips : trips.results || [];
-          const booking = bookings.find((item) => String(item.id) === String(bookingId));
-
-          toast.success(detailCopy.success);
-          navigate("/guides", {
-            replace: true,
-            state: {
-              selectedGuideId: guideId || booking?.guide || null,
-              confirmedBooking: booking || null,
-              paymentSuccess: true,
-              paymentTransactionUuid: transactionUuid || "",
-            },
-          });
-          return;
-        } catch {
-          toast.success(detailCopy.success);
-          navigate("/my-trips", {
-            replace: true,
-            state: {
-              paymentCallbackStatus: "success",
-              paymentCallbackMessage: detailCopy.success,
-              paymentBookingId: bookingId || "",
-              paymentTransactionUuid: transactionUuid || "",
-            },
-          });
-          return;
+    const redirectToTrips = (payload) => {
+      const target = new URL("/my-trips", window.location.origin);
+      Object.entries(payload).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== "") {
+          target.searchParams.set(key, String(value));
         }
+      });
+      window.location.replace(target.toString());
+    };
+
+    const resolveCallback = () => {
+      if (callbackStatus === "success" && bookingId) {
+        toast.success(detailCopy.success);
+        redirectToTrips({
+          paymentCallbackStatus: "success",
+          paymentCallbackMessage: detailCopy.success,
+          paymentBookingId: bookingId || "",
+          paymentTransactionUuid: transactionUuid || "",
+          selectedGuideId: guideId || "",
+          paymentSuccess: "true",
+        });
+        return;
       }
 
       if (callbackStatus === "failed") {
@@ -81,20 +70,17 @@ export default function PaymentCallback() {
         toast.error(detailCopy.invalid);
       }
 
-      navigate("/my-trips", {
-        replace: true,
-        state: {
-          paymentCallbackStatus: callbackStatus,
-          paymentCallbackMessage: detailCopy[callbackStatus] || detailCopy.invalid,
-          paymentBookingId: bookingId || "",
-          paymentTransactionUuid: transactionUuid || "",
-        },
+      redirectToTrips({
+        paymentCallbackStatus: callbackStatus,
+        paymentCallbackMessage: detailCopy[callbackStatus] || detailCopy.invalid,
+        paymentBookingId: bookingId || "",
+        paymentTransactionUuid: transactionUuid || "",
       });
     };
 
-    const redirectDelay = callbackStatus === "success" ? 5000 : 1200;
+    const redirectDelay = callbackStatus === "success" ? 1500 : 800;
     if (callbackStatus === "success") {
-      setCountdown(5);
+      setCountdown(2);
       const interval = window.setInterval(() => {
         setCountdown((current) => {
           if (current === null || current <= 1) return 0;
@@ -118,7 +104,7 @@ export default function PaymentCallback() {
     }, redirectDelay);
 
     return () => window.clearTimeout(timer);
-  }, [location.search, navigate]);
+  }, [location.search]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg)' }}>

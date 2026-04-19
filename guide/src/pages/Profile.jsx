@@ -68,6 +68,7 @@ export default function Profile() {
                 bio: profile.bio || '',
                 specialization: profile.specialization || '',
                 experience_years: profile.experience_years || 0,
+                availability: profile.availability || 'available',
                 languages: (profile.languages || []).join(', '),
                 destinations: (profile.destinations || []).join(', ')
             });
@@ -241,6 +242,24 @@ export default function Profile() {
                                     <input type="text" className="profile-edit-input" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
                                 ) : (
                                     <span>{p.address || '—'}</span>
+                                )}
+                            </div>
+                        </div>
+                        <div className="profile-info-row">
+                            <div className="pinfo-icon location"><FaBriefcase /></div>
+                            <div className="edit-full-width">
+                                <label>Availability</label>
+                                {isEditing ? (
+                                    <select
+                                        className="profile-edit-input"
+                                        value={form.availability}
+                                        onChange={e => setForm({ ...form, availability: e.target.value })}
+                                    >
+                                        <option value="available">Available</option>
+                                        <option value="busy">Unavailable</option>
+                                    </select>
+                                ) : (
+                                    <span>{p.availability === 'busy' ? 'Unavailable' : 'Available'}</span>
                                 )}
                             </div>
                         </div>

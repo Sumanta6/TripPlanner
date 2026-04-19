@@ -168,4 +168,10 @@ export async function getMyDashboard() {
     return data;
 }
 
+/** GET /api/guides/me/reviews/ – all verified traveler reviews for the guide */
+export async function getMyReviews() {
+    const { data } = await api.get('me/reviews/');
+    return data;
+}
+
 export default api;

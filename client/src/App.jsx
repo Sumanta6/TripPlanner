@@ -169,6 +169,7 @@ function App() {
           <Route path="/trips/:id" element={<TripDetail />} />
           <Route path="/plan-trip" element={<Plantrip />} />
           <Route path="/guides" element={<Guides />} />
+          <Route path="/payment/callback" element={<PaymentCallback />} />
           <Route path="/guides/payment/callback" element={<PaymentCallback />} />
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/blog" element={<Blog />} />

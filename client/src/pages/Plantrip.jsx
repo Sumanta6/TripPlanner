@@ -9,7 +9,8 @@ import {
   saveItinerary,
   updateMyProfile,
 } from '../services/api';
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
 
 const TRAVEL_STYLES = [
@@ -431,6 +432,7 @@ function buildGoogleMapsDirectionsUrl(stops) {
 
 function Plantrip() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [step, setStep] = useState(() => {
     const saved = localStorage.getItem("plantrip_step");
     const parsed = saved ? parseInt(saved, 10) : 1;
@@ -643,6 +645,80 @@ function Plantrip() {
 
     setShowSuccess(false);
   }, [currentPlannerSignature, generatedPlanSignature]);
+
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+    const queryCallbackState = {
+      paymentCallbackStatus: query.get("paymentCallbackStatus") || "",
+      paymentCallbackMessage: query.get("paymentCallbackMessage") || "",
+      paymentBookingId: query.get("paymentBookingId") || "",
+      paymentTransactionUuid: query.get("paymentTransactionUuid") || "",
+      selectedGuideId: query.get("selectedGuideId") || "",
+      paymentSuccess: query.get("paymentSuccess") || "",
+    };
+
+    const callbackState =
+      queryCallbackState.paymentCallbackStatus || queryCallbackState.paymentSuccess
+        ? queryCallbackState
+        : (location.state || {});
+    const callbackStatus = callbackState.paymentCallbackStatus;
+    const callbackMessage = callbackState.paymentCallbackMessage;
+    const paymentSuccess =
+      callbackState.paymentSuccess === true ||
+      callbackState.paymentSuccess === "true";
+
+    if (!callbackStatus && !paymentSuccess) return;
+
+    const message =
+      callbackMessage ||
+      (paymentSuccess
+        ? "Payment completed successfully. You can continue from your saved trip."
+        : "Payment status updated.");
+
+    if (callbackStatus === "success" || paymentSuccess) {
+      toast.success(message);
+      openPopupModal({
+        type: "success",
+        title: "Guide payment completed",
+        message,
+        primaryAction: {
+          label: "View My Trips",
+          onClick: () => {
+            closePopupModal();
+            navigate("/my-trips");
+          }
+        },
+        secondaryAction: {
+          label: "Continue Planning",
+          onClick: closePopupModal
+        }
+      });
+    } else if (callbackStatus === "cancelled") {
+      toast(message);
+      openPopupModal({
+        type: "info",
+        title: "Payment not completed",
+        message,
+        primaryAction: {
+          label: "Continue Planning",
+          onClick: closePopupModal
+        }
+      });
+    } else {
+      toast.error(message);
+      openPopupModal({
+        type: "error",
+        title: "Payment could not be confirmed",
+        message,
+        primaryAction: {
+          label: "Continue Planning",
+          onClick: closePopupModal
+        }
+      });
+    }
+
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }, [location.search, location.state, navigate]);
 
   const selectedDestinationData = useMemo(() => {
     return destinations.find(d => d.name === formData.destination);

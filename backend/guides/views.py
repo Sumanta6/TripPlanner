@@ -24,6 +24,7 @@ from .serializers import (
     BookingSerializer,
     CHAT_SENDABLE_STATUSES,
     CHAT_VIEWABLE_STATUSES,
+    build_review_breakdown,
     build_profile_image_url,
     ChatMessageSerializer,
     ChatThreadSerializer,
@@ -224,7 +225,26 @@ def _build_callback_redirect_url(target_url, params):
 
 def _get_frontend_callback_url():
     frontend_url = (getattr(settings, 'ESEWA_FRONTEND_CALLBACK_URL', '') or '').strip()
-    return frontend_url or 'http://localhost:3000/guides/payment/callback'
+    if frontend_url:
+        normalized = frontend_url.rstrip('/')
+
+        # Traveler payments must always return to the traveler app.
+        # If a stale env value still points at the old guide callback path
+        # or some auth route, rewrite it to the traveler callback.
+        if (
+            '/guides/payment/callback' in normalized
+            or normalized.endswith('/login')
+            or ':3001' in normalized
+        ):
+            normalized = normalized.replace(':3001', ':3000')
+            normalized = normalized.replace('/guides/payment/callback', '/payment/callback')
+            if normalized.endswith('/login'):
+                normalized = normalized[: -len('/login')] + '/payment/callback'
+            return normalized
+
+        return normalized
+
+    return 'http://localhost:3000/payment/callback'
 
 
 def _build_frontend_callback_payload(*, result_status, message, booking=None, payment=None, transaction_uuid='', status_code=''):
@@ -1562,3 +1582,28 @@ def my_dashboard(request):
 
     serializer = DashboardSerializer(data)
     return Response(serializer.data)
+
+
+@api_view(['GET'])
+@authentication_classes([GuideTokenAuthentication])
+@permission_classes([IsAuthenticated])
+def my_reviews(request):
+    """
+    GET /api/guides/me/reviews/
+    Returns all verified traveler reviews for the logged-in guide.
+    """
+    guide = get_guide_profile_or_none(request.user)
+    if not guide:
+        return Response({'error': 'Guide account required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    reviews = guide.reviews.select_related(
+        'traveler', 'traveler__traveler_profile', 'booking'
+    ).order_by('-created_at')
+
+    serializer = ReviewSummarySerializer(reviews, many=True, context={'request': request})
+    return Response({
+        'rating': GuideProfileSerializer(guide, context={'request': request}).data['rating'],
+        'review_count': reviews.count(),
+        'rating_breakdown': build_review_breakdown(guide),
+        'results': serializer.data,
+    })

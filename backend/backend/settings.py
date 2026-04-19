@@ -52,6 +52,7 @@ INSTALLED_APPS = [
 
     "corsheaders",
     "rest_framework",
+    "drf_spectacular",
     "accounts",
     "contacts",
     "itinerary",
@@ -69,13 +70,6 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
-
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "accounts.authentication.GuideTokenAuthentication",
-        "rest_framework.authentication.SessionAuthentication",
-    ],
-}
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -169,15 +163,21 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# ======================
-# REST + JWT
-# ======================
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "accounts.authentication.GuideTokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "TripPlanner API",
+    "DESCRIPTION": "OpenAPI schema for the TripPlanner backend.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+}
+
 # ======================
 # EMAIL (GMAIL SMTP)
 # ======================
