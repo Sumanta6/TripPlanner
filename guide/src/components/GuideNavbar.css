@@ -30,13 +30,13 @@
 }
 
 .guide-navbar-container {
-  max-width: 1140px;
+  max-width: 1200px;
   margin: 0 auto;
   display: flex;
   align-items: center;
-  height: 60px;
+  min-height: 98px;
   padding: 0 24px;
-  gap: 8px;
+  gap: 14px;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
@@ -45,40 +45,23 @@
 .guide-navbar-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
   text-decoration: none;
   margin-right: auto;
-  transition: opacity 0.2s;
+  line-height: 0;
+  transition: transform 0.22s ease, filter 0.22s ease;
 }
 
-.guide-navbar-logo:hover { opacity: 0.85; }
-
-.guide-logo-wrap {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #4f7cff, #7c3aed);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+.guide-navbar-logo:hover {
+  transform: translateY(-0.5px);
+  filter: saturate(1.05) contrast(1.02);
 }
 
-.guide-logo-icon {
-  font-size: 17px;
-  color: #fff;
-}
-
-.guide-logo-text {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--text-secondary, #64748b);
-  letter-spacing: -0.01em;
-}
-
-.guide-logo-text strong {
-  font-weight: 700;
-  color: var(--text-primary, #1e293b);
+.guide-logo-image {
+  display: block;
+  width: 270px;
+  object-fit: contain;
+  image-rendering: auto;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
@@ -285,6 +268,15 @@
 @media screen and (max-width: 768px) {
   .guide-navbar-container {
     padding: 0 16px;
+    min-height: 90px;
+  }
+
+  .guide-navbar-logo {
+    flex-shrink: 0;
+  }
+
+  .guide-logo-image {
+    width: 190px;
   }
 
   .guide-menu-icon {
@@ -295,7 +287,7 @@
     display: none;
     flex-direction: column;
     position: absolute;
-    top: 60px;
+    top: 90px;
     left: 0;
     right: 0;
     background: var(--navbar-bg, #fff);

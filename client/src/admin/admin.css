@@ -1,6 +1,7 @@
 .tp-admin-shell{min-height:100vh;display:grid;grid-template-columns:280px 1fr;background:radial-gradient(circle at top left,rgba(14,165,233,.18),transparent 32%),linear-gradient(180deg,#f4f8fc,#ecf3fb)}
 .tp-admin-sidebar{padding:24px 18px;background:linear-gradient(180deg,#0f172a,#10233c);color:#e5eef8;display:flex;flex-direction:column;gap:28px}
 .tp-admin-brand{display:flex;align-items:center;gap:12px}.tp-admin-brand span{display:block;color:rgba(229,238,248,.72)}
+.tp-admin-brand-logo{width:170px;height:auto;object-fit:contain;display:block;flex-shrink:0}
 .tp-admin-badge{width:48px;height:48px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#2563eb,#0f766e)}
 .tp-admin-nav{display:grid;gap:10px}
 .tp-admin-link,.tp-admin-logout{min-height:48px;border-radius:14px;padding:0 14px;display:flex;align-items:center;gap:12px;color:rgba(229,238,248,.84);text-decoration:none}

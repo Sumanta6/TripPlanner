@@ -158,7 +158,7 @@ def local_destination_detail(request, geoname_id):
 # ── Legacy /api/destinations/ endpoint ────────────────────────────────────────
 # Now delegates to the local DB so Geoapify is no longer required.
 
-from rest_framework.views import APIView   # noqa: E402  (kept below for grouping)
+from rest_framework.views import APIView  
 
 
 class GeoapifyDestinationsView(APIView):

@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { BarChart3, BookOpen, CalendarCheck2, Compass, LifeBuoy, LogOut, MessageSquareText, Shield, Star, Users } from "lucide-react";
+import { BarChart3, BookOpen, CalendarCheck2, LifeBuoy, LogOut, MessageSquareText, Shield, Star, Users } from "lucide-react";
 
 const NAV = [
   { to: "/admin/dashboard", label: "Dashboard", icon: <BarChart3 size={18} /> },
@@ -16,7 +16,7 @@ export default function AdminLayout({ currentUser, onLogout }) {
     <div className="tp-admin-shell">
       <aside className="tp-admin-sidebar">
         <div className="tp-admin-brand">
-          <div className="tp-admin-badge"><Compass size={18} /></div>
+          <img className="tp-admin-brand-logo" src="/brand-logo.png" alt="TripPlanner" />
           <div>
             <strong>TripPlanner</strong>
             <span>Admin Dashboard</span>

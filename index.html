@@ -125,24 +125,22 @@
     .brand {
       display: flex;
       align-items: center;
-      gap: 12px;
       min-width: 0;
+      line-height: 0;
+      transition: transform 0.22s ease, filter 0.22s ease;
+    }
+
+    .brand:hover {
+      transform: translateY(-0.5px);
+      filter: saturate(1.05) contrast(1.02);
     }
 
     .brand-mark {
-      width: 46px;
-      height: 46px;
-      border-radius: 16px;
-      background:
-        linear-gradient(145deg, #4e7bff 0%, #69d1df 56%, #f3a365 100%);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.32),
-        0 14px 28px rgba(78, 123, 255, 0.26);
-      display: grid;
-      place-items: center;
-      color: #06111b;
-      font-size: 20px;
-      font-weight: 900;
+      width: 290px;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      flex-shrink: 0;
     }
 
     .brand-copy strong {
@@ -1020,6 +1018,10 @@
         border-radius: 28px;
       }
 
+      .brand-mark {
+        width: 190px;
+      }
+
       .hero-copy h1 {
         font-size: clamp(2.45rem, 11vw, 3.4rem);
       }
@@ -1062,11 +1064,7 @@
       <div class="container">
         <header class="navbar reveal">
           <a class="brand" href="#top" aria-label="TripPlanner home">
-            <div class="brand-mark">TP</div>
-            <div class="brand-copy">
-              <strong>TripPlanner</strong>
-              <span>Smart Travel Platform</span>
-            </div>
+            <img class="brand-mark" src="client/public/brand-logo.png" alt="" aria-hidden="true" />
           </a>
 
           <nav class="nav-links" aria-label="Primary navigation">

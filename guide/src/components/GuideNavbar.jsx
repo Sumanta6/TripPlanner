@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-    FaBars, FaTimes, FaCompass, FaUserCircle,
+    FaBars, FaTimes, FaUserCircle,
     FaSignOutAlt, FaSun, FaMoon, FaCog, FaStar
 } from 'react-icons/fa';
 import LogoutModal from './LogoutModal';
@@ -67,13 +67,8 @@ export default function GuideNavbar({ onLogout }) {
             <div className="guide-navbar-container">
 
                 {/* ── Brand ── */}
-                <NavLink to="/home" className="guide-navbar-logo">
-                    <div className="guide-logo-wrap">
-                        <FaCompass className="guide-logo-icon" />
-                    </div>
-                    <span className="guide-logo-text">
-                        Trip<strong>Planner</strong>
-                    </span>
+                <NavLink to="/home" className="guide-navbar-logo" aria-label="TripPlanner Guide Portal">
+                    <img className="guide-logo-image" src="/brand-logo.png" alt="" aria-hidden="true" />
                 </NavLink>
 
                 {/* ── Nav Links ── */}

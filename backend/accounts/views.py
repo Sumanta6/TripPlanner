@@ -80,7 +80,7 @@ def create_legacy_guide_profile(user):
 # ======================
 @csrf_exempt
 @api_view(["POST"])
-@authentication_classes([])          # ← bypass DRF CSRF check
+@authentication_classes([])         
 @permission_classes([AllowAny])
 def register(request):
     serializer = RegisterSerializer(data=request.data)
