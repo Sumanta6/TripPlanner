@@ -189,6 +189,7 @@ def save_itinerary(request):
         days = 1
 
     budget = data.get('budget', None)
+    budget_plan = data.get('budget_plan') or {}
     travelers = data.get('travelers', 1)
 
     start_date_str = data.get('start_date')
@@ -212,6 +213,7 @@ def save_itinerary(request):
         start_date=start_date_obj,
         end_date=end_date_obj,
         budget=budget,
+        budget_plan=budget_plan,
         travelers=travelers,
         notes=str(data.get("notes", "")).strip(),
         itinerary_data=data.get("itinerary_data") or data.get("itinerary") or {},

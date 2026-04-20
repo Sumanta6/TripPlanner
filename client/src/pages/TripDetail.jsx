@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getItineraryDetail, deleteItinerary } from "../services/api";
-import { MapPin, Calendar, Clock, Wallet, Users, ArrowLeft, Trash2 } from "lucide-react";
+import { MapPin, Calendar, Wallet, Users, ArrowLeft, Trash2 } from "lucide-react";
 import "./TripDetail.css";
 
 export default function TripDetail() {
@@ -101,6 +101,9 @@ export default function TripDetail() {
   const itData = trip.itinerary_data || {};
   const daysList = itData.itinerary?.days || [];
   const budgetBreakdown = itData.itinerary?.budget_breakdown || [];
+  const budgetPlan = trip.budget_plan && Object.keys(trip.budget_plan).length
+    ? trip.budget_plan
+    : itData.budget_management;
   const tips = itData.itinerary?.travel_tips || [];
 
   return (
@@ -228,6 +231,39 @@ export default function TripDetail() {
               <div className="td-sidebar-card">
                 <h3 className="td-sidebar-title">📝 Overview</h3>
                 <p className="td-sidebar-text">{itData.itinerary.trip_summary}</p>
+              </div>
+            )}
+
+            {budgetPlan?.summary && (
+              <div className="td-sidebar-card">
+                <h3 className="td-sidebar-title">💼 Budget Management</h3>
+                <div className="td-budget-summary">
+                  <div>
+                    <span>User Budget</span>
+                    <strong>NPR {Number(budgetPlan.summary.total_user_budget || 0).toLocaleString()}</strong>
+                  </div>
+                  <div>
+                    <span>Estimated Cost</span>
+                    <strong>NPR {Number(budgetPlan.summary.total_estimated_cost || 0).toLocaleString()}</strong>
+                  </div>
+                  <div className={Number(budgetPlan.summary.remaining_balance || 0) < 0 ? "negative" : "positive"}>
+                    <span>{Number(budgetPlan.summary.remaining_balance || 0) < 0 ? "Shortage" : "Remaining"}</span>
+                    <strong>NPR {Math.abs(Number(budgetPlan.summary.remaining_balance || 0)).toLocaleString()}</strong>
+                  </div>
+                </div>
+                <div className="td-budget-status">{budgetPlan.summary.status}</div>
+                {Array.isArray(budgetPlan.categories) && (
+                  <div className="td-budget-category-list">
+                    {budgetPlan.categories.map((category) => (
+                      <div key={category.key || category.label} className="td-budget-category">
+                        <span>{category.label}</span>
+                        <strong>
+                          NPR {Number(category.allocated || 0).toLocaleString()} / NPR {Number(category.estimated || 0).toLocaleString()}
+                        </strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

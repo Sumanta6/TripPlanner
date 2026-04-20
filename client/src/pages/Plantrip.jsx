@@ -73,6 +73,23 @@ const DEFAULT_MAP_LOCATION = {
   label: "Kathmandu, Nepal"
 };
 
+const BUDGET_CATEGORIES = [
+  { key: "transport", label: "Transport", weight: 0.18 },
+  { key: "food", label: "Food", weight: 0.18 },
+  { key: "accommodation", label: "Accommodation", weight: 0.3 },
+  { key: "activities", label: "Activities", weight: 0.16 },
+  { key: "guide", label: "Guide", weight: 0.08 },
+  { key: "misc", label: "Emergency/Misc.", weight: 0.1 }
+];
+
+const RECOMMENDED_DESTINATION_NAMES = [
+  "Kathmandu Valley",
+  "Pokhara",
+  "Chitwan National Park",
+  "Lumbini",
+  "Everest Base Camp"
+];
+
 function findDestinationEntry(destinations, destinationName) {
   if (!destinationName || !destinations?.length) return null;
   const target = destinationName.trim().toLowerCase();
@@ -171,6 +188,284 @@ function budgetLabel(value) {
   if (amount < 60000) return "Budget";
   if (amount < 150000) return "Standard";
   return "Luxury";
+}
+
+function formatNpr(value) {
+  return `NPR ${Math.round(Number(value) || 0).toLocaleString()}`;
+}
+
+function sanitizeBudgetAmount(value) {
+  const cleaned = String(value ?? "").replace(/[^\d.]/g, "");
+  const parts = cleaned.split(".");
+  const normalized = parts.length > 1 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned;
+  const amount = Number(normalized);
+  if (!Number.isFinite(amount) || amount < 0) return 0;
+  return Math.round(amount);
+}
+
+function buildInitialCategoryBudget(totalBudget = 0) {
+  const total = Math.max(0, Number(totalBudget) || 0);
+  let allocated = 0;
+
+  return BUDGET_CATEGORIES.reduce((acc, category, index) => {
+    if (index === BUDGET_CATEGORIES.length - 1) {
+      acc[category.key] = Math.max(0, total - allocated);
+      return acc;
+    }
+
+    const amount = Math.round(total * category.weight / 100) * 100;
+    allocated += amount;
+    acc[category.key] = amount;
+    return acc;
+  }, {});
+}
+
+function normalizeCategoryBudget(value, fallbackTotal = 0) {
+  const source = value && typeof value === "object"
+    ? value
+    : buildInitialCategoryBudget(fallbackTotal);
+
+  return BUDGET_CATEGORIES.reduce((acc, category) => {
+    acc[category.key] = sanitizeBudgetAmount(source[category.key]);
+    return acc;
+  }, {});
+}
+
+function getBudgetStatus(totalUserBudget, totalEstimatedCost) {
+  if (totalEstimatedCost <= 0) {
+    return {
+      label: "Needs Estimate",
+      tone: "neutral",
+      message: "Add a budget to compare against TripPlanner's estimate."
+    };
+  }
+
+  const difference = totalUserBudget - totalEstimatedCost;
+  const ratio = Math.abs(difference) / totalEstimatedCost;
+
+  if (difference >= 0) {
+    return {
+      label: "Within Budget",
+      tone: "good",
+      message: "Your allocation covers the estimated trip expense."
+    };
+  }
+
+  if (ratio <= 0.15) {
+    return {
+      label: "Slightly Over Budget",
+      tone: "warning",
+      message: "The plan is close, but a few categories need adjustment."
+    };
+  }
+
+  return {
+    label: "Significantly Over Budget",
+    tone: "danger",
+    message: "The estimate is materially higher than your current allocation."
+  };
+}
+
+function estimateTripBudget(itineraryData, formData, selectedDestinationData) {
+  const days = Math.max(1, Number(itineraryData?.days || formData.days) || 1);
+  const travelers = Math.max(1, Number(formData.travelers) || Number(itineraryData?.summary?.people) || 1);
+  const nights = Math.max(1, days - 1);
+  const rooms = Math.max(1, Math.ceil(travelers / 2));
+  const destinationType = String(selectedDestinationData?.type || itineraryData?.summary?.type || "").toLowerCase();
+  const travelStyle = String(formData.travelStyle || itineraryData?.summary?.hotel_level || "").toLowerCase();
+  const tier = budgetLabel(formData.budget || itineraryData?.budget).toLowerCase();
+  const isTrek = destinationType.includes("trek");
+  const isWildlife = destinationType.includes("wildlife") || destinationType.includes("national");
+  const isLuxury = tier === "luxury" || travelStyle.includes("luxury");
+  const isBackpacking = tier === "backpacking" || travelStyle.includes("backpacking");
+  const isStandard = tier === "standard";
+
+  const dayList = itineraryData?.itinerary?.days || [];
+  const activityText = dayList
+    .flatMap((day) => day.activities || [])
+    .map((activity) => `${activity.title || ""} ${activity.description || ""}`)
+    .join(" ")
+    .toLowerCase();
+  const activityCount = dayList.reduce((total, day) => total + (day.activities?.length || 0), 0);
+  const adventureMatches = (activityText.match(/paragliding|rafting|bungee|safari|permit|trek|flight|jeep|boating/g) || []).length;
+
+  const foodRate = isLuxury ? 2200 : isStandard ? 1400 : isBackpacking ? 750 : 1000;
+  const stayRate = isLuxury ? 8500 : isStandard ? 4200 : isBackpacking ? 1200 : 2200;
+  const transportBase = isTrek ? 6500 : isWildlife ? 5200 : 3500;
+  const activityRate = isLuxury ? 1800 : isStandard ? 1100 : isBackpacking ? 450 : 750;
+  const guideRate = isTrek ? 3500 : isWildlife ? 2500 : 1800;
+
+  const transport = Math.round((transportBase + days * 900 + adventureMatches * 700) * Math.max(1, Math.sqrt(travelers)));
+  const food = Math.round(foodRate * days * travelers);
+  const accommodation = Math.round(stayRate * nights * rooms);
+  const activities = Math.round((Math.max(activityCount, days * 2) * activityRate + adventureMatches * 1800) * travelers);
+  const guide = Math.round(guideRate * days * (isTrek || isWildlife || travelers >= 4 ? 1 : 0.55));
+  const subtotal = transport + food + accommodation + activities + guide;
+  const misc = Math.round(subtotal * 0.1);
+
+  return {
+    transport,
+    food,
+    accommodation,
+    activities,
+    guide,
+    misc
+  };
+}
+
+function estimateRecommendedTripBudget(formData, selectedDestinationData) {
+  if (!formData.destination || !selectedDestinationData) return null;
+
+  const days = Math.max(1, Number(formData.days) || 1);
+  const travelers = Math.max(1, Number(formData.travelers) || 1);
+  const nights = Math.max(1, days - 1);
+  const rooms = Math.max(1, Math.ceil(travelers / 2));
+  const destinationName = String(selectedDestinationData.name || formData.destination || "").toLowerCase();
+  const destinationType = String(selectedDestinationData.type || "").toLowerCase();
+
+  const profile = (() => {
+    if (destinationName.includes("everest base camp")) {
+      return { transport: 18000, food: 1700, stay: 2600, activity: 900, guide: 4500, permit: 9000, label: "trekking route" };
+    }
+    if (destinationName.includes("annapurna base camp") || destinationType.includes("trek")) {
+      return { transport: 12000, food: 1400, stay: 2200, activity: 700, guide: 3800, permit: 5500, label: "trekking route" };
+    }
+    if (destinationName.includes("chitwan")) {
+      return { transport: 7500, food: 1400, stay: 4200, activity: 2500, guide: 2200, permit: 2500, label: "wildlife trip" };
+    }
+    if (destinationName.includes("pokhara")) {
+      return { transport: 6500, food: 1300, stay: 3800, activity: 2200, guide: 1200, permit: 0, label: "lakeside city trip" };
+    }
+    if (destinationName.includes("lumbini")) {
+      return { transport: 7000, food: 1100, stay: 2800, activity: 900, guide: 1400, permit: 0, label: "heritage trip" };
+    }
+    if (destinationName.includes("kathmandu")) {
+      return { transport: 3500, food: 1200, stay: 3500, activity: 1200, guide: 1200, permit: 0, label: "city and heritage trip" };
+    }
+    if (destinationType.includes("wildlife") || destinationType.includes("national")) {
+      return { transport: 7500, food: 1300, stay: 3800, activity: 2200, guide: 2000, permit: 2200, label: "nature trip" };
+    }
+    return { transport: 5500, food: 1200, stay: 3000, activity: 1200, guide: 1200, permit: 500, label: "Nepal trip" };
+  })();
+
+  const transport = Math.round(profile.transport * Math.max(1, Math.sqrt(travelers)));
+  const food = Math.round(profile.food * days * travelers);
+  const accommodation = Math.round(profile.stay * nights * rooms);
+  const activities = Math.round((profile.activity * days + profile.permit) * travelers);
+  const guide = Math.round(profile.guide * days * (destinationType.includes("trek") || destinationName.includes("base camp") ? 1 : 0.6));
+  const subtotal = transport + food + accommodation + activities + guide;
+  const emergency = Math.round(subtotal * 0.1);
+  const total = Math.ceil((subtotal + emergency) / 5000) * 5000;
+
+  return {
+    total,
+    label: profile.label,
+    travelers,
+    days,
+    categories: {
+      transport,
+      food,
+      accommodation,
+      activities,
+      guide,
+      emergency
+    }
+  };
+}
+
+function analyzeBudgetPlan(userBudget, systemEstimate, itineraryData, formData, selectedDestinationData) {
+  const normalizedUserBudget = normalizeCategoryBudget(userBudget, formData.budget);
+  const normalizedEstimate = normalizeCategoryBudget(
+    systemEstimate || estimateTripBudget(itineraryData, formData, selectedDestinationData)
+  );
+
+  const totalUserBudget = BUDGET_CATEGORIES.reduce((total, category) => total + normalizedUserBudget[category.key], 0);
+  const totalEstimatedCost = BUDGET_CATEGORIES.reduce((total, category) => total + normalizedEstimate[category.key], 0);
+  const remainingBalance = totalUserBudget - totalEstimatedCost;
+  const status = getBudgetStatus(totalUserBudget, totalEstimatedCost);
+
+  const categories = BUDGET_CATEGORIES.map((category) => {
+    const allocated = normalizedUserBudget[category.key];
+    const estimated = normalizedEstimate[category.key];
+    const difference = allocated - estimated;
+    const utilization = allocated > 0 ? Math.round((estimated / allocated) * 100) : estimated > 0 ? 100 : 0;
+    let categoryStatus = "Sufficient";
+    let tone = "good";
+
+    if (difference < 0) {
+      categoryStatus = Math.abs(difference) / Math.max(estimated, 1) > 0.18 ? "Underfunded" : "Tight";
+      tone = categoryStatus === "Underfunded" ? "danger" : "warning";
+    } else if (difference > estimated * 0.35) {
+      categoryStatus = "Flexible";
+      tone = "neutral";
+    }
+
+    return {
+      ...category,
+      allocated,
+      estimated,
+      difference,
+      utilization,
+      status: categoryStatus,
+      tone
+    };
+  });
+
+  const recommendations = buildBudgetRecommendations(categories, {
+    days: Math.max(1, Number(itineraryData?.days || formData.days) || 1),
+    travelers: Math.max(1, Number(formData.travelers) || 1),
+    status: status.label,
+    remainingBalance,
+    selectedDestinationData
+  });
+
+  return {
+    user_budget: normalizedUserBudget,
+    system_estimate: normalizedEstimate,
+    summary: {
+      total_user_budget: totalUserBudget,
+      total_estimated_cost: totalEstimatedCost,
+      remaining_balance: remainingBalance,
+      status: status.label,
+      status_tone: status.tone,
+      message: status.message
+    },
+    categories,
+    recommendations
+  };
+}
+
+function buildBudgetRecommendations(categories, context) {
+  const recs = [];
+  const categoryByKey = Object.fromEntries(categories.map((category) => [category.key, category]));
+  const underfunded = categories.filter((category) => category.difference < 0);
+  const emergencyPercent = categoryByKey.misc?.allocated / Math.max(1, categories.reduce((total, category) => total + category.allocated, 0));
+
+  if (categoryByKey.food?.difference < 0) {
+    recs.push(`Your food budget may be too low for ${context.days} day${context.days > 1 ? "s" : ""} and ${context.travelers} traveler${context.travelers > 1 ? "s" : ""}. Increase it or plan more local meals.`);
+  }
+  if (categoryByKey.transport?.difference >= 0) {
+    recs.push("Transport budget is sufficient for the current route estimate.");
+  } else {
+    recs.push("Reduce transport pressure by using tourist buses, shared jeeps, or grouping nearby stops on the same day.");
+  }
+  if (categoryByKey.accommodation?.difference < 0) {
+    recs.push("Reduce accommodation tier or choose standard guesthouses to bring the stay cost closer to budget.");
+  }
+  if (categoryByKey.activities?.difference < 0) {
+    recs.push("Reduce activity spending by prioritizing paid experiences and mixing in free viewpoints, heritage walks, and local markets.");
+  }
+  if (context.status !== "Within Budget") {
+    recs.push("Use a standard instead of luxury option for stay and activities until the shortage is covered.");
+  }
+  if (emergencyPercent < 0.1) {
+    recs.push("Keep at least 10% of the total budget for emergency or miscellaneous expenses.");
+  }
+  if (!underfunded.length && context.remainingBalance > 0) {
+    recs.push("Your allocation has a buffer. Keep the surplus reserved for weather delays, route changes, or guide tips.");
+  }
+
+  return [...new Set(recs)].slice(0, 5);
 }
 
 function getTimelineTimeClass(timeStr) {
@@ -443,6 +738,7 @@ function Plantrip() {
     const saved = safeJSONParse(localStorage.getItem("plantrip_formData"), DEFAULT_FORM_DATA);
     return { ...DEFAULT_FORM_DATA, ...saved };
   });
+  const [budgetWasEdited, setBudgetWasEdited] = useState(false);
 
   const [validationErrors, setValidationErrors] = useState({});
   const [isGenerating, setIsGenerating] = useState(false);
@@ -469,6 +765,10 @@ function Plantrip() {
   const [itinerary, setItinerary] = useState(() =>
     safeJSONParse(localStorage.getItem("plantrip_itinerary"), null)
   );
+  const [categoryBudget, setCategoryBudget] = useState(() => {
+    const savedItinerary = safeJSONParse(localStorage.getItem("plantrip_itinerary"), null);
+    return normalizeCategoryBudget(savedItinerary?.budget_management?.user_budget, savedItinerary?.budget || DEFAULT_FORM_DATA.budget);
+  });
   const [generatedPlanSignature, setGeneratedPlanSignature] = useState(
     () => localStorage.getItem("plantrip_generated_signature") || ""
   );
@@ -502,6 +802,15 @@ function Plantrip() {
     () => buildMapLocation(destinations, formData.destination),
     [destinations, formData.destination]
   );
+  const recommendedDestinations = useMemo(() => {
+    return RECOMMENDED_DESTINATION_NAMES
+      .map((name) => findDestinationEntry(destinations, name))
+      .filter(Boolean);
+  }, [destinations]);
+  const remainingDestinations = useMemo(() => {
+    const recommendedNames = new Set(recommendedDestinations.map((destination) => destination.name));
+    return destinations.filter((destination) => !recommendedNames.has(destination.name));
+  }, [destinations, recommendedDestinations]);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const currentPlannerSignature = useMemo(() => buildPlannerSignature(formData), [formData]);
   const hasGeneratedItinerary = Boolean(itinerary?.itinerary?.days?.length);
@@ -723,6 +1032,42 @@ function Plantrip() {
   const selectedDestinationData = useMemo(() => {
     return destinations.find(d => d.name === formData.destination);
   }, [formData.destination, destinations]);
+
+  const budgetAnalysis = useMemo(() => {
+    if (!itinerary?.itinerary?.days?.length) return null;
+    return analyzeBudgetPlan(
+      categoryBudget,
+      itinerary?.budget_management?.system_estimate,
+      itinerary,
+      formData,
+      selectedDestinationData
+    );
+  }, [categoryBudget, formData, itinerary, selectedDestinationData]);
+
+  const recommendedBudget = useMemo(
+    () => estimateRecommendedTripBudget(formData, selectedDestinationData),
+    [formData, selectedDestinationData]
+  );
+
+  useEffect(() => {
+    if (!recommendedBudget || budgetWasEdited || hasGeneratedItinerary) return;
+
+    setFormData((prev) => {
+      if (Number(prev.budget) === recommendedBudget.total) return prev;
+      return { ...prev, budget: recommendedBudget.total };
+    });
+  }, [budgetWasEdited, hasGeneratedItinerary, recommendedBudget]);
+
+  useEffect(() => {
+    if (!itinerary || !budgetAnalysis) return;
+    localStorage.setItem(
+      "plantrip_itinerary",
+      JSON.stringify({
+        ...itinerary,
+        budget_management: budgetAnalysis
+      })
+    );
+  }, [budgetAnalysis, itinerary]);
 
   const isSupportedDestination = useMemo(() => {
     if (!formData.destination.trim()) return false;
@@ -947,6 +1292,20 @@ function Plantrip() {
         return;
       }
 
+      const initialCategoryBudget = normalizeCategoryBudget(null, formData.budget);
+      const initialSystemEstimate = estimateTripBudget(normalized, formData, selectedDestinationData);
+      const initialBudgetAnalysis = analyzeBudgetPlan(
+        initialCategoryBudget,
+        initialSystemEstimate,
+        normalized,
+        formData,
+        selectedDestinationData
+      );
+
+      normalized.budget_management = initialBudgetAnalysis;
+
+      setCategoryBudget(initialCategoryBudget);
+      setSavedItineraryId(null);
       setItinerary(normalized);
       setGeneratedPlanSignature(currentPlannerSignature);
       // Auto-save removed: we keep the generated itinerary in state until the user clicks save.
@@ -1039,14 +1398,20 @@ function Plantrip() {
 
     setIsSaving(true);
     try {
+      const itineraryWithBudget = {
+        ...itinerary,
+        budget: budgetAnalysis?.summary?.total_user_budget ?? itinerary.budget,
+        budget_management: budgetAnalysis
+      };
       const saveRes = await saveItinerary({
         destination: itinerary.destination,
         days: itinerary.days,
         start_date: formData.startDate,
-        budget: itinerary.budget,
+        budget: budgetAnalysis?.summary?.total_user_budget ?? itinerary.budget,
+        budget_plan: budgetAnalysis,
         travelers: formData.travelers,
         notes: itinerary.notes,
-        itinerary_data: itinerary
+        itinerary_data: itineraryWithBudget
       });
       setSavedItineraryId(saveRes.id);
       openPopupModal({
@@ -1092,6 +1457,8 @@ function Plantrip() {
     setShowGuides(false);
     setGeneratedPlanSignature("");
     setIsMapModalOpen(false);
+    setBudgetWasEdited(false);
+    setCategoryBudget(normalizeCategoryBudget(null, DEFAULT_FORM_DATA.budget));
 
     localStorage.removeItem("plantrip_step");
     localStorage.removeItem("plantrip_formData");
@@ -1220,6 +1587,7 @@ function Plantrip() {
                 value={formData.destination}
                 onChange={(e) => {
                   setFormData((prev) => ({ ...prev, destination: e.target.value }));
+                  setBudgetWasEdited(false);
                   setValidationErrors((prev) => ({ ...prev, destination: undefined }));
                   setGenerationError(null);
                   setDestinationSuggestions([]);
@@ -1227,11 +1595,22 @@ function Plantrip() {
                 className={validationErrors.destination ? "error" : ""}
               >
                 <option value="">Select your destination</option>
-                {destinations.map((d) => (
-                  <option key={d.geoname_id || d.name} value={d.name}>
-                    {d.name}
-                  </option>
-                ))}
+                {recommendedDestinations.length > 0 && (
+                  <optgroup label="Recommended places in Nepal">
+                    {recommendedDestinations.map((d) => (
+                      <option key={`recommended-${d.geoname_id || d.name}`} value={d.name}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="All supported destinations">
+                  {remainingDestinations.map((d) => (
+                    <option key={d.geoname_id || d.name} value={d.name}>
+                      {d.name}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
 
               {validationErrors.destination && (
@@ -1247,9 +1626,10 @@ function Plantrip() {
                 <label>Number of Travelers</label>
                 <select
                   value={formData.travelers}
-                  onChange={(e) =>
-                    setFormData({ ...formData, travelers: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setBudgetWasEdited(false);
+                    setFormData({ ...formData, travelers: e.target.value });
+                  }}
                 >
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                     <option key={n} value={n}>
@@ -1287,6 +1667,7 @@ function Plantrip() {
                   value={formData.days || ""}
                   onChange={(e) => {
                     const val = parseInt(e.target.value, 10);
+                    setBudgetWasEdited(false);
                     setFormData({ ...formData, days: isNaN(val) ? "" : val });
                   }}
                   className={validationErrors.days ? "error" : ""}
@@ -1380,15 +1761,38 @@ function Plantrip() {
                 max="500000"
                 step="5000"
                 value={formData.budget}
-                onChange={(e) =>
-                  setFormData({ ...formData, budget: Number(e.target.value) })
-                }
+                onChange={(e) => {
+                  setBudgetWasEdited(true);
+                  setFormData({ ...formData, budget: Number(e.target.value) });
+                }}
                 className="slider"
               />
               <div className="budget-display">
                 NPR {Number(formData.budget).toLocaleString()}
                 <span className="budget-label"> · {budgetLabel(formData.budget)}</span>
               </div>
+              {recommendedBudget && (
+                <div className="budget-recommendation-strip">
+                  <div>
+                    <span>Recommended for this trip</span>
+                    <strong>{formatNpr(recommendedBudget.total)}</strong>
+                    <p>
+                      Based on {recommendedBudget.travelers} traveler{recommendedBudget.travelers > 1 ? "s" : ""}, {recommendedBudget.days} day{recommendedBudget.days > 1 ? "s" : ""}, and {recommendedBudget.label} costs.
+                    </p>
+                  </div>
+                  {Number(formData.budget) !== recommendedBudget.total && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBudgetWasEdited(false);
+                        setFormData((prev) => ({ ...prev, budget: recommendedBudget.total }));
+                      }}
+                    >
+                      Use recommended
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="btn-row">
@@ -1802,6 +2206,91 @@ function Plantrip() {
                 </div>
               )}
             </div>
+
+            {budgetAnalysis && (
+              <section className={`budget-management-section ${showSuccess ? "hide" : "slide-up"}`}>
+                <div className="budget-management-header">
+                  <div>
+                    <span className="budget-management-kicker">Budget Management</span>
+                    <h2>Preference-Based Trip Budget</h2>
+                    <p>
+                      TripPlanner compares your planned budget with an itinerary-aware estimate for this destination, duration, and traveler count.
+                    </p>
+                  </div>
+                  <span className={`budget-health-badge ${budgetAnalysis.summary.status_tone}`}>
+                    {budgetAnalysis.summary.status}
+                  </span>
+                </div>
+
+                <div className="budget-summary-grid">
+                  <div className="budget-summary-card">
+                    <span>Total User Budget</span>
+                    <strong>{formatNpr(budgetAnalysis.summary.total_user_budget)}</strong>
+                  </div>
+                  <div className="budget-summary-card">
+                    <span>Estimated Trip Expense</span>
+                    <strong>{formatNpr(budgetAnalysis.summary.total_estimated_cost)}</strong>
+                  </div>
+                  <div className={`budget-summary-card ${budgetAnalysis.summary.remaining_balance < 0 ? "negative" : "positive"}`}>
+                    <span>{budgetAnalysis.summary.remaining_balance < 0 ? "Budget Shortage" : "Remaining Balance"}</span>
+                    <strong>{formatNpr(Math.abs(budgetAnalysis.summary.remaining_balance))}</strong>
+                  </div>
+                  <div className="budget-summary-card">
+                    <span>Financial Health</span>
+                    <strong>{budgetAnalysis.summary.message}</strong>
+                  </div>
+                </div>
+
+                <div className="budget-workspace-grid">
+                  <div className="budget-category-panel">
+                    <div className="budget-panel-heading">
+                      <h3>Category Breakdown</h3>
+                      <span>Static estimate in NPR</span>
+                    </div>
+
+                    <div className="budget-category-list">
+                      {budgetAnalysis.categories.map((category) => (
+                        <div key={category.key} className="budget-category-row">
+                          <div className="budget-category-topline">
+                            <strong>{category.label}</strong>
+                          </div>
+
+                          <div className="budget-category-metrics">
+                            <span>Allocated: {formatNpr(category.allocated)}</span>
+                            <span>Estimated: {formatNpr(category.estimated)}</span>
+                          </div>
+
+                          <div className="budget-progress-track" aria-label={`${category.label} utilization ${category.utilization}%`}>
+                            <span
+                              className={category.tone}
+                              style={{ width: `${Math.min(category.utilization, 140)}%` }}
+                            ></span>
+                          </div>
+                          <div className="budget-utilization-label">
+                            {category.utilization}% utilization of allocated budget
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="budget-recommendation-panel">
+                    <div className="budget-panel-heading">
+                      <h3>Smart Recommendations</h3>
+                      <span>Live budget guidance</span>
+                    </div>
+                    <ul className="budget-recommendation-list">
+                      {budgetAnalysis.recommendations.map((recommendation, index) => (
+                        <li key={`${recommendation}-${index}`}>
+                          <span>✓</span>
+                          <p>{recommendation}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </section>
+            )}
 
             <div className={`timeline-wrapper ${showSuccess ? "hide" : "slide-up"}`}>
               <div className="timeline-line"></div>

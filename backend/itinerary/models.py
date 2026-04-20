@@ -16,6 +16,7 @@ class SavedItinerary(models.Model):
     end_date = models.DateField(null=True, blank=True)
     days = models.PositiveIntegerField(default=1)
     budget = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    budget_plan = models.JSONField(default=dict, blank=True)
     travelers = models.PositiveIntegerField(default=1)
     notes = models.TextField(blank=True)           # e.g. auto-adjustment note
     itinerary_data = models.JSONField(default=dict) # full normalised itinerary payload

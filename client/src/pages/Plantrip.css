@@ -726,6 +726,59 @@ body {
   opacity: 0.92;
 }
 
+.budget-recommendation-strip {
+  margin-top: 18px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-radius: 14px;
+  background: rgba(47, 127, 143, 0.08);
+  border: 1px solid rgba(47, 127, 143, 0.16);
+}
+
+.budget-recommendation-strip span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.budget-recommendation-strip strong {
+  display: block;
+  color: var(--deep-blue);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.budget-recommendation-strip p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.budget-recommendation-strip button {
+  flex-shrink: 0;
+  border: 1px solid rgba(47, 127, 143, 0.24);
+  background: var(--card-bg);
+  color: var(--sky-blue);
+  border-radius: 999px;
+  padding: 9px 13px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.budget-recommendation-strip button:hover {
+  background: rgba(47, 127, 143, 0.12);
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2195,6 +2248,265 @@ body {
   border-bottom: none;
 }
 
+.budget-management-section {
+  max-width: 980px;
+  margin: 0 auto 36px;
+  padding: 22px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-soft);
+  border-radius: 18px;
+  box-shadow: var(--card-shadow);
+}
+
+.budget-management-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.budget-management-kicker {
+  display: inline-flex;
+  margin-bottom: 6px;
+  color: var(--teal-accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.budget-management-header h2 {
+  margin: 0 0 6px;
+  color: var(--deep-blue);
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.budget-management-header p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.55;
+  font-size: 13px;
+}
+
+.budget-health-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  border: 1px solid var(--border-soft);
+}
+
+.budget-health-badge.good,
+.category-status.good,
+.budget-progress-track span.good {
+  color: #0f8f61;
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.22);
+}
+
+.budget-health-badge.warning,
+.category-status.warning,
+.budget-progress-track span.warning {
+  color: #a16207;
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.budget-health-badge.danger,
+.category-status.danger,
+.budget-progress-track span.danger {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.13);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.budget-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.budget-summary-card {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--soft-light);
+  border: 1px solid var(--border-soft);
+}
+
+.budget-summary-card span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.budget-summary-card strong {
+  color: var(--deep-blue);
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.budget-summary-card.positive strong {
+  color: #0f8f61;
+}
+
+.budget-summary-card.negative strong {
+  color: #b91c1c;
+}
+
+.budget-workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(250px, 0.65fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.budget-category-panel,
+.budget-recommendation-panel {
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--soft-light);
+  border: 1px solid var(--border-soft);
+}
+
+.budget-panel-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+.budget-panel-heading h3 {
+  margin: 0;
+  color: var(--deep-blue);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.budget-panel-heading span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.budget-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.budget-category-row {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-soft);
+}
+
+.budget-category-topline,
+.budget-category-metrics,
+.budget-utilization-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.budget-category-topline strong {
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.category-status {
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.category-status.neutral,
+.budget-progress-track span.neutral {
+  color: var(--text-muted);
+  background: rgba(148, 163, 184, 0.13);
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+.budget-category-metrics {
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  flex-wrap: wrap;
+}
+
+.budget-progress-track {
+  height: 6px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.budget-progress-track span {
+  display: block;
+  height: 100%;
+  max-width: 100%;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.budget-utilization-label {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.budget-recommendation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.budget-recommendation-list li {
+  display: flex;
+  gap: 8px;
+  padding: 10px 11px;
+  border-radius: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-soft);
+}
+
+.budget-recommendation-list span {
+  flex: 0 0 auto;
+  color: #0f8f61;
+  font-weight: 900;
+}
+
+.budget-recommendation-list p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .tips-card {
   padding: 22px 24px;
 }
@@ -2688,6 +3000,15 @@ html {
   .review-map-meta-grid {
     grid-template-columns: 1fr;
   }
+
+  .budget-summary-grid,
+  .budget-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .budget-category-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
@@ -2757,6 +3078,16 @@ html {
   .review-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .budget-management-section {
+    padding: 24px;
+  }
+
+  .budget-management-header,
+  .budget-panel-heading {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .review-summary-grid,
@@ -2905,6 +3236,15 @@ html {
     grid-template-columns: 1fr;
   }
 
+  .budget-recommendation-strip {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .budget-recommendation-strip button {
+    width: 100%;
+  }
+
   .card-header-flex {
     flex-direction: column;
     align-items: stretch;
@@ -3011,6 +3351,7 @@ html {
   .card,
   .timeline-header-card,
   .footer-card,
+  .budget-management-section,
   .guide-match-card,
   .guide-empty-state,
   .review-main-card,
@@ -3028,6 +3369,19 @@ html {
   .guide-match-card:hover,
   .timeline-day-card.expanded .day-card-content {
     box-shadow: 0 28px 62px rgba(0, 0, 0, 0.42);
+  }
+
+  .budget-category-panel,
+  .budget-recommendation-panel,
+  .budget-summary-card {
+    background: rgba(15, 24, 36, 0.82);
+    border-color: rgba(155, 180, 208, 0.13);
+  }
+
+  .budget-category-row,
+  .budget-recommendation-list li {
+    background: rgba(18, 29, 44, 0.92);
+    border-color: rgba(155, 180, 208, 0.12);
   }
 
   .planner-top-card {
