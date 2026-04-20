@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import axios from 'axios';
@@ -15,6 +15,8 @@ axios.defaults.xsrfHeaderName = 'X-CSRFToken';
 
 export default function Login({ onLogin }) {
     const navigate = useNavigate();
+    const googleRendered = useRef(false);
+    const googleCallback = useRef(null);
 
     const [form, setForm] = useState({ email: '', password: '' });
     const [showPassword, setShowPassword] = useState(false);
@@ -43,20 +45,31 @@ export default function Login({ onLogin }) {
         [navigate, onLogin]
     );
 
+    googleCallback.current = handleGoogleResponse;
+
     useEffect(() => {
         const timer = setInterval(() => {
             const btn = document.getElementById('guide-google-btn');
             if (window.google && btn) {
-                window.google.accounts.id.initialize({
-                    client_id: GOOGLE_CLIENT_ID,
-                    callback: handleGoogleResponse,
-                    ux_mode: 'popup',
-                });
-                window.google.accounts.id.renderButton(btn, {
-                    theme: 'outline',
-                    size: 'large',
-                    width: 300,
-                });
+                window.__tripPlannerGuideGoogleCallback = (response) => {
+                    googleCallback.current?.(response);
+                };
+                if (!window.__tripPlannerGuideGoogleInitialized) {
+                    window.google.accounts.id.initialize({
+                        client_id: GOOGLE_CLIENT_ID,
+                        callback: (response) => window.__tripPlannerGuideGoogleCallback?.(response),
+                        ux_mode: 'popup',
+                    });
+                    window.__tripPlannerGuideGoogleInitialized = true;
+                }
+                if (!googleRendered.current) {
+                    window.google.accounts.id.renderButton(btn, {
+                        theme: 'outline',
+                        size: 'large',
+                        width: 300,
+                    });
+                    googleRendered.current = true;
+                }
                 clearInterval(timer);
             }
         }, 300);

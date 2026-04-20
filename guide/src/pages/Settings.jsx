@@ -5,7 +5,7 @@ import {
     FaSun, FaMoon, FaDesktop, FaCheckCircle, FaShieldAlt, FaCircle
 } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
-import { getCookie } from '../services/guidesService';
+import { getCookie, getGuideAuthToken } from '../services/guidesService';
 import axios from 'axios';
 import './Settings.css';
 
@@ -95,16 +95,29 @@ export default function Settings() {
         setPasswordStatus('saving');
         try {
             const csrfToken = getCookie('csrftoken');
+            const guideToken = getGuideAuthToken();
             await axios.post(
                 `${ACCOUNTS_API}/change-password/`,
-                { old_password: passwordForm.old_password, new_password: passwordForm.new_password },
-                { withCredentials: true, headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {} }
+                {
+                    old_password: passwordForm.old_password,
+                    new_password: passwordForm.new_password,
+                    confirm_password: passwordForm.confirm_password,
+                },
+                {
+                    withCredentials: true,
+                    headers: {
+                        ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {}),
+                        ...(guideToken ? { Authorization: `Bearer ${guideToken}` } : {}),
+                    },
+                }
             );
             setPasswordStatus('saved');
             setPasswordForm({ old_password: '', new_password: '', confirm_password: '' });
             setTimeout(() => setPasswordStatus(null), 3000);
         } catch (err) {
-            setPasswordError(err?.response?.data?.error || 'Password change failed. Check your current password.');
+            const data = err?.response?.data || {};
+            const fieldErrors = data.errors ? Object.values(data.errors).flat().join(' ') : '';
+            setPasswordError(data.error || fieldErrors || 'Password change failed. Check your current password.');
             setPasswordStatus('error');
         }
     };

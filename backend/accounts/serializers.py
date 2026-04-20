@@ -1,14 +1,21 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import UserProfile, Trip, TravelerProfile
+from guides.models import GuideProfile
 
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+    role = serializers.ChoiceField(
+        choices=["traveler", "guide"],
+        default="traveler",
+        write_only=True,
+        required=False,
+    )
 
     class Meta:
         model = User
-        fields = ["username", "email", "password"]
+        fields = ["username", "email", "password", "role"]
 
     # ✅ NEW (professional validation)
     def validate_email(self, value):
@@ -22,12 +29,24 @@ class RegisterSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        role = validated_data.pop("role", "traveler")
         user = User.objects.create_user(
             username=validated_data["username"],
             email=validated_data["email"],
             password=validated_data["password"],
         )
         UserProfile.objects.create(user=user)
+        if role == "guide":
+            GuideProfile.objects.create(
+                user=user,
+                full_name=user.username,
+                email=user.email,
+            )
+        else:
+            TravelerProfile.objects.create(
+                user=user,
+                full_name=user.username,
+            )
         return user
 
 

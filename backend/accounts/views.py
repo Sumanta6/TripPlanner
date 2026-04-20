@@ -19,7 +19,7 @@ from django.core.exceptions import ValidationError
 from .models import Trip, TravelerProfile
 from .serializers import TripSerializer, RegisterSerializer, TravelerProfileSerializer
 from .authentication import build_admin_auth_token, build_guide_auth_token
-from guides.models import Booking
+from guides.models import Booking, GuideProfile
 from guides.serializers import BookingSerializer
 
 GOOGLE_CLIENT_ID = "320492427698-7se212gnd06b14a41a3jsca1sqiv4pn7.apps.googleusercontent.com"
@@ -65,6 +65,14 @@ def build_login_payload(user):
             "is_staff": user.is_staff,
         },
     }
+
+
+def create_legacy_guide_profile(user):
+    return GuideProfile.objects.create(
+        user=user,
+        full_name=user.get_full_name() or user.username,
+        email=user.email,
+    )
 
 
 # ======================
@@ -136,9 +144,14 @@ def guide_login(request):
     if user is None:
         return Response({"error": "Invalid email or password"}, status=401)
 
+    if not hasattr(user, "guide_profile") and not hasattr(user, "traveler_profile"):
+        create_legacy_guide_profile(user)
+
     if not hasattr(user, "guide_profile"):
         return Response({"error": "This account belongs to a traveler. Please use the Traveler portal."}, status=403)
 
+    django_login(request, user)
+    request.session.set_expiry(60 * 60 * 24 * 14 if request.data.get("remember_me", False) else 0)
     token = build_guide_auth_token(user)
     return Response(
         {
@@ -214,9 +227,13 @@ def guide_google_login(request):
     except User.DoesNotExist:
         return Response({"error": "No guide account found for this Google user."}, status=404)
 
+    if not hasattr(user, "guide_profile") and not hasattr(user, "traveler_profile"):
+        create_legacy_guide_profile(user)
+
     if not hasattr(user, "guide_profile"):
         return Response({"error": "This account belongs to a traveler. Please use the Traveler portal."}, status=403)
 
+    django_login(request, user)
     token_value = build_guide_auth_token(user)
     return Response(
         {
